@@ -21,8 +21,9 @@ import pytest
 from oasis_data_manager.filestore.backends.local import LocalStorage
 
 from oasislmf.pytools.getmodel.common import (
+    SECTION_MERGE_OPTIONS,
     event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename)
-from oasislmf.pytools.getmodel.footprint import FootprintParquetDynamic
+from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic, OasisFootPrintError
 from oasislmf.utils.path import setcwd
 
 # the sections a flat file holds are found by pushing a section_id filter down to the reader,
@@ -106,10 +107,10 @@ def build_model(tmp_path, event_definition=None, hazard_case=None,
 
 @contextmanager
 def open_footprint(storage, run_dir, areaperil_ids=None,
-                   df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader"):
+                   df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader", lazy=False):
     """Open a FootprintParquetDynamic with the run directory as cwd, as gulmc does."""
     with setcwd(run_dir):
-        with FootprintParquetDynamic(storage, df_engine=df_engine, areaperil_ids=areaperil_ids) as footprint:
+        with FootprintParquetDynamic(storage, df_engine=df_engine, areaperil_ids=areaperil_ids, lazy=lazy) as footprint:
             yield footprint
 
 
@@ -144,30 +145,86 @@ def test_every_partitioning_layout_builds_the_same_footprint(tmp_path, df_engine
 
 @pytest.mark.parametrize('partition_event_definition', [True, False])
 @pytest.mark.parametrize('partition_hazard_case', [True, False])
-def test_hazard_case_is_read_once_per_run(tmp_path, monkeypatch, partition_event_definition,
-                                          partition_hazard_case):
+def test_hazard_case_is_read_once_per_run(tmp_path, footprint_reads, partition_event_definition, partition_hazard_case):
     """The hazard case does not depend on the event, so no layout may re-read it per event.
 
-    Reading it per call costs a partition discovery over the whole dataset each time, which
-    scales with the sections the model has rather than with the sections the event needs.
+    Re-reading it per call would cost a read of every portfolio section each time, which
+    scales with the events in the model rather than once per run.
     """
     storage, run_dir = build_model(tmp_path, partition_event_definition=partition_event_definition,
                                    partition_hazard_case=partition_hazard_case)
-
-    reads = []
-    original_get_df_reader = FootprintParquetDynamic.get_df_reader
-
-    def counting_get_df_reader(self, filepath, **kwargs):
-        reads.append(filepath)
-        return original_get_df_reader(self, filepath, **kwargs)
-
-    monkeypatch.setattr(FootprintParquetDynamic, 'get_df_reader', counting_get_df_reader)
 
     with open_footprint(storage, run_dir) as footprint:
         for event_id in (1, 2, 3, 1, 2, 3):
             footprint.get_event(event_id)
 
-    assert reads.count(hazard_case_filename) == 1
+    hazard_reads = [path for path in footprint_reads if path.split('/')[0] == hazard_case_filename]
+    assert hazard_reads
+    assert len(hazard_reads) == len(set(hazard_reads))
+
+
+def build_many_section_model(tmp_path, num_sections, sections):
+    """Lay out a model with one event touching every section, each section with its own areaperil."""
+    model_sections = range(1, num_sections + 1)
+    event_definition = make_event_definition([(1, section, 10, 20, 0.5, 15) for section in model_sections])
+    hazard_case = make_hazard_case([(section, 1000 + section, return_period, intensity)
+                                    for section in model_sections
+                                    for return_period, intensity in ((10, 4), (20, 8))])
+    return build_model(tmp_path, event_definition=event_definition, hazard_case=hazard_case, sections=sections)
+
+
+@pytest.mark.parametrize('df_engine', DF_ENGINES)
+def test_partitioned_files_read_only_the_portfolio_sections(tmp_path, footprint_reads, monkeypatch, df_engine):
+    """A portfolio needing few of a partitioned file's sections reads only their section_id=N/ directories.
+
+    Discovering the whole dataset lists every section of the model before any filter applies,
+    which takes minutes on a large model even when the portfolio needs only a few sections.
+    """
+    storage, run_dir = build_many_section_model(tmp_path, num_sections=16, sections=[1, 99])
+    monkeypatch.setattr(FootprintParquetDynamic, 'partition_read_max_share', 1 / 8)  # a few sections of a small model
+
+    with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
+        assert areaperils_of(footprint.get_event(1)) == {1001}
+        assert footprint.get_event(2) is None
+
+    assert sorted(footprint_reads) == [f'{event_defintion_filename}/section_id=1', f'{hazard_case_filename}/section_id=1']
+
+
+@pytest.mark.parametrize('df_engine', DF_ENGINES)
+def test_portfolio_needing_most_sections_reads_each_file_once(tmp_path, footprint_reads, monkeypatch, df_engine):
+    """Past a small share of the sections, one filtered read beats opening every partition in turn."""
+    storage, run_dir = build_many_section_model(tmp_path, num_sections=16, sections=list(range(1, 13)))
+    monkeypatch.setattr(FootprintParquetDynamic, 'partition_read_max_share', 1 / 8)  # as above: 12 is past it
+
+    with open_footprint(storage, run_dir, df_engine=df_engine) as footprint:
+        assert areaperils_of(footprint.get_event(1)) == {1000 + section for section in range(1, 13)}
+
+    assert sorted(footprint_reads) == [event_defintion_filename, hazard_case_filename]
+
+
+def test_a_lazy_footprint_loads_only_to_save(tmp_path, footprint_reads):
+    """gulmc's structure build opens the footprint for num_intensity_bins, and to save its sections when asked."""
+    storage, run_dir = build_model(tmp_path)
+
+    with open_footprint(storage, run_dir, lazy=True) as footprint:
+        assert footprint.num_intensity_bins == 10
+        assert footprint_reads == []
+        assert footprint.save_shared(str(tmp_path / 'shared'))
+        assert sorted(footprint_reads) == [event_defintion_filename, hazard_case_filename]
+
+
+def test_opening_the_footprint_loads_its_sections(tmp_path, footprint_reads):
+    """By default the sections load when the footprint is opened, so unusable model data is refused there.
+
+    The footprint server catches each request's error and keeps serving: data refused only by a
+    get_event would leave its client waiting, or with an empty footprint, rather than stop the run.
+    """
+    storage, run_dir = build_model(tmp_path)
+
+    with open_footprint(storage, run_dir) as footprint:
+        assert sorted(footprint_reads) == [event_defintion_filename, hazard_case_filename]
+        footprint.get_event(1)
+        assert sorted(footprint_reads) == [event_defintion_filename, hazard_case_filename]
 
 
 # ---------------------------------------------------------------------------
@@ -433,3 +490,91 @@ def test_complete_model_data_is_quiet(tmp_path, caplog):
 
     assert records_matching(caplog, logging.INFO, 'not at risk') == []
     assert records_matching(caplog, logging.WARNING, 'every loss will be zero') == []
+
+
+# ---------------------------------------------------------------------------
+# section_merge: how an areaperil lying in several sections of one event is
+# merged. An unknown value is refused when the footprint is loaded.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('section_merge', [None, *SECTION_MERGE_OPTIONS])
+def test_every_section_merge_option_loads(tmp_path, section_merge):
+    storage, run_dir = build_model(tmp_path)
+    with setcwd(run_dir), Footprint.load(storage, section_merge=section_merge) as footprint:
+        assert intensity_by_areaperil(footprint.get_event(1)) == {100: 6, 101: 8, 200: 4}
+
+
+def test_unknown_section_merge_is_refused_at_load(tmp_path):
+    storage, run_dir = build_model(tmp_path)
+    with setcwd(run_dir), pytest.raises(OasisFootPrintError, match="unknown section_merge 'maximum'.*max_independent"):
+        Footprint.load(storage, section_merge='maximum')
+
+
+def test_modelpy_refuses_a_dynamic_footprint(tmp_path):
+    """modelpy cannot map a dynamic footprint's intensities to bins; it must say so, not report zero loss."""
+    from oasislmf.pytools.getmodel.structure import build_structures
+    from oasislmf.utils.exceptions import OasisException
+
+    storage, run_dir = build_model(tmp_path)
+    (run_dir / 'static').symlink_to(tmp_path / 'static')  # where a run directory holds the model data
+    pd.DataFrame({'item_id': [1, 2], 'coverage_id': [1, 2], 'areaperil_id': [100, 200], 'vulnerability_id': 1,
+                  'group_id': 1}).to_csv(run_dir / 'input' / 'items.csv', index=False)
+    with pytest.raises(OasisException, match='dynamic footprint.*gulmc'):
+        build_structures(str(run_dir), ignore_file_type=set(), peril_filter=[])
+
+
+def test_modelpy_refusal_holds_for_a_relative_run_directory(tmp_path, monkeypatch):
+    """The run directory given relative to the working directory must still find the model's footprint."""
+    from oasislmf.pytools.getmodel.structure import build_structures
+    from oasislmf.utils.exceptions import OasisException
+
+    storage, run_dir = build_model(tmp_path)
+    (run_dir / 'static').symlink_to(tmp_path / 'static')
+    pd.DataFrame({'item_id': [1], 'coverage_id': [1], 'areaperil_id': [100], 'vulnerability_id': 1,
+                  'group_id': 1}).to_csv(run_dir / 'input' / 'items.csv', index=False)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(OasisException, match='modelpy and gulpy cannot run'):
+        build_structures('run', ignore_file_type=set(), peril_filter=[])
+
+
+@pytest.mark.parametrize('column, value, reason', [
+    ('intensity', np.nan, 'intensity that is not finite'),
+    ('intensity', 2.0**40, 'outside the int32 range'),
+    ('probability', -0.5, 'probability that is not finite or negative'),
+    # read as 10, it would join the rp 10 row of the same areaperil in one bracket
+    ('return_period', 10.5, 'return_period that is missing or not a whole number'),
+    ('return_period', np.nan, 'return_period that is missing or not a whole number'),
+])
+def test_unusable_hazard_values_are_refused_at_load(tmp_path, column, value, reason):
+    hazard_case = make_hazard_case().astype({'intensity': 'float64', 'return_period': 'float64'}).assign(probability=1.0)
+    hazard_case.loc[0, column] = value
+    storage, run_dir = build_model(tmp_path, hazard_case=hazard_case)
+    with pytest.raises(OasisFootPrintError, match=reason):
+        with open_footprint(storage, run_dir):
+            pass
+
+
+@pytest.mark.parametrize('partition_event_definition', [True, False], ids=['partitioned', 'flat'])
+@pytest.mark.parametrize('column, value, reason', [
+    ('interpolation', np.nan, 'interpolation that is missing or not finite'),
+    ('rp_from', np.nan, 'rp_from that is missing or not a whole number'),
+    ('rp_to', 20.5, 'rp_to that is missing or not a whole number'),
+])
+def test_unusable_event_definition_values_are_refused(tmp_path, partition_event_definition, column, value, reason):
+    """Refused at load when the event definition is read whole, when the event is read otherwise."""
+    event_definition = make_event_definition().astype({'rp_from': 'float64', 'rp_to': 'float64'})
+    event_definition.loc[0, column] = value
+    storage, run_dir = build_model(tmp_path, event_definition=event_definition,
+                                   partition_event_definition=partition_event_definition)
+    with pytest.raises(OasisFootPrintError, match=reason):
+        with open_footprint(storage, run_dir) as footprint:
+            footprint.get_event(1)
+
+
+def test_a_distribution_with_no_probability_is_refused_at_load(tmp_path):
+    hazard_case = make_hazard_case().assign(probability=1.0)
+    hazard_case.loc[hazard_case['areaperil_id'] == 200, 'probability'] = 0.0
+    storage, run_dir = build_model(tmp_path, hazard_case=hazard_case)
+    with pytest.raises(OasisFootPrintError, match='adding up to 0'):
+        with open_footprint(storage, run_dir):
+            pass

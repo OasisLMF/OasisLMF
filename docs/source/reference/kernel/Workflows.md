@@ -11,7 +11,7 @@ of a single stream see the *step-by-step pipeline* example (in the example-model
 
 Two ground-up engines are available: **`gulmc`** (full Monte-Carlo, reads the model data
 directly — the default, used below) and **`gulpy`** (consumes `modelpy`'s CDF stream, i.e.
-`evepy | modelpy | gulpy …`). Summary type is selected with `summarypy -t gul|il|ri`.
+`evepy | modelpy | gulpy …`). Summary type is selected with `summarypy -t gul|il|ri|rl`.
 
 ## Single-output workflows
 

@@ -489,14 +489,15 @@ to items (2) in proportion to the losses from the prior level calculation.
     $ fmpy -a 1 # Losses are back-allocated to items on the basis of the input losses (e.g. ground up loss)
     $ fmpy -a 2 # Losses are back-allocated to items on the basis of the prior level losses
 
-The rules for specifying the ``output_ids`` in the xref table are as follows:
+The xref table has an ``output_id`` for every ``from_agg_id`` of the first level in the **programme** table, and for
+every ``layer_id`` in the final level of the **policytc** table, whatever the allocation rule. To make sense of this,
+if there is more than one output at the contract level, then each one must be back-allocated to all of the items, with
+each individual loss represented by a unique ``output_id``.
 
-* **Rule 1**: there is an ``output_id`` for every ``agg_id`` and ``layer_id`` of the final level in the **policytc** table
-* **Rule 2**: there is an ``output_id`` for every ``from_agg_id`` of the first level in the **programme** table, and for
-  every ``layer_id`` in the final level of the **policytc** table
-
-To make sense of this, if there is more than one output at the contract level, then each one must be back-allocated
-to all of the items, with each individual loss represented by a unique ``output_id``.
+With ``-a 0`` the losses are not back-allocated, so each contract-level loss is written under the ``output_id`` that
+one of its items has for that layer. The items of a contract share its portfolio, account and policy, so summaries at
+those levels are exact; a breakdown by location does not exist without back-allocation. Reinsurance needs the insured
+loss of each item, so a model run refuses ``-a 0`` for insured losses when reinsurance is requested.
 
 To avoid unnecessary computation, it is recommended not to back-allocate unless losses are required to be reported at
 a more detailed level than the contract level (site or zip code, for example). In this case, losses are re-aggregated
@@ -515,6 +516,9 @@ reinsurance contracts, and can output either the reinsurance gross loss, or net 
 * **net** being the difference between the input loss and the policy/contract losses
 
 **net** loss is output when the command line parameter -n is used, otherwise output loss is gross by default.
+With ``-n -`` (or ``-n <path>``) both are written: the gross to ``-o`` and the net to stdout (or
+``<path>``). This lets one reinsurance iteration report the loss to its contracts while its net
+loss streams on to the next iteration.
 
 Supported reinsurance types
 """""""""""""""""""""""""""
@@ -632,6 +636,41 @@ iteration.
 The net calculation for iterations with multiple layers is:
 
     net loss = max(0, input loss - layer1 loss - layer2 loss - ... - layer n loss)
+
+Reinsurance outputs
+"""""""""""""""""""
+
+.. versionadded:: 2.5.10
+
+A model run can report two reinsurance perspectives, each set in the analysis settings:
+
+* **ri** (``ri_output``, ``ri_summaries``) — the loss net of reinsurance. Each iteration's net
+  feeds the next, so the last iteration's net is the net of the whole programme.
+* **rl** (``rl_output``, ``rl_summaries``) — the reinsurer's loss, the gross output of each
+  iteration. Each iteration is summarised by ``summarypy -t rl -s`` and ``rlcombine`` sums them
+  into the reinsurer's loss of the whole programme.
+
+``ri_inuring_priorities`` and ``rl_inuring_priorities`` list OED ``InuringPriority`` values to
+also report on their own, as ``ri_IP{level}_*`` and ``rl_IP{level}_*`` files, where ``{level}``
+is an iteration (``RI_{level}``). ``reins_output_levels_summary.json`` in the output folder maps
+each ``IP{level}`` back to its inuring priority and risk level. See
+:doc:`../reference/kernel/CoreComponents` for the components.
+
+An inuring priority whose contracts are at different risk levels (for example a ``LOC`` and an
+``ACC`` treaty, both at ``InuringPriority`` 1) runs over several iterations, one per risk level:
+
+* ``ri`` reports the last of them, ``ri_IP{level}``, as each iteration's net feeds the next.
+* ``rl`` reports each of them, one ``rl_IP{level}`` per iteration, as each iteration's
+  reinsurer's loss covers only its own contracts.
+
+With ``full_correlation``, the fully correlated outputs in ``output/full_correlation/`` include
+``ri`` for the final inuring priority only, and no ``rl``
+(`#2311 <https://github.com/OasisLMF/OasisLMF/issues/2311>`_).
+
+.. note::
+   When an iteration has several layers (several contracts at one inuring priority and risk
+   level), only the top layer's loss reaches the ``rl`` stream
+   (`#2266 <https://github.com/OasisLMF/OasisLMF/issues/2266>`_).
 
 
 .. _architecture_FM:

@@ -411,7 +411,7 @@ N2_LOC = """PortNumber,AccNumber,LocNumber,IsTenant,BuildingID,CountryCode,Latit
 """
 
 EXPECTED_KEYS = b'LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID,AmplificationID\n1,WSS,1,1000,8,2\n1,WTC,1,500,2,1\n1,WSS,3,1000,11,2\n1,WTC,3,500,5,1\n'
-EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n'
+EXPECTED_ERROR = b'LocID,PerilID,CoverageTypeID,Status,Message\n1,,1,notmodelled,WEC not modelled\n1,,3,notmodelled,WEC not modelled\n'
 
 EXPECTED_KEYS_COMPLEX = b'LocID,PerilID,CoverageTypeID,ModelData\n1,WTC,1,"{""area_peril_id"": 54, ""vulnerability_id"": 2}"\n1,WTC,3,"{""area_peril_id"": 54, ""vulnerability_id"": 5}"\n1,WSS,1,"{""area_peril_id"": 154, ""vulnerability_id"": 8}"\n1,WSS,3,"{""area_peril_id"": 154, ""vulnerability_id"": 11}"\n'
 EXPECTED_ERROR_COMPLEX = b'LocID,PerilID,CoverageTypeID,Status,Message\n'
@@ -427,6 +427,9 @@ FAKE_MODEL_RUNNER__OLD = os.path.join(os.path.dirname(__file__), 'fake_model_run
 
 ALL_EXPECTED_SCRIPT = os.path.join(os.path.dirname(__file__), 'ord_bash_script_{0}.sh')
 
-EXPECTED_CORRELATION_CSV = b'item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,hazard_correlation_value,source_item_id\n1,1,0.7,833720067,0.4,0\n2,2,0.5,741910550,0.2,0\n'
+EXPECTED_CORRELATION_CSV = (b'item_id,peril_correlation_group,damage_correlation_value,hazard_group_id,'
+                            b'hazard_correlation_value,source_item_id\n'
+                            b'1,1,0.7,833720067,0.4,0\n'
+                            b'2,2,0.5,741910550,0.2,0\n')
 
 EXPECTED_SUMMARY_INFO_CSV = b'summary_id,LocNumber,AccNumber,PolNumber,AccCurrency,tiv\n1,10002082046,A11111,Layer1,GBP,220000.0\n'

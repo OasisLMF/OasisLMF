@@ -1,6 +1,47 @@
 OasisLMF Changelog
 ==================
 
+`2.5.10`_
+ ---------
+* [#2145](https://github.com/OasisLMF/OasisLMF/pull/2145) - Building-packed loss streams: buildings in the sample dimension
+* [#2199](https://github.com/OasisLMF/OasisLMF/pull/2199) - Fix aggregate vulnerability PDF normalisation when no weights are assigned
+* [#2207](https://github.com/OasisLMF/OasisLMF/pull/2207) - Read only the portfolio's footprint section partitions, and load them once per run
+* [#2219](https://github.com/OasisLMF/OasisLMF/pull/2219) - Dynamic footprint: selectable confluence merge, quantile pairing of return period brackets, join_rows lookup step
+* [#2224](https://github.com/OasisLMF/OasisLMF/pull/2224) - Progress updates for gulmc start-up and the output stage, plus ping and exit-handler fixes
+* [#2235](https://github.com/OasisLMF/OasisLMF/pull/2235) - fm: merge per-layer extras by maximum, keep copying them on creation
+* [#2241](https://github.com/OasisLMF/OasisLMF/pull/2241) - fix/windows-memmap-leaks
+* [#2242](https://github.com/OasisLMF/OasisLMF/pull/2242) - Feature/reins outputs
+* [#2243](https://github.com/OasisLMF/OasisLMF/pull/2243) - Write multiprocessed lookup keys in chunk order
+* [#2244](https://github.com/OasisLMF/OasisLMF/pull/2244) - Assign GUL item ids in a canonical order
+* [#2245](https://github.com/OasisLMF/OasisLMF/pull/2245) - Speed up exposure summary generation
+* [#2251](https://github.com/OasisLMF/OasisLMF/pull/2251) - event_stream: read/write stream scalars without temporary array views (gulmc numba >= 0.66 slowdown)
+* [#2253](https://github.com/OasisLMF/OasisLMF/pull/2253) - Strengthen the test suite: JIT-off tolerances, kernel property tests, redirect_logging state
+* [#2258](https://github.com/OasisLMF/OasisLMF/pull/2258) - feature/occurrence-index-mmap
+* [#2259](https://github.com/OasisLMF/OasisLMF/pull/2259) - gulmc: per-event cost no longer scales with the portfolio size
+* [#2260](https://github.com/OasisLMF/OasisLMF/pull/2260) - summarypy: per-event cost no longer scales with the portfolio size
+* [#2262](https://github.com/OasisLMF/OasisLMF/pull/2262) - fix/lookup-peril-group-duplicates
+* [#2264](https://github.com/OasisLMF/OasisLMF/pull/2264) - fix/macos-runner-retired
+* [#2278](https://github.com/OasisLMF/OasisLMF/pull/2278) - gulmc: share the dynamic footprint's hazard between processes
+* [#2290](https://github.com/OasisLMF/OasisLMF/pull/2290) - fix/lookup-perils-covered-memory
+* [#2292](https://github.com/OasisLMF/OasisLMF/pull/2292) - Honour remove_working_file in generate_losses_output
+* [#2296](https://github.com/OasisLMF/OasisLMF/pull/2296) - Stop passing a bare -i to custom gulcalc binaries
+* [#2298](https://github.com/OasisLMF/OasisLMF/pull/2298) - Fix oasislmf test model run
+* [#2299](https://github.com/OasisLMF/OasisLMF/pull/2299) - Built-in lookup: share rtree and merge step data between key generation workers
+* [#2303](https://github.com/OasisLMF/OasisLMF/pull/2303) - Pass -M to aalpy for ORD alt_meanonly output
+* [#2306](https://github.com/OasisLMF/OasisLMF/pull/2306) - Fixing other OS issues
+* [#2312](https://github.com/OasisLMF/OasisLMF/pull/2312) - Update PR target branch in CONTRIBUTING.md to main
+* [#2313](https://github.com/OasisLMF/OasisLMF/pull/2313) - Use stored run settings in chunked loss steps (model_default_samples ignored)
+* [#2316](https://github.com/OasisLMF/OasisLMF/pull/2316) - Upgrade github/codeql-action to v4
+* [#2318](https://github.com/OasisLMF/OasisLMF/pull/2318) - Install Azure test deps in OasisModels CLI workflow
+* [#2319](https://github.com/OasisLMF/OasisLMF/pull/2319) - Group optional dependencies by feature and read geotiffs with rasterio
+* [#2320](https://github.com/OasisLMF/OasisLMF/pull/2320) - CI OasisModel platfrom workflow
+* [#2321](https://github.com/OasisLMF/OasisLMF/pull/2321) - Builtin lookup: prepare options strip, upper, lower, rename and drop (#2284)
+* [#2322](https://github.com/OasisLMF/OasisLMF/pull/2322) - Builtin lookup: optional_columns per step; geog_lookup slots optional (#2284)
+* [#2323](https://github.com/OasisLMF/OasisLMF/pull/2323) - Builtin lookup: sorted_lookup step for very large key tables (#2284)
+* [#2324](https://github.com/OasisLMF/OasisLMF/pull/2324) - Builtin lookup: transform_coordinates step (pyproj) (#2284)
+* [#2326](https://github.com/OasisLMF/OasisLMF/pull/2326) - lookup: drop unused categories from each multiprocess location chunk
+.. _`2.5.10`:  https://github.com/OasisLMF/OasisLMF/compare/2.5.9...2.5.10
+
 `2.5.9`_
  ---------
 * [#2175](https://github.com/OasisLMF/OasisLMF/pull/2175) - Add `oasislmf model check` to validate a portfolio against model data

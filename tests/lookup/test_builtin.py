@@ -1,3 +1,6 @@
+import copy
+import re
+import sys
 from collections import OrderedDict
 from pathlib import Path
 
@@ -8,13 +11,18 @@ import pytest
 
 from oasislmf.lookup.builtin import (
     Lookup,
+    geotiff_read_plan,
+    geotiff_value_dtype,
+    PerilCoveredDeterministicLookup,
     create_lat_lon_id_functions,
     get_step,
     jit_geo_grid_lookup,
+    load_sorted_lookup,
     normal_to_z_index,
     undo_z_index,
     z_index,
     z_index_to_normal,
+    write_sorted_lookup,
 )
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import (
@@ -187,7 +195,7 @@ def test_build_rtree_associates_correctly(locations_by_name, expected_ids, reque
 
 def test_build_rtree_accepts_deprecated_parameter(rtree_locations_all_coordinates):
     """Test that the rtree builtin still works with the deprecated parameter."""
-    with pytest.warns(DeprecationWarning):
+    with pytest.warns(FutureWarning):
         rtree = Lookup(config={}).build_rtree(
             file_path=(FILES_DIR / "rtree_areas.parquet").as_posix(),
             file_type="parquet",
@@ -237,6 +245,410 @@ def test_build_rtree_reprojects_non_4326_geometries(target_crs, rtree_locations_
     )
 
 
+def _overlapping_geometries():
+    """Overlapping squares, so some locations are in several geometries, with extra columns."""
+    gpd = pytest.importorskip("geopandas")
+    shapely = pytest.importorskip("shapely")
+    return gpd.GeoDataFrame(
+        {"poly_id": [1, 2, 3, 4], "factor": [0.1, 0.2, 0.3, 0.4], "label": ["a", "b", "c", "d"]},
+        geometry=[shapely.box(0, 0, 2, 2), shapely.box(1, 1, 3, 3), shapely.box(0.5, 0.5, 1.5, 1.5),
+                  shapely.box(5, 5, 6, 6)],
+        crs="EPSG:4326",
+    )
+
+
+def test_build_rtree_matches_sjoin_with_overlapping_geometries(tmp_path):
+    """A location in several geometries gets one row per geometry, in the order and with the
+    columns geopandas.sjoin(how='left') gives them."""
+    gpd = pytest.importorskip("geopandas")
+    gdf = _overlapping_geometries()
+    gdf.to_parquet(tmp_path / "areas.parquet")
+    locations = pd.DataFrame({
+        "loc_id": [10, 11, 12, 13, 14],
+        "longitude": [1.2, 2.5, 4.0, 5.5, 0.1],
+        "latitude": [1.2, 2.5, 4.0, 5.5, 0.1],
+    }, index=[7, 3, 9, 1, 5])
+
+    rtree = Lookup(config={}).build_rtree(
+        file_path=(tmp_path / "areas.parquet").as_posix(), file_type="parquet", id_columns="poly_id")
+    output = rtree(locations)
+
+    gdf_loc = gpd.GeoDataFrame(locations, geometry=gpd.points_from_xy(locations.longitude, locations.latitude),
+                               crs="EPSG:4326")
+    expected = gpd.sjoin(gdf_loc, gdf, how="left").drop(columns=["geometry", "index_right"])
+    expected = Lookup.set_id_columns(pd.DataFrame(expected), "poly_id")
+
+    pd.testing.assert_frame_equal(output, expected)
+    assert sorted(output.loc[7, "poly_id"]) == [1, 2, 3]
+    assert output.loc[9, "poly_id"] == OASIS_UNKNOWN_ID
+
+
+def _count_parquet_reads(monkeypatch):
+    from oasislmf.lookup import builtin
+    reads = []
+    read_parquet = builtin.gpd.read_parquet
+
+    def counting_read_parquet(*args, **kwargs):
+        reads.append(args[0])
+        return read_parquet(*args, **kwargs)
+    monkeypatch.setattr(builtin.gpd, "read_parquet", counting_read_parquet)
+    return reads
+
+
+def _rtree_lookup_config(file_path):
+    return {"step_definition": {"peril": {
+        "type": "rtree",
+        "columns": ["longitude", "latitude"],
+        "parameters": {"file_path": file_path, "file_type": "parquet", "id_columns": ["poly_id"],
+                       "nearest_neighbor_max_distance": 12000},
+    }}, "strategy": ["peril"]}
+
+
+def test_multiproc_shared_data_loads_rtree_file_once(monkeypatch, rtree_locations_all_coordinates):
+    """Lookups built while the parent's shared data is loaded (as forked workers are) reuse it
+    instead of reading the geometry file again, and it is released when the context exits."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    reads = _count_parquet_reads(monkeypatch)
+    config = _rtree_lookup_config((FILES_DIR / "rtree_areas.parquet").as_posix())
+    params = config["step_definition"]["peril"]["parameters"]
+
+    with Lookup(config=config).multiproc_shared_data():
+        assert len(reads) == 1
+        assert len(_SHARED_STEP_DATA) == 1
+        for _ in range(2):  # e.g. two workers
+            output = Lookup(config=config).build_rtree(**params)(rtree_locations_all_coordinates)
+            assert output["poly_id"].tolist() == [1, 2, 1, OASIS_UNKNOWN_ID]
+        assert len(reads) == 1
+
+    assert not _SHARED_STEP_DATA
+    Lookup(config=config).build_rtree(**params)
+    assert len(reads) == 2
+
+
+def test_multiproc_shared_data_not_used_for_edited_file(monkeypatch, tmp_path, rtree_locations_all_coordinates):
+    """Shared data identifies the file's version, so an edited file is read again."""
+    gpd = pytest.importorskip("geopandas")
+    file_path = tmp_path / "areas.parquet"
+    gdf = gpd.read_parquet(FILES_DIR / "rtree_areas.parquet")
+    gdf.to_parquet(file_path)
+    reads = _count_parquet_reads(monkeypatch)
+    config = _rtree_lookup_config(file_path.as_posix())
+    params = config["step_definition"]["peril"]["parameters"]
+
+    with Lookup(config=config).multiproc_shared_data():
+        gdf.assign(poly_id=gdf["poly_id"] + 10).to_parquet(file_path)
+        output = Lookup(config=config).build_rtree(**params)(rtree_locations_all_coordinates)
+
+    assert len(reads) == 2
+    assert output["poly_id"].tolist() == [11, 12, 11, OASIS_UNKNOWN_ID]
+
+
+def test_multiproc_shared_data_skips_overridden_build_rtree(monkeypatch):
+    """A subclass with its own build_rtree may not use the data, so none is loaded for it."""
+    reads = _count_parquet_reads(monkeypatch)
+
+    class CustomLookup(Lookup):
+        def build_rtree(self, **kwargs):
+            return lambda locations: locations
+
+    config = _rtree_lookup_config((FILES_DIR / "rtree_areas.parquet").as_posix())
+    with CustomLookup(config=config).multiproc_shared_data():
+        pass
+    assert not reads
+
+
+def test_strategy_step_names_follows_combine_steps():
+    """The steps run are those in 'strategy' and, recursively, in its 'combine' steps; a combine
+    step that is defined but not used doesn't count, and a built combine step (whose strategy
+    holds {'name': ..., 'function': ...}) is followed too."""
+    config = {
+        "step_definition": {
+            "a": {"type": "merge"},
+            "b": {"type": "rtree"},
+            "c": {"type": "rtree"},
+            "d": {"type": "rtree"},
+            "e": {"type": "merge"},
+            "f": {"type": "merge"},
+            "comb": {"type": "combine", "parameters": {"strategy": ["b", "comb2"]}},
+            "comb2": {"type": "combine", "parameters": {"strategy": [{"name": "c", "function": None}, "comb"]}},
+            "unused_comb": {"type": "combine", "parameters": {"strategy": ["e"]}},
+        },
+        "strategy": ["a", "comb"],
+    }
+    assert Lookup(config=config)._strategy_step_names() == {"a", "comb", "b", "comb2", "c"}
+
+
+def test_multiproc_shared_data_skips_steps_not_in_strategy(monkeypatch, rtree_locations_all_coordinates):
+    """Only the files of steps the strategy runs, directly or through a 'combine' step, are
+    loaded: the unused rtree and merge steps' files don't exist, so loading them would fail."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    reads = _count_parquet_reads(monkeypatch)
+    used_file = (FILES_DIR / "rtree_areas.parquet").as_posix()
+    rtree_step = _rtree_lookup_config(used_file)["step_definition"]["peril"]
+    unused_step = {**rtree_step, "parameters": {**rtree_step["parameters"], "file_path": "does_not_exist.parquet"}}
+    config = {
+        "step_definition": {
+            "unused_peril": unused_step,
+            "unused_vulnerability": {"type": "merge", "columns": ["peril_id"],
+                                     "parameters": {"file_path": "does_not_exist.csv", "id_columns": ["vulnerability_id"]}},
+            "used_peril": rtree_step,
+            "peril": {"type": "combine", "parameters": {"strategy": ["used_peril"], "id_columns": ["poly_id"]}},
+            "unused_combine": {"type": "combine", "parameters": {"strategy": ["unused_peril"]}},
+        },
+        "strategy": ["peril"],
+    }
+
+    with Lookup(config=config).multiproc_shared_data():
+        assert reads == [used_file]
+        assert len(_SHARED_STEP_DATA) == 1
+
+
+@pytest.fixture
+def merge_table_csv(tmp_path):
+    """A merge table with a duplicated key (two rows for WTC/1/1050), a NaN key and mixed-case
+    column names."""
+    path = tmp_path / "vulnerability.csv"
+    pd.DataFrame({
+        "Peril_ID": ["WTC", "WTC", "WTC", "ORF", "ORF"],
+        "coverage_type": [1, 1, 3, 1, 1],
+        "OccupancyCode": [1050, 1050, 1050, 1100, None],
+        "vulnerability_id": [11, 12, 13, 21, 22],
+    }).to_csv(path, index=False)
+    return path
+
+
+def _whole_table_merge(path, locations, id_columns):
+    """What build_merge did before it looked up the matching rows: merge with the whole table."""
+    table = pd.read_csv(path)
+    table.columns = [col.lower() for col in table.columns]
+    rename_map = {col.lower(): col for col in locations.columns if col.lower() in table.columns}
+    return Lookup.set_id_columns(locations.merge(table.rename(columns=rename_map), how="left"), id_columns)
+
+
+@pytest.mark.parametrize("peril_dtype", ["str", "category"])
+def test_build_merge_matches_whole_table_merge(merge_table_csv, peril_dtype):
+    """Merging each chunk with only the rows it can match gives the whole-table merge result:
+    one row per match for duplicated keys, NaN keys matched, and the same dtypes, including
+    for a chunk that matches nothing (pandas types a categorical key differently when merged
+    with an empty table) and an empty chunk."""
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3, 4, 5],
+        "peril_id": ["WTC", "ORF", "WTC", "ORF", "XXX"],
+        "coverage_type": [1, 1, 3, 1, 1],
+        "occupancycode": [1050, 1100, 1050, None, 1050],
+    }, index=[40, 10, 30, 20, 50]).astype({"peril_id": peril_dtype})
+    merge = Lookup(config={}).build_merge(file_path=str(merge_table_csv), id_columns=["vulnerability_id"])
+
+    for chunk in (locations, locations.iloc[4:], locations.iloc[:0]):
+        pd.testing.assert_frame_equal(merge(chunk), _whole_table_merge(merge_table_csv, chunk, ["vulnerability_id"]))
+    assert merge(locations)["vulnerability_id"].tolist() == [11, 12, 21, 13, 22, OASIS_UNKNOWN_ID]
+
+
+@pytest.mark.parametrize("peril_dtype", ["str", "category"])
+def test_build_merge_unique_keys_matches_whole_table_merge(tmp_path, monkeypatch, peril_dtype):
+    """With unique join keys the rows are looked up in the index's hash table (get_indexer) instead
+    of scanning it (get_indexer_non_unique), and the result is still the whole-table merge result,
+    including for a NaN key and a chunk that matches nothing."""
+    path = tmp_path / "unique.csv"
+    pd.DataFrame({
+        "Peril_ID": ["WTC", "WTC", "ORF", "ORF"],
+        "coverage_type": [1, 3, 1, 1],
+        "OccupancyCode": [1050, 1050, 1100, None],
+        "vulnerability_id": [11, 13, 21, 22],
+    }).to_csv(path, index=False)
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3, 4, 5],
+        "peril_id": ["WTC", "ORF", "WTC", "ORF", "XXX"],
+        "coverage_type": [1, 1, 3, 1, 1],
+        "occupancycode": [1050, 1100, 1050, None, 1050],
+    }, index=[40, 10, 30, 20, 50]).astype({"peril_id": peril_dtype})
+
+    def no_scan(*args, **kwargs):
+        raise AssertionError("unique keys must not be looked up with get_indexer_non_unique")
+    merge = Lookup(config={}).build_merge(file_path=str(path), id_columns=["vulnerability_id"])
+    monkeypatch.setattr(pd.MultiIndex, "get_indexer_non_unique", no_scan)
+
+    for chunk in (locations, locations.iloc[4:], locations.iloc[:0]):
+        pd.testing.assert_frame_equal(merge(chunk), _whole_table_merge(path, chunk, ["vulnerability_id"]))
+    assert merge(locations)["vulnerability_id"].tolist() == [11, 21, 13, 22, OASIS_UNKNOWN_ID]
+
+
+def test_build_merge_join_columns_with_matching_rows(merge_table_csv):
+    """With join_columns, only those columns are looked up; a shared id column takes the file's value."""
+    locations = pd.DataFrame({"peril_id": ["WTC", "ORF"], "coverage_type": [3, 1], "occupancycode": [1050, 1100],
+                              "vulnerability_id": [99, 99]})
+    merge = Lookup(config={}).build_merge(file_path=str(merge_table_csv), id_columns=["vulnerability_id"],
+                                          join_columns=["Peril_ID", "coverage_type"])
+    output = merge(locations)
+    assert output["vulnerability_id"].tolist() == [13, 21, 22]
+    assert output["occupancycode"].tolist() == [1050, 1100, 1100]
+
+
+def _count_csv_reads(monkeypatch):
+    reads = []
+    read_csv = pd.read_csv
+
+    def counting_read_csv(*args, **kwargs):
+        reads.append(args[0])
+        return read_csv(*args, **kwargs)
+    monkeypatch.setattr(pd, "read_csv", counting_read_csv)
+    return reads
+
+
+def _merge_lookup_config(file_path):
+    return {"step_definition": {"vulnerability": {
+        "type": "merge",
+        "columns": ["peril_id", "coverage_type", "occupancycode"],
+        "parameters": {"file_path": file_path, "id_columns": ["vulnerability_id"]},
+    }}, "strategy": ["vulnerability"]}
+
+
+def _merge_after_prepare_config(file_path):
+    """A merge step that joins on peril_id, which an earlier step adds, and that the step's columns don't list
+    (as when an rtree step adds area_peril_id), inside a combine step."""
+    return {"step_definition": {
+        "set_peril": {"type": "prepare", "parameters": {"peril_id": {"default": "WTC"}, "area_peril_id": {"default": 1}}},
+        "vulnerability": {"type": "combine", "columns": [],
+                          "parameters": {"id_columns": ["vulnerability_id"], "strategy": ["vulnerability_merge"]}},
+        "vulnerability_merge": {
+            "type": "merge",
+            "columns": ["coverage_type", "occupancycode"],
+            "parameters": {"file_path": file_path, "id_columns": ["vulnerability_id"]},
+        },
+    }, "strategy": ["set_peril", "vulnerability"]}
+
+
+def test_multiproc_shared_data_loads_merge_file_once(monkeypatch, merge_table_csv):
+    """Lookups built while the parent's shared data is loaded (as forked workers are) reuse its
+    table and its index, built by running the lookup on the sample locations on the columns the
+    step joins on, even one added by an earlier step; it is released when the context exits."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    reads = _count_csv_reads(monkeypatch)
+    config = _merge_after_prepare_config(str(merge_table_csv))
+    parent = Lookup(config=config)
+    config_before = copy.deepcopy(config)
+    locations = pd.DataFrame({"loc_id": [1, 2], "coverage_type": [3, 1], "occupancycode": [1050, 1050]})
+
+    with parent.multiproc_shared_data(sample_locations=locations.head(1)):
+        assert len(reads) == 1
+        (table,) = _SHARED_STEP_DATA.values()
+        assert list(table._indexes) == [("coverage_type", "occupancycode", "peril_id")]
+        assert config == config_before  # the workers' lookups are made from the config as it was
+        for _ in range(2):  # e.g. two workers
+            output = Lookup(config=copy.deepcopy(config)).process_locations(locations)
+            assert output.sort_values("loc_id", kind="stable")["vulnerability_id"].tolist() == [13, 11, 12]
+        assert len(reads) == 1
+        assert len(table._indexes) == 1  # the workers used the parent's index
+
+    assert not _SHARED_STEP_DATA
+    Lookup(config=copy.deepcopy(config)).process_locations(locations)
+    assert len(reads) == 2
+
+
+def test_multiproc_shared_data_indexes_merge_join_columns(merge_table_csv):
+    """With join_columns set, the table is indexed on them without running the lookup on a sample."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    config = _merge_lookup_config(str(merge_table_csv))
+    config["step_definition"]["vulnerability"]["parameters"]["join_columns"] = ["Peril_ID", "coverage_type"]
+    with Lookup(config=config).multiproc_shared_data():
+        (table,) = _SHARED_STEP_DATA.values()
+        assert list(table._indexes) == [("coverage_type", "peril_id")]
+
+
+def test_multiproc_shared_data_sample_failure_leaves_indexing_to_workers(monkeypatch, merge_table_csv, caplog):
+    """If the lookup fails on the sample, the shared data is still loaded and a worker indexes the
+    table itself, with a warning that tells how to avoid it."""
+    from oasislmf.lookup import builtin
+    config = _merge_after_prepare_config(str(merge_table_csv))
+    locations = pd.DataFrame({"loc_id": [1], "coverage_type": [3], "occupancycode": [1050]})
+    with Lookup(config=config).multiproc_shared_data(sample_locations=locations.drop(columns=["coverage_type"])):
+        (table,) = builtin._SHARED_STEP_DATA.values()
+        assert not table._indexes
+        assert "the lookup failed on the 1 sample locations" in caplog.text
+        assert "wasn't indexed in the parent process" in caplog.text
+        monkeypatch.setattr(builtin.os, "getpid", lambda: -1)  # as in a forked worker
+        output = Lookup(config=copy.deepcopy(config)).process_locations(locations)
+        assert output["vulnerability_id"].tolist() == [13]
+        assert "in lookup worker process -1" in caplog.text
+
+
+def test_multiproc_shared_data_skips_overridden_build_merge(monkeypatch, merge_table_csv):
+    """A subclass with its own build_merge may not use the data, so none is loaded for it."""
+    reads = _count_csv_reads(monkeypatch)
+
+    class CustomLookup(Lookup):
+        def build_merge(self, **kwargs):
+            return lambda locations: locations
+
+    with CustomLookup(config=_merge_lookup_config(str(merge_table_csv))).multiproc_shared_data():
+        pass
+    assert not reads
+
+
+@pytest.fixture
+def overlapping_sections_path(tmp_path):
+    """Three overlapping squares; id 10 checks the ids are sorted as numbers, not as strings."""
+    gpd = pytest.importorskip("geopandas")
+    from shapely.geometry import box
+    gdf = gpd.GeoDataFrame(
+        {"section_id": [2, 1, 10]},
+        geometry=[box(1, 0, 3, 2), box(0, 0, 2, 2), box(1, 1, 3, 3)],
+        crs="EPSG:4326",
+    )
+    path = tmp_path / "sections.parquet"
+    gdf.to_parquet(path)
+    return path.as_posix()
+
+
+@pytest.fixture
+def overlapping_sections_locations():
+    return pd.DataFrame(columns=["longitude", "latitude", "locname"], data=[
+        [0.5, 0.5, "one"],
+        [1.5, 0.5, "two"],
+        [1.5, 1.5, "three"],
+        [5.0, 5.0, "none"],
+        [None, None, "no_coordinates"],
+    ])
+
+
+def test_build_rtree_keeps_one_row_per_match(overlapping_sections_path, overlapping_sections_locations):
+    rtree = Lookup(config={}).build_rtree(
+        file_path=overlapping_sections_path, file_type="parquet", id_columns="section_id",
+    )
+    output = rtree(overlapping_sections_locations)
+    assert sorted(output.loc[output["locname"] == "three", "section_id"]) == [1, 2, 10]
+    assert len(output) == 1 + 2 + 3 + 1 + 1
+
+
+@pytest.mark.parametrize("id_columns", [["section_id"], []], ids=["section_id an id column", "not listed"])
+def test_process_locations_fails_a_location_in_no_section(overlapping_sections_path, overlapping_sections_locations, id_columns):
+    """A location the section step cannot place is a keys error, not a success with no section."""
+    config = {
+        "step_definition": {
+            "section": {
+                "type": "rtree",
+                "columns": ["latitude", "longitude"],
+                "parameters": {"file_path": overlapping_sections_path, "file_type": "parquet", "id_columns": id_columns},
+            },
+            "pivot": {
+                "type": "simple_pivot",
+                "parameters": {"pivots": [{"new_cols": {
+                    "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]},
+            },
+        },
+        "strategy": ["section", "pivot"],
+    }
+    locations = overlapping_sections_locations.assign(loc_id=range(1, 6))
+
+    keys = Lookup(config=config).process_locations(locations)
+
+    success = keys[keys["status"] == OASIS_KEYS_STATUS["success"]["id"]]
+    assert sorted(success["section_id"]) == [1, 1, 1, 2, 2, 10]
+    failed = keys[keys["status"] == OASIS_KEYS_STATUS["fail"]["id"]].set_index("loc_id")
+    assert sorted(failed.index) == [4, 5]
+    assert set(failed["message"]) == {"section_id has an unknown id"}
+
+
 @pytest.mark.parametrize("preparations, values, expected", [
     ({"min": 5}, [1, 5, 7], [5, 5, 7]),           # values below min are raised to min
     ({"max": 10}, [7, 10, 20], [7, 10, 10]),      # values above max are lowered to max
@@ -248,46 +660,249 @@ def test_build_prepare_min_max_clamp(preparations, values, expected):
     assert result["my_col"].tolist() == expected
 
 
-def test_split_loc_perils_covered_marks_not_modelled():
-    """A location whose perils are outside the model's scope is flagged 'not modelled'
-    (not 'not at risk' — we don't know whether an unmodelled peril is a risk or not). The
-    status must be the string id, not the whole OASIS_KEYS_STATUS dict, and it must be
-    excluded from the 'modelled' set used by the exposure summary report."""
-    fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered=["QEQ"])
-    locations = pd.DataFrame({
-        "loc_id": [1, 2],
-        "LocPerilsCovered": ["QEQ", "WTC"],   # loc 2's peril is outside the model
-    })
-
-    result = fct(locations)
-
-    not_modelled = result[result["loc_id"] == 2]
-    assert len(not_modelled) == 1
-    status = not_modelled["status"].iloc[0]
-    assert status == OASIS_KEYS_STATUS["notmodelled"]["id"]
-    assert isinstance(status, str)
-    assert not not_modelled["status"].isin(OASIS_KEYS_STATUS_MODELLED).any()
+@pytest.mark.parametrize("preparations, values, expected", [
+    ({"strip": True}, ["  ab ", "cd", None], ["ab", "cd", None]),
+    ({"upper": True}, ["Ab", "cd", None], ["AB", "CD", None]),
+    ({"lower": True}, ["Ab", "CD", None], ["ab", "cd", None]),
+    ({"strip": True, "upper": True}, [" sw1a 1aa ", "Sw1A1aa"], ["SW1A 1AA", "SW1A1AA"]),
+    ({"upper": True}, ["ab", 12, None], ["AB", 12, None]),   # non-text values in an object column are kept
+    ({"strip": True, "type": "int64"}, [" 1", "2 "], [1, 2]),  # strip runs before type
+])
+def test_build_prepare_text_normalisation(preparations, values, expected):
+    prepare = Lookup(config={}).build_prepare(my_col=preparations)
+    result = prepare(pd.DataFrame({"my_col": values}, dtype=object))
+    assert [None if pd.isna(v) else v for v in result["my_col"]] == expected
 
 
-def test_split_loc_perils_covered_not_covered_status_restores_previous_behaviour():
-    """not_covered_status lets a model developer opt back into the pre-'notmodelled' behaviour
-    of flagging uncovered perils as 'notatrisk'."""
-    fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered=["QEQ"], not_covered_status="notatrisk")
-    locations = pd.DataFrame({
-        "loc_id": [1, 2],
-        "LocPerilsCovered": ["QEQ", "WTC"],
-    })
+def test_build_prepare_text_normalisation_string_dtype_and_numeric():
+    prepare = Lookup(config={}).build_prepare(s={"strip": True, "upper": True}, n={"upper": True})
+    df = pd.DataFrame({"s": pd.array([" ab", None], dtype="string"), "n": [1, 2]})
+    result = prepare(df)
+    assert result["s"].tolist()[0] == "AB" and pd.isna(result["s"].tolist()[1])
+    assert result["n"].tolist() == [1, 2]
 
-    result = fct(locations)
 
-    not_covered = result[result["loc_id"] == 2]
-    assert len(not_covered) == 1
-    assert not_covered["status"].iloc[0] == OASIS_KEYS_STATUS["notatrisk"]["id"]
+@pytest.mark.parametrize("preparations, values, expected", [
+    ({"strip": True, "upper": True}, [" ab", "cd ", None, "ab"], ["AB", "CD", None, "AB"]),
+    # categories that collide once normalised ('ab' / ' AB') are merged
+    ({"strip": True, "upper": True}, ["ab", " AB", "cd", None], ["AB", "AB", "CD", None]),
+    ({"lower": True}, ["Ab", 1, None], ["ab", 1, None]),  # non-text categories are kept
+])
+def test_build_prepare_text_normalisation_category_dtype(preparations, values, expected):
+    """OED string fields reach the lookup as ``category`` (ods_tools default_string_dtype)."""
+    prepare = Lookup(config={}).build_prepare(my_col=preparations)
+    result = prepare(pd.DataFrame({"my_col": pd.Series(values, dtype="category")}))
+    assert isinstance(result["my_col"].dtype, pd.CategoricalDtype)
+    assert [None if pd.isna(v) else v for v in result["my_col"]] == expected
+
+
+def test_build_prepare_rename_and_drop():
+    prepare = Lookup(config={}).build_prepare(
+        tmp_id={"rename": "area_peril_id"},
+        unused={"drop": True},
+        not_there={"drop": True},  # dropping a missing column is fine
+    )
+    df = pd.DataFrame({"loc_id": [1, 2], "tmp_id": [5, 6], "area_peril_id": [0, 0], "unused": ["x", "y"]})
+    result = prepare(df)
+    assert list(result.columns) == ["loc_id", "area_peril_id"]
+    assert result["area_peril_id"].tolist() == [5, 6]  # the existing column is replaced
+
+
+def test_build_prepare_rename_then_prepare_new_name():
+    prepare = Lookup(config={}).build_prepare(PostCode={"rename": "postalcode"}, postalcode={"upper": True})
+    result = prepare(pd.DataFrame({"PostCode": ["ab1"]}))
+    assert result.to_dict("list") == {"postalcode": ["AB1"]}
+
+
+@pytest.mark.parametrize("kwargs, match", [
+    ({"c": {"uper": True}}, "unknown option"),
+    ({"c": {"upper": True, "lower": True}}, "both 'upper' and 'lower'"),
+    ({"c": {"rename": ""}}, "non-empty column name"),
+    ({"c": "upper"}, "must be a dict"),
+])
+def test_build_prepare_invalid_config(kwargs, match):
+    with pytest.raises(OasisException, match=match):
+        Lookup(config={}).build_prepare(**kwargs)
+
+
+def test_build_prepare_missing_column_message():
+    prepare = Lookup(config={}).build_prepare(postalcode={"upper": True})
+    with pytest.raises(OasisException, match="'postalcode' is missing"):
+        prepare(pd.DataFrame({"loc_id": [1]}))
+
+
+def test_prepare_upper_strip_lets_merge_match_mixed_case(tmp_path):
+    """Issue #2284 item 1: normalising a column with prepare lets merge match it against an upper-case table."""
+    table = tmp_path / "postcode_areaperil.csv"
+    pd.DataFrame({"postalcode": ["AB1", "CD2"], "area_peril_id": [11, 22]}).to_csv(table, index=False)
+    config = {
+        "strategy": ["normalise", "areaperil", "pivot"],
+        "step_definition": {
+            "normalise": {"type": "prepare", "columns": ["postalcode"],
+                          "parameters": {"postalcode": {"strip": True, "upper": True}}},
+            "areaperil": {"type": "merge", "columns": ["postalcode"],
+                          "parameters": {"file_path": str(table), "id_columns": ["area_peril_id"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1, 2, 3],
+                              "PostalCode": pd.Series([" ab1", "Cd2 ", "zz9"], dtype="category")})
+    keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
+    assert keys.loc[1, "area_peril_id"] == 11
+    assert keys.loc[2, "area_peril_id"] == 22
+    assert keys.loc[3, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
+
+
+@pytest.mark.parametrize("kwargs, status, counted_as_modelled", [
+    ({}, "notmodelled", False),  # we don't know whether an unmodelled peril is a risk, so the summary must not count it
+    ({"not_covered_status": "notatrisk"}, "notatrisk", True),  # the behaviour before 'notmodelled'
+])
+def test_split_loc_perils_covered_flags_perils_outside_the_model_with_not_covered_status(kwargs, status, counted_as_modelled):
+    fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered=["QEQ"], **kwargs)
+
+    result = fct(pd.DataFrame({"loc_id": [1, 2], "LocPerilsCovered": ["QEQ", "WTC"]}))
+
+    assert result[["loc_id", "peril_id", "status"]].fillna("").values.tolist() == [[1, "QEQ", ""], [2, "", status]]
+    assert (status in OASIS_KEYS_STATUS_MODELLED) == counted_as_modelled
 
 
 def test_split_loc_perils_covered_rejects_unknown_not_covered_status():
     with pytest.raises(OasisException):
         Lookup(config={}).build_split_loc_perils_covered(not_covered_status="not_a_real_status")
+
+
+def test_split_loc_perils_covered_accepts_a_single_peril_as_a_string():
+    """A lookup config can give model_perils_covered as one code rather than a list."""
+    locations = pd.DataFrame({"loc_id": [1, 2], "LocPerilsCovered": ["WTC", "QEQ"]})
+
+    from_string = Lookup(config={}).build_split_loc_perils_covered("WTC")(locations)
+    from_list = Lookup(config={}).build_split_loc_perils_covered(["WTC"])(locations)
+
+    pd.testing.assert_frame_equal(from_string, from_list)
+    assert from_list[["loc_id", "peril_id"]].values.tolist() == [[1, "WTC"], [2, np.nan]]
+
+
+@pytest.mark.parametrize("perils_covered, model_perils_covered, expected", [
+    (["OO1;ORF;OSF"], None, [[1, "ORF", "OO1"], [1, "OSF", "OO1"]]),     # a group listed with the perils it contains
+    (["ORF;OO1"], None, [[1, "ORF", "ORF"], [1, "OSF", "OO1"]]),         # the peril listed before its group
+    (["WTC;XX1;AA1"], ["XHL"], [[1, "XHL", "XX1"]]),                     # two groups containing XHL
+    (["XX1;AA1", "AA1;XX1"], ["XHL"], [[1, "XHL", "XX1"], [2, "XHL", "AA1"]]),  # each location keeps its own first group
+], ids=["group with its perils", "peril before its group", "two groups", "per location"])
+def test_split_loc_perils_covered_gives_each_peril_once_with_the_first_listed_group(perils_covered, model_perils_covered, expected):
+    fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered)
+
+    result = fct(pd.DataFrame({"loc_id": range(1, len(perils_covered) + 1), "LocPerilsCovered": perils_covered}))
+
+    result = result[result["peril_id"].notna()]  # leave out the keys error rows
+    assert sorted(result[["loc_id", "peril_id", "peril_group_id"]].values.tolist()) == expected
+
+
+def test_split_loc_perils_covered_keeps_location_rows_that_share_a_loc_id():
+    """Rows sharing a loc_id but differing elsewhere keep their own perils; identical rows give them once,
+    whatever the index."""
+    fct = Lookup(config={}).build_split_loc_perils_covered(["ORF", "OSF", "WTC"])
+    locations = pd.DataFrame({
+        "loc_id": [1, 1, 2, 2],
+        "BuildingTIV": [10., 20., 30., 30.],
+        "LocPerilsCovered": ["OO1;ORF", "WTC", "ORF", "ORF"],
+    }, index=[7, 3, 5, 9])
+
+    result = fct(locations)
+
+    assert result[["loc_id", "BuildingTIV", "peril_id"]].values.tolist() == [
+        [1, 10., "ORF"], [2, 30., "ORF"], [1, 10., "OSF"], [1, 20., "WTC"]]  # sorted on peril_id by the model filter
+    assert result.index.tolist() == list(range(4))
+    assert list(result.columns) == ["loc_id", "BuildingTIV", "LocPerilsCovered", "peril_group_id", "peril_id"]
+    assert list(locations.columns) == ["loc_id", "BuildingTIV", "LocPerilsCovered"]
+
+
+@pytest.mark.parametrize("loc_ids, perils_covered, expected", [
+    ([1], ["WW1"], {1: "WEC;WSS not modelled"}),                  # modelled in part: the rest is listed
+    ([1, 2], ["QQ1;OO1", "WTC"], {1: "ORF;OSF;QEQ;QFF;QLF;QLS;QSL;QTS not modelled"}),  # nothing modelled, groups expanded
+    ([1, 1], ["WTC", "QEQ"], {1: "QEQ not modelled"}),            # a row sharing a modelled location's loc_id
+    ([1, 1, 1], ["WTC;QEQ", "OO1", "QEQ"], {1: "ORF;OSF;QEQ not modelled"}),  # rows of one location give one line
+    ([1, 1, 2, 2], ["QEQ", "QEQ", "WTC", "WTC"], {1: "QEQ not modelled"}),    # identical rows give it once
+    ([1], ["ZZZ"], {1: "ZZZ not modelled"}),                      # no known peril: the codes as listed
+    ([1, 2, 3, 4], ["WTC", "", None, "  "], {2: "no perils covered", 3: "no perils covered", 4: "no perils covered"}),
+    ([1, 1, 2, 2], ["", "WTC", "", "QEQ"], {2: "QEQ not modelled"}),  # a blank row adds nothing to its loc_id's other rows
+], ids=["partial", "none", "shared loc_id", "union", "duplicates", "unknown codes", "blank", "blank sharing a loc_id"])
+def test_split_loc_perils_covered_lists_the_perils_not_modelled_once_per_location(loc_ids, perils_covered, expected):
+    fct = Lookup(config={}).build_split_loc_perils_covered(["WTC"])
+
+    result = fct(pd.DataFrame({"loc_id": loc_ids, "LocPerilsCovered": perils_covered}))
+
+    not_modelled = result[result["status"] == OASIS_KEYS_STATUS["notmodelled"]["id"]]
+    assert not_modelled["peril_id"].isna().all()
+    assert dict(zip(not_modelled["loc_id"], not_modelled["message"])) == expected
+    assert len(not_modelled) == len(expected)
+
+
+@pytest.mark.parametrize("dtype", [object, "string", "category"])  # ods_tools reads a blank cell as '' in a string column
+def test_lookup_returns_every_location_in_keys_or_keys_errors(dtype):
+    """Input file generation refuses a run where a loc_id is in neither keys nor keys-errors.
+    The error line is repeated for each coverage, next to the keys of the perils modelled."""
+    config = {
+        "step_definition": {
+            "split": {"type": "split_loc_perils_covered", "columns": ["LocPerilsCovered"],
+                      "parameters": {"model_perils_covered": ["WTC", "WSS"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [
+                {"new_cols": {"coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}},
+                {"new_cols": {"coverage_type": 3, "area_peril_id": 1, "vulnerability_id": 2}}]}},
+        },
+        "strategy": ["split", "pivot"],
+    }
+    perils_covered = ["WTC", "WW1", "QQ1", "ZZZ", "", None, "  ", "WTC", "", "QEQ", ""]
+    loc_ids = [1, 2, 3, 4, 5, 6, 7, 8, 8, 9, 9]  # 8 and 9: a blank row sharing a loc_id
+
+    keys = Lookup(config=config).process_locations(
+        pd.DataFrame({"loc_id": loc_ids, "LocPerilsCovered": pd.Series(perils_covered, dtype=dtype)}))
+
+    assert set(keys["loc_id"]) == set(loc_ids)
+    success = keys["status"] == OASIS_KEYS_STATUS["success"]["id"]
+    assert sorted(keys.loc[success & (keys["loc_id"] == 2), ["peril_id", "coverage_type"]].values.tolist()) == [
+        ["WSS", 1], ["WSS", 3], ["WTC", 1], ["WTC", 3]]
+    for coverage_type in (1, 3):
+        errors = keys[~success & (keys["coverage_type"] == coverage_type)]
+        assert dict(zip(errors["loc_id"], errors["message"])) == {
+            2: "WEC not modelled", 3: "QEQ;QFF;QLF;QLS;QSL;QTS not modelled", 4: "ZZZ not modelled",
+            5: "no perils covered", 6: "no perils covered", 7: "no perils covered", 9: "QEQ not modelled"}
+        assert len(errors) == 7
+
+
+def test_peril_covered_deterministic_lookup_gives_each_peril_once():
+    """A group listed with the perils it contains (OO1;ORF;OSF) gives them once, like ORF;OSF."""
+    lookup = PerilCoveredDeterministicLookup(config={
+        "model_perils_covered": ["OO1"],
+        "supported_oed_coverage_types": [1, 3],
+    })
+    locations = pd.DataFrame({
+        "loc_id": [1, 2],
+        "LocPerilsCovered": ["OO1;ORF;OSF", "ORF;OSF"],
+    })
+
+    keys_df = lookup.process_locations(locations)
+
+    assert not keys_df.duplicated(["loc_id", "peril_id", "coverage_type"]).any()
+    assert (keys_df["loc_id"].value_counts() == 4).all()  # 2 perils x 2 coverage types each
+    assert "peril_group_id" not in locations
+
+
+def test_peril_covered_deterministic_lookup_keeps_location_rows_that_share_a_loc_id():
+    lookup = PerilCoveredDeterministicLookup(config={
+        "model_perils_covered": ["WTC"],
+        "supported_oed_coverage_types": [1],
+    })
+    locations = pd.DataFrame({
+        "loc_id": [1, 1, 2, 2],
+        "BuildingTIV": [10., 20., 30., 30.],
+        "LocPerilsCovered": ["WTC", "WTC", "WW1;WTC", "WW1;WTC"],
+    })
+
+    keys_df = lookup.process_locations(locations)
+
+    # loc 1: two distinct rows, one key each; loc 2: identical rows, WW1 = {WTC, WEC, WSS} given once
+    assert keys_df[["loc_id", "peril_id"]].values.tolist() == [[1, "WTC"], [1, "WTC"], [2, "WEC"], [2, "WSS"], [2, "WTC"]]
 
 
 def test_build_set_status_sets_status_and_message_from_columns():
@@ -319,68 +934,298 @@ def test_build_set_status_rejects_unknown_status_value():
         fct(locations)
 
 
-class _FakeGeoTiffDataset:
-    """Minimal stand-in for a gdal dataset so build_geotiff can be tested without gdal."""
-
-    def __init__(self, array, geotransform):
-        self._array = array
-        self._geotransform = geotransform
-        self.RasterCount = array.shape[2]
-
-    def GetGeoTransform(self):
-        return self._geotransform
-
-    def GetVirtualMemArray(self):
-        return self._array
+def _affine(*args):
+    """An affine transform, skipping the test when rasterio (which provides affine) is not installed."""
+    pytest.importorskip("rasterio")
+    from rasterio.transform import Affine
+    return Affine(*args)
 
 
-class _FakeGdal:
-    GA_ReadOnly = 0
-
-    def __init__(self, dataset, inv_gt):
-        self._dataset = dataset
-        self._inv_gt = inv_gt
-
-    def Open(self, path, mode):
-        return self._dataset
-
-    def InvGeoTransform(self, geotransform):
-        return self._inv_gt
+def _write_geotiff(path, data, transform, nodata=None, crs="EPSG:4326", **profile):
+    """Write ``data`` (band, row, col) to a GeoTIFF at ``path`` with the given affine transform and nodata value."""
+    rasterio = pytest.importorskip("rasterio")
+    with rasterio.open(path, "w", driver="GTiff", height=data.shape[1], width=data.shape[2], count=data.shape[0],
+                       dtype=data.dtype, transform=transform, crs=crs, nodata=nodata, **profile) as dst:
+        dst.write(data)
+    return path
 
 
-def test_build_geotiff_out_of_range_uses_correct_default_per_column(monkeypatch):
-    """Out-of-raster locations must get each column's OWN default. The defaults
-    array is read by band column order, so it must be written that way too — the
-    bug wrote it by band id, swapping defaults across columns."""
-    # 1x1 raster, 3 bands with values 100/200/300 at the single pixel.
-    raster = np.array([[[100, 200, 300]]], dtype="int64")
-    # Identity inverse geo-transform: px = int(lon + 0.5), py = int(lat + 0.5).
-    inv_gt = np.array([0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
-    fake_gdal = _FakeGdal(_FakeGeoTiffDataset(raster, (0, 1, 0, 0, 0, 1)), inv_gt)
-    monkeypatch.setattr("oasislmf.lookup.builtin.gdal", fake_gdal)
+def _multi_band_geotiff(tmp_path):
+    """3 bands of 2 rows x 3 cols, 1-degree pixels with the top-left corner at (lon -10, lat 50), north up.
 
-    # Columns map to bands in a permuted order so a wrong index is detectable.
+    Pixel (row, col) of band b holds b * 100 + row * 10 + col, so every value names its band and pixel.
+    """
+    bands, rows, cols = np.meshgrid(np.arange(1, 4), np.arange(2), np.arange(3), indexing="ij")
+    data = (bands * 100 + rows * 10 + cols).astype("int32")
+    return _write_geotiff(tmp_path / "multi.tif", data, _affine(1.0, 0.0, -10.0, 0.0, -1.0, 50.0))
+
+
+def test_build_geotiff_reads_each_column_from_its_band(tmp_path):
+    """Each column reads its own band (permuted ids) on a real multi-band file, and out-of-range
+    locations get each column's own default."""
     band_info = OrderedDict([
-        ("a", {"id": 3, "default": -11}),   # band index 2 -> 300
-        ("b", {"id": 1, "default": -22}),   # band index 0 -> 100
-        ("c", {"id": 2, "default": -33}),   # band index 1 -> 200
+        ("a", {"id": 3, "default": -11}),
+        ("b", {"id": 1, "default": -22}),
+        ("c", {"id": 2, "default": -33}),
     ])
-    geotiff_lookup = Lookup(config={}).build_geotiff(file_path="dummy.tif", band_info=band_info)
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)), band_info=band_info)
 
     locations = pd.DataFrame({
-        "longitude": [0.0, 99.0],   # row 0 in-range, row 1 out-of-range
-        "latitude": [0.0, 99.0],
+        "longitude": [-7.5, 20.0],  # col 2 / outside
+        "latitude": [48.5, 0.0],    # row 1 / outside
     })
     result = geotiff_lookup(locations)
 
-    # In-range: each column reads its own band.
-    assert result.loc[0, "a"] == 300
-    assert result.loc[0, "b"] == 100
-    assert result.loc[0, "c"] == 200
-    # Out-of-range: each column gets its own default (the bug swapped these).
-    assert result.loc[1, "a"] == -11
-    assert result.loc[1, "b"] == -22
-    assert result.loc[1, "c"] == -33
+    assert result[["a", "b", "c"]].values.tolist() == [[312, 112, 212], [-11, -22, -33]]
+
+
+@pytest.mark.parametrize("lon, lat, expected", [
+    (-9.9, 49.9, 100),    # just inside the top-left corner
+    (-9.3, 49.3, 100),    # 0.7 of a pixel in: still pixel (0, 0)
+    (-8.5, 49.5, 101),    # centre of pixel (0, 1)
+    (-7.01, 48.01, 112),  # just inside the bottom-right corner
+    (-10.3, 49.5, -1),    # 0.3 of a pixel west of the raster
+    (-9.5, 50.3, -1),     # 0.3 of a pixel north of the raster
+    (-6.9, 49.5, -1),     # just east of the raster
+    (np.nan, 49.5, -1),   # missing coordinates
+    (-9.5, np.inf, -1),
+])
+def test_build_geotiff_assigns_the_pixel_containing_each_location(tmp_path, lon, lat, expected):
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
+                                                     band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [lon], "latitude": [lat]}))
+
+    assert result["value"].tolist() == [expected]
+
+
+@pytest.mark.parametrize("band_dtypes, defaults, expected", [
+    (["uint8"], [0], "uint8"),           # fits: dtype unchanged
+    (["int16"], [0.0], "int16"),         # integral float fits an integer band
+    (["uint8"], [-1], "int16"),          # negative default on an unsigned band
+    (["int16"], [np.nan], "float32"),    # NaN default on an integer band
+    (["int16"], [1.5], "float32"),       # fractional default on an integer band
+    (["uint8"], [1000], "uint16"),       # default above the band's range
+    (["float32"], [np.nan], "float32"),  # NaN already fits a float band
+    (["uint8", "int16"], [0, 0], "int16"),
+])
+def test_geotiff_value_dtype(band_dtypes, defaults, expected):
+    defaults = {f"col_{i}": default for i, default in enumerate(defaults)}
+    assert geotiff_value_dtype(band_dtypes, defaults) == np.dtype(expected)
+
+
+@pytest.mark.parametrize("default", ["none", None, 2 ** 70])
+def test_geotiff_value_dtype_rejects_defaults_that_are_not_numbers(default):
+    with pytest.raises(OasisException, match="geotiff band flood_depth has default"):
+        geotiff_value_dtype(["float32"], {"flood_depth": default})
+
+
+def test_build_geotiff_default_outside_band_dtype_widens_column(tmp_path):
+    """A -1 default on a uint8 band used to raise OverflowError; the column now widens to hold it."""
+    data = np.array([[[7, 255]]], dtype="uint8")
+    path = _write_geotiff(tmp_path / "uint8.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0))
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5, 5.0], "latitude": [0.5, 0.5, 0.5]}))
+
+    assert result["value"].dtype == np.dtype("int16")
+    assert result["value"].tolist() == [7, 255, -1]
+
+
+def test_build_geotiff_accepts_nullable_coordinates(tmp_path):
+    """pd.NA in nullable Float64 coordinates is treated as missing and gets the default."""
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
+                                                     band_info={"value": {"id": 1, "default": -1}})
+    locations = pd.DataFrame({
+        "longitude": pd.array([-9.5, pd.NA, -8.5], dtype="Float64"),
+        "latitude": pd.array([49.5, 49.5, pd.NA], dtype="Float64"),
+    })
+
+    result = geotiff_lookup(locations)
+
+    assert result["value"].tolist() == [100, -1, -1]
+
+
+def test_build_geotiff_budget_bounded_reads_match_single_read(tmp_path, monkeypatch):
+    """Reads split to fit a tiny GEOTIFF_READ_BUDGET_BYTES give the same values as one read."""
+    rng = np.random.default_rng(0)
+    data = rng.integers(0, 1000, size=(2, 50, 40)).astype("int16")
+    path = _write_geotiff(tmp_path / "big.tif", data, _affine(0.1, 0.0, 0.0, 0.0, -0.1, 5.0))
+    band_info = {"first": {"id": 1, "default": -1}, "second": {"id": 2, "default": -2}}
+    locations = pd.DataFrame({
+        "longitude": rng.uniform(-0.5, 4.5, size=500),
+        "latitude": rng.uniform(-0.5, 5.5, size=500),
+    })
+
+    single = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)(locations.copy())
+    # 2 int16 bands cost 12 bytes per pixel (value, value before conversion, two masks): allow 30 pixels per read,
+    # less than one 40-column row, so the file's single block is split along both axes
+    monkeypatch.setattr("oasislmf.lookup.builtin.GEOTIFF_READ_BUDGET_BYTES", 30 * 12)
+    strips = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)(locations.copy())
+
+    pd.testing.assert_frame_equal(single, strips)
+    # and both match indexing the raster directly
+    col = np.floor(locations["longitude"].to_numpy() / 0.1)
+    row = np.floor((5.0 - locations["latitude"].to_numpy()) / 0.1)
+    inside = (col >= 0) & (col < 40) & (row >= 0) & (row < 50)
+    expected = np.where(inside, data[0, row.clip(0, 49).astype(int), col.clip(0, 39).astype(int)], -1)
+    assert single["first"].tolist() == expected.tolist()
+
+
+@pytest.mark.parametrize("dtype, nodata", [("int16", -9999), ("float32", np.nan), ("float32", -3.4e38)])
+def test_build_geotiff_replaces_nodata_with_band_default(tmp_path, dtype, nodata):
+    """Pixels holding the raster's nodata value take the column's default; other pixels keep their value,
+    and a value equal to another column's default is not mistaken for nodata."""
+    # 1 band, 1 row, 3 cols: valid, nodata, valid
+    data = np.array([[[7, nodata, 9]]], dtype=dtype)
+    path = _write_geotiff(tmp_path / "nodata.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0), nodata=nodata)
+    band_info = OrderedDict([("first", {"id": 1, "default": -1}), ("again", {"id": 1, "default": -2})])
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info=band_info)
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5, 2.5, 5.0], "latitude": [0.5] * 4}))
+
+    assert result["first"].tolist() == [7, -1, 9, -1]
+    assert result["again"].tolist() == [7, -2, 9, -2]
+
+
+def test_build_geotiff_without_nodata_keeps_every_value(tmp_path):
+    """A raster with no nodata value has no invalid pixels, even ones holding a typical nodata number."""
+    data = np.array([[[7, -9999]]], dtype="int16")
+    path = _write_geotiff(tmp_path / "no_nodata.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0))
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5, 1.5], "latitude": [0.5, 0.5]}))
+
+    assert result["value"].tolist() == [7, -9999]
+
+
+def _plan_reads(rows, cols, block_shape=(16, 16), bytes_per_pixel=1, height=64, width=64, budget=10 ** 6):
+    """geotiff_read_plan as ((row_off, col_off, height, width), sorted locations) per read, for readable asserts."""
+    pytest.importorskip("rasterio")
+    rows, cols = np.array(rows), np.array(cols)
+    order, reads = geotiff_read_plan(rows, cols, block_shape, bytes_per_pixel, height, width, budget)
+    return [((w.row_off, w.col_off, w.height, w.width), list(zip(rows[order][s:e].tolist(), cols[order][s:e].tolist())))
+            for s, e, w in reads]
+
+
+def test_geotiff_read_plan_merges_adjacent_blocks_and_skips_gaps():
+    # blocks (0, 0) and (0, 1) are adjacent, (0, 3) is past a gap, (2, 2) is in another block row
+    reads = _plan_reads(rows=[40, 3, 5, 1], cols=[40, 20, 1, 50])
+    assert reads == [
+        ((0, 0, 16, 32), [(5, 1), (3, 20)]),
+        ((0, 48, 16, 16), [(1, 50)]),
+        ((32, 32, 16, 16), [(40, 40)]),
+    ]
+
+
+def test_geotiff_read_plan_splits_runs_to_fit_the_budget():
+    # four adjacent blocks of 16 x 16 pixels at 1 byte each, with room for two blocks per read
+    reads = _plan_reads(rows=[0, 0, 0, 0], cols=[0, 16, 32, 48], budget=2 * 256)
+    assert [window for window, _ in reads] == [(0, 0, 16, 32), (0, 32, 16, 32)]
+
+
+def test_geotiff_read_plan_splits_a_block_larger_than_the_budget():
+    # a file stored as one 64 x 64 block, with room for 100 pixels per read: tiles shrink to single 64-pixel rows
+    reads = _plan_reads(rows=[0, 63], cols=[0, 63], block_shape=(64, 64), budget=100)
+    assert [window for window, _ in reads] == [(0, 0, 1, 64), (63, 0, 1, 64)]
+    # and a single row too wide for the budget is cut into columns
+    reads = _plan_reads(rows=[0, 0], cols=[0, 63], block_shape=(1, 64), budget=10)
+    assert [window for window, _ in reads] == [(0, 0, 1, 10), (0, 60, 1, 4)]
+
+
+def test_geotiff_read_plan_without_locations_reads_nothing():
+    assert _plan_reads(rows=[], cols=[]) == []
+
+
+def test_geotiff_read_plan_clips_edge_blocks_to_the_raster():
+    reads = _plan_reads(rows=[59], cols=[59], height=60, width=60)
+    assert reads == [((48, 48, 12, 12), [(59, 59)])]
+
+
+def test_build_geotiff_reads_only_the_blocks_holding_locations(tmp_path, monkeypatch):
+    """On a tiled raster each read covers whole blocks that hold locations, never the blocks between them."""
+    rasterio = pytest.importorskip("rasterio")
+    data = np.arange(64 * 64, dtype="int32").reshape(1, 64, 64)
+    path = _write_geotiff(tmp_path / "tiled.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 64.0),
+                          tiled=True, blockxsize=16, blockysize=16)
+    windows = []
+    real_read = rasterio.io.DatasetReader.read
+
+    def spy_read(self, *args, **kwargs):
+        windows.append(kwargs["window"])
+        return real_read(self, *args, **kwargs)
+
+    monkeypatch.setattr(rasterio.io.DatasetReader, "read", spy_read)
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+    # pixel (row, col) is at lon = col + 0.5, lat = 64 - row - 0.5; pixels in two far-apart blocks
+    rows, cols = np.array([2, 60, 5]), np.array([3, 61, 9])
+    result = geotiff_lookup(pd.DataFrame({"longitude": cols + 0.5, "latitude": 64 - rows - 0.5}))
+
+    assert result["value"].tolist() == (rows * 64 + cols).tolist()
+    assert sorted((w.row_off, w.col_off, w.height, w.width) for w in windows) == [(0, 0, 16, 16), (48, 48, 16, 16)]
+
+
+def test_build_geotiff_rejects_projected_crs(tmp_path):
+    """A raster in metres (Web Mercator) cannot be indexed by longitude/latitude, so it is rejected at build time."""
+    data = np.zeros((1, 2, 2), dtype="int16")
+    path = _write_geotiff(tmp_path / "mercator.tif", data, _affine(1000.0, 0.0, 0.0, 0.0, -1000.0, 2000.0),
+                          crs="EPSG:3857")
+
+    with pytest.raises(OasisException, match="projected CRS EPSG:3857"):
+        Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+
+@pytest.mark.parametrize("crs", ["EPSG:4269", None])  # geographic NAD83, and no CRS at all
+def test_build_geotiff_accepts_geographic_or_missing_crs(tmp_path, crs):
+    data = np.array([[[7]]], dtype="int16")
+    path = _write_geotiff(tmp_path / "geographic.tif", data, _affine(1.0, 0.0, 0.0, 0.0, -1.0, 1.0), crs=crs)
+    geotiff_lookup = Lookup(config={}).build_geotiff(file_path=str(path), band_info={"value": {"id": 1, "default": -1}})
+
+    result = geotiff_lookup(pd.DataFrame({"longitude": [0.5], "latitude": [0.5]}))
+
+    assert result["value"].tolist() == [7]
+
+
+def test_build_geotiff_rejects_band_id_outside_file(tmp_path):
+    with pytest.raises(OasisException, match=r"outside of \[1-3\]"):
+        Lookup(config={}).build_geotiff(file_path=str(_multi_band_geotiff(tmp_path)),
+                                        band_info={"value": {"id": 4, "default": -1}})
+
+
+@pytest.fixture
+def builtin_without_spatial_packages(monkeypatch):
+    """A fresh copy of the builtin module imported with the spatial packages blocked.
+
+    The copy runs in this process, so coverage counts its import fallbacks; the real module is left untouched.
+    """
+    import importlib.util
+    from oasislmf.lookup import builtin
+
+    for name in ("shapely", "shapely.geometry", "geopandas", "sklearn", "sklearn.neighbors",
+                 "rasterio", "rasterio.windows"):
+        monkeypatch.setitem(sys.modules, name, None)  # makes any import of it raise ImportError
+    spec = importlib.util.spec_from_file_location("builtin_without_spatial_packages", builtin.__file__)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_builtin_imports_without_spatial_packages(builtin_without_spatial_packages):
+    """Without the spatial packages the module still imports and every spatial name is None."""
+    module = builtin_without_spatial_packages
+    assert module.Point is None and module.gpd is None and module.BallTree is None
+    assert module.rasterio is None and module.Window is None
+
+
+@pytest.mark.parametrize("build_method, kwargs", [
+    ("build_rtree", {"file_path": "unused.parquet", "file_type": "parquet", "id_columns": []}),
+    ("build_geotiff", {"file_path": "unused.tif", "band_info": {"value": {"id": 1, "default": -1}}}),
+])
+def test_spatial_lookups_without_spatial_packages_point_at_extra(builtin_without_spatial_packages, build_method, kwargs):
+    lookup = builtin_without_spatial_packages.Lookup(config={})
+
+    with pytest.raises(OasisException, match=re.escape("oasislmf[spatial]")):
+        getattr(lookup, build_method)(**kwargs)
 
 
 # --- geog_lookup (GeogScheme/GeogName resolution) -----------------------------
@@ -477,6 +1322,138 @@ def test_geog_lookup_then_merge_end_to_end(geog_locations, tmp_path):
 
     result = merge(resolve(geog_locations))
     assert list(result.sort_values("loc_id")["area_peril_id"]) == [101, 102, 103]
+
+
+def _geog_process_locations_config(table, step_columns=()):
+    return {
+        "strategy": ["resolve", "areaperil", "pivot"],
+        "step_definition": {
+            "resolve": {"type": "geog_lookup", "columns": list(step_columns),
+                        "parameters": {"geog_scheme": "W3W", "output_column": "w3w", "slots": 3}},
+            "areaperil": {"type": "merge",
+                          "parameters": {"file_path": str(table), "id_columns": ["area_peril_id"],
+                                         "join_columns": ["w3w"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+
+
+def test_geog_lookup_slots_kept_without_listing_them(tmp_path):
+    """Issue #2284 item 3: geog_lookup sees the GeogScheme/GeogName slots through process_locations
+    without them in 'columns', and slots missing from the file don't fail the run."""
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({"w3w": ["a.b.c", "d.e.f"], "area_peril_id": [101, 102]}).to_csv(table, index=False)
+    locations = pd.DataFrame({  # only slots 1 and 2 of the 3 scanned are present
+        "loc_id": [1, 2, 3],
+        "GeogScheme1": ["W3W", "ISO2", None], "GeogName1": ["a.b.c", "US", None],
+        "GeogScheme2": [None, "W3W", None], "GeogName2": [None, "d.e.f", None],
+    })
+    keys = Lookup(config=_geog_process_locations_config(table)).process_locations(locations).set_index("loc_id")
+    assert keys.loc[1, "area_peril_id"] == 101
+    assert keys.loc[2, "area_peril_id"] == 102
+    assert keys.loc[3, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
+
+
+def test_geog_lookup_slot_listed_in_another_step_keeps_its_spelling(tmp_path):
+    """A slot named by some step's 'columns' keeps that spelling, so that step's required check passes."""
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({"w3w": ["a.b.c"], "area_peril_id": [101]}).to_csv(table, index=False)
+    config = _geog_process_locations_config(table)
+    config["step_definition"]["areaperil"]["columns"] = ["GeogName1"]
+    locations = pd.DataFrame({"loc_id": [1], "geogscheme1": ["W3W"], "GEOGNAME1": ["a.b.c"]})
+    keys = Lookup(config=config).process_locations(locations)
+    assert keys["area_peril_id"].tolist() == [101]
+
+
+def test_listed_geog_slot_is_still_required(tmp_path):
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({"w3w": ["a.b.c"], "area_peril_id": [101]}).to_csv(table, index=False)
+    config = _geog_process_locations_config(table, step_columns=["GeogScheme3", "GeogName3"])
+    locations = pd.DataFrame({"loc_id": [1], "GeogScheme1": ["W3W"], "GeogName1": ["a.b.c"]})
+    with pytest.raises(OasisException, match="missing columns"):
+        Lookup(config=config).process_locations(locations)
+
+
+@pytest.mark.parametrize("has_coordinates", [True, False])
+def test_optional_columns_kept_if_present_and_not_required(has_coordinates):
+    """Issue #2284 item 3: optional_columns are kept through the column filter but don't fail the step."""
+    config = {
+        "strategy": ["coordinates", "pivot"],
+        "step_definition": {
+            "coordinates": {"type": "prepare", "optional_columns": ["latitude", "longitude"],
+                            "parameters": {"latitude": {"default": -999}, "longitude": {"default": -999}}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    seen = {}
+
+    class SpyLookup(Lookup):
+        def build_simple_pivot(self, pivots, remove_pivoted_col=True):
+            inner = Lookup.build_simple_pivot(pivots, remove_pivoted_col)
+
+            def fct(locations):
+                seen["lat"] = locations["latitude"].tolist()
+                return inner(locations)
+            return fct
+
+    locations = pd.DataFrame({"loc_id": [1], "unused": ["x"]})
+    if has_coordinates:
+        locations = locations.assign(LATITUDE=[51.5], Longitude=[-0.1])
+    SpyLookup(config=config).process_locations(locations)
+    assert seen["lat"] == ([51.5] if has_coordinates else [-999])
+
+
+def _two_step_config(columns_a, columns_b, key_a="columns", key_b="columns"):
+    return {
+        "strategy": ["a", "b", "pivot"],
+        "step_definition": {
+            "a": {"type": "prepare", key_a: columns_a, "parameters": {}},
+            "b": {"type": "prepare", key_b: columns_b, "parameters": {}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+
+
+@pytest.mark.parametrize("key_a, key_b", [
+    ("optional_columns", "optional_columns"),
+    ("columns", "columns"),
+    ("columns", "optional_columns"),
+])
+def test_column_named_with_different_capitalisation_raises(key_a, key_b):
+    """Each column is kept under one spelling, so steps must agree on it (review of #2322)."""
+    config = _two_step_config(["Latitude"], ["latitude"], key_a, key_b)
+    locations = pd.DataFrame({"loc_id": [1], "LATITUDE": [51.5]})
+    with pytest.raises(OasisException, match=r"different capitalisation: 'Latitude' in \['a'\], 'latitude' in \['b'\]"):
+        Lookup(config=config).process_locations(locations)
+
+
+def test_column_named_with_same_spelling_in_several_steps():
+    config = _two_step_config(["Latitude"], ["Latitude"], "columns", "optional_columns")
+    locations = pd.DataFrame({"loc_id": [1], "LATITUDE": [51.5]})
+    assert Lookup(config=config).useful_columns() == {"loc_id", "Latitude"}
+    Lookup(config=config).process_locations(locations)
+
+
+def test_geog_lookup_slot_takes_spelling_of_optional_column(tmp_path):
+    """The automatic geog_lookup slots never clash: they take the spelling another step lists."""
+    table = tmp_path / "w3w_areaperil.csv"
+    pd.DataFrame({"w3w": ["a.b.c"], "area_peril_id": [101]}).to_csv(table, index=False)
+    config = _geog_process_locations_config(table)
+    config["step_definition"]["areaperil"]["optional_columns"] = ["GeogName1"]
+    locations = pd.DataFrame({"loc_id": [1], "geogscheme1": ["W3W"], "GEOGNAME1": ["a.b.c"]})
+    assert "GeogName1" in Lookup(config=config).useful_columns()
+    keys = Lookup(config=config).process_locations(locations)
+    assert keys["area_peril_id"].tolist() == [101]
+
+
+def test_step_optional_columns():
+    assert Lookup.step_optional_columns({"type": "merge"}) == []
+    assert Lookup.step_optional_columns({"type": "merge", "optional_columns": "latitude"}) == ["latitude"]
+    assert Lookup.step_optional_columns({"type": "geog_lookup", "parameters": {"slots": 2}}) == [
+        "geogscheme1", "geogname1", "geogscheme2", "geogname2"]
 
 
 def test_merge_empty_join_raises_clear_error(tmp_path):
@@ -658,3 +1635,194 @@ def test_combine_and_raises_when_child_columns_are_missing():
     locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1]})  # no AutoCode
     with pytest.raises(OasisException, match="by_autocode"):
         AutoLookup(config=config).process_locations(locations)
+
+
+# --- sorted_lookup (#2284 item 6) ---------------------------------------------
+
+@pytest.fixture
+def cell_table():
+    # deliberately unsorted, with a key beyond 2**53 to check integer keys stay exact
+    return pd.DataFrame({
+        "cell_id": np.array([30, 10, 2**60 + 1, 20], dtype="int64"),
+        "area_peril_id": np.array([3, 1, 9, 2], dtype="int32"),
+        "weight": [0.3, 0.1, 0.9, 0.2],
+    })
+
+
+def test_write_sorted_lookup_writes_sorted_arrays(cell_table, tmp_path):
+    out = write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id")
+    keys, values, key_column = load_sorted_lookup(str(out))
+    assert key_column == "cell_id"
+    assert isinstance(keys, np.memmap)
+    assert keys.tolist() == [10, 20, 30, 2**60 + 1]
+    assert values["area_peril_id"].tolist() == [1, 2, 3, 9]
+    assert values["weight"].tolist() == [0.1, 0.2, 0.3, 0.9]
+
+
+@pytest.mark.parametrize("file_type", ["csv", "parquet"])
+def test_write_sorted_lookup_from_file(cell_table, tmp_path, file_type):
+    path = tmp_path / f"table.{file_type}"
+    getattr(cell_table, f"to_{file_type}")(path, index=False)
+    out = write_sorted_lookup(str(path), tmp_path / "cells", key_column="cell_id", value_columns=["area_peril_id"])
+    _, values, _ = load_sorted_lookup(str(out))
+    assert list(values) == ["area_peril_id"]
+
+
+@pytest.mark.parametrize("table, match", [
+    (pd.DataFrame({"cell_id": [1, 1], "v": [1, 2]}), "duplicated"),
+    (pd.DataFrame({"cell_id": [1.0, None], "v": [1, 2]}), "integers with no nulls"),
+    (pd.DataFrame({"cell_id": [1, 2], "v": ["a", "b"]}), "must be numeric"),
+    (pd.DataFrame({"cell_id": [1, 2], "v": [1.0, None]}), "has nulls"),
+])
+def test_write_sorted_lookup_rejects_bad_tables(table, match, tmp_path):
+    with pytest.raises(OasisException, match=match):
+        write_sorted_lookup(table, tmp_path / "out", key_column="cell_id")
+
+
+def test_sorted_lookup_matches(cell_table, tmp_path):
+    write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id")
+    fct = Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"), id_columns=["area_peril_id"])
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3, 4, 5, 6],
+        "cell_id": pd.array([20, 15, None, 2**60 + 1, 99, 10], dtype="Int64"),
+    })
+    result = fct(locations)
+    assert result["area_peril_id"].tolist() == [2, OASIS_UNKNOWN_ID, OASIS_UNKNOWN_ID, 9, OASIS_UNKNOWN_ID, 1]
+    assert result["weight"].iloc[[0, 3, 5]].tolist() == [0.2, 0.9, 0.1]
+    assert result["weight"].iloc[[1, 2, 4]].isna().all()
+    assert result["loc_id"].tolist() == [1, 2, 3, 4, 5, 6]  # order and rows unchanged
+
+
+@pytest.mark.parametrize("keys", [
+    [20.0, 10.5, np.nan, -1.0],          # float keys: non-integral and NaN don't match
+    ["20", "x", None, "-1"],             # text keys are parsed
+])
+def test_sorted_lookup_non_integer_keys(cell_table, tmp_path, keys):
+    write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id", value_columns=["area_peril_id"])
+    fct = Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"), id_columns="area_peril_id")
+    result = fct(pd.DataFrame({"cell_id": pd.Series(keys, dtype=object if isinstance(keys[0], str) else float)}))
+    assert result["area_peril_id"].tolist() == [2, OASIS_UNKNOWN_ID, OASIS_UNKNOWN_ID, OASIS_UNKNOWN_ID]
+
+
+def test_sorted_lookup_errors(cell_table, tmp_path):
+    with pytest.raises(OasisException, match="not found"):
+        Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "nothing"))
+    write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id")
+    with pytest.raises(OasisException, match="not in"):
+        Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"), value_columns=["nope"])
+    with pytest.raises(OasisException, match="id_columns"):
+        Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"), id_columns=["vulnerability_id"])
+    fct = Lookup(config={}).build_sorted_lookup(file_path=str(tmp_path / "cells"))
+    with pytest.raises(OasisException, match="key column 'cell_id'"):
+        fct(pd.DataFrame({"loc_id": [1]}))
+
+
+def test_sorted_lookup_end_to_end(cell_table, tmp_path):
+    write_sorted_lookup(cell_table, tmp_path / "cells", key_column="cell_id", value_columns=["area_peril_id"])
+    config = {
+        "keys_data_path": str(tmp_path),
+        "strategy": ["areaperil", "pivot"],
+        "step_definition": {
+            "areaperil": {"type": "sorted_lookup", "columns": ["cell_id"],
+                          "parameters": {"file_path": "%%KEYS_DATA_PATH%%/cells", "id_columns": ["area_peril_id"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "ORF", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1, 2], "CELL_ID": [30, 31]})
+    keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
+    assert (keys.loc[1, "status"], keys.loc[1, "area_peril_id"]) == ("success", 3)
+    assert keys.loc[2, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
+
+
+# --- transform_coordinates (#2284 item 5) -------------------------------------
+
+
+def _bng_locations():
+    return pd.DataFrame({
+        "loc_id": [1, 2, 3, 4],
+        "latitude": [51.5072, None, -33.87, 55.9533],      # London, missing, Sydney, Edinburgh
+        "longitude": [-0.1276, -0.1, 151.21, -3.1883],
+    })
+
+
+def test_transform_coordinates_to_british_national_grid():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
+    result = fct(_bng_locations())
+    # PROJ uses the OSTN15 grid when it is installed (x = 530041.5) and a Helmert fallback
+    # otherwise (x = 530043.2), so allow a few metres either way
+    assert result["x"].iloc[0] == pytest.approx(530042, abs=5)
+    assert result["y"].iloc[0] == pytest.approx(180358, abs=5)
+    assert result["x"].iloc[3] == pytest.approx(326000, abs=1000)
+    assert result[["x", "y"]].iloc[[1, 2]].isna().all().all()  # missing input, and Sydney is outside GB
+
+
+def test_transform_coordinates_without_area_check_and_custom_columns():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(
+        target_crs=27700, x_column="easting", y_column="northing", area_of_use_only=False)
+    result = fct(_bng_locations())
+    assert result["easting"].notna().tolist() == [True, False, True, True]  # Sydney projected, however meaningless
+
+
+def test_transform_coordinates_area_crossing_antimeridian():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:3832")  # PDC Mercator, 98.69E..68W
+    result = fct(pd.DataFrame({"latitude": [-17.7, -17.7, 51.5], "longitude": [178.0, -150.0, 0.0]}))
+    assert result["x"].notna().tolist() == [True, True, False]
+
+
+def test_transform_coordinates_failure_messages():
+    pytest.importorskip("pyproj")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
+    locations = _bng_locations()
+    locations["message"] = ["", "", "", "already set"]
+    result = fct(locations)
+    assert result["message"].tolist() == [
+        "",
+        "transform_coordinates failure: missing latitude or longitude",
+        "transform_coordinates failure: outside the area of use of EPSG:27700",
+        "already set",  # an earlier step's message is kept
+    ]
+
+
+def test_transform_coordinates_area_of_use_ignored_is_logged(caplog):
+    pytest.importorskip("pyproj")
+    with caplog.at_level("INFO", logger="oasislmf.lookup.builtin"):
+        Lookup(config={}).build_transform_coordinates(target_crs="EPSG:4326", source_crs="EPSG:27700")
+    assert "area_of_use_only ignored, source CRS EPSG:27700 is not geographic" in caplog.text
+
+
+def test_transform_coordinates_errors():
+    pytest.importorskip("pyproj")
+    with pytest.raises(OasisException, match="invalid CRS"):
+        Lookup(config={}).build_transform_coordinates(target_crs="EPSG:not-a-crs")
+    fct = Lookup(config={}).build_transform_coordinates(target_crs="EPSG:27700")
+    with pytest.raises(OasisException, match="'latitude' is not in the locations"):
+        fct(pd.DataFrame({"lat": [51.5], "longitude": [0.0]}))
+
+
+def test_transform_coordinates_then_interval_to_index_end_to_end(tmp_path):
+    """Issue #2284 item 5: project to a CRS, then index a regular grid in it with interval_to_index."""
+    pytest.importorskip("pyproj")
+    edges = [500000, 510000, 520000, 530000, 540000]  # 10 km columns of a BNG grid
+    config = {
+        "strategy": ["project", "column", "areaperil", "pivot"],
+        "step_definition": {
+            "project": {"type": "transform_coordinates", "columns": ["latitude", "longitude"],
+                        "parameters": {"target_crs": "EPSG:27700"}},
+            "column": {"type": "interval_to_index",
+                       "parameters": {"value_column_name": "x", "sorted_array": edges,
+                                      "index_column_name": "area_peril_id"}},
+            "areaperil": {"type": "prepare", "parameters": {"area_peril_id": {"default": -1}}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [{"new_cols": {
+                "peril_id": "ORF", "coverage_type": 1, "vulnerability_id": 1}}]}},
+        },
+    }
+    locations = pd.DataFrame({"loc_id": [1, 2], "Latitude": [51.5072, -33.87], "Longitude": [-0.1276, 151.21]})
+    keys = Lookup(config=config).process_locations(locations).set_index("loc_id")
+    assert (keys.loc[1, "status"], keys.loc[1, "area_peril_id"]) == ("success", 4)  # x ~ 530042
+    assert keys.loc[2, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
+    assert keys.loc[2, "message"] == ("area_peril_id has an unknown id: "
+                                      "transform_coordinates failure: outside the area of use of EPSG:27700")

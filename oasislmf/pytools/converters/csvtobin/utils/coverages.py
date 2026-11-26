@@ -27,6 +27,7 @@ def coverages_tobin(stack, file_in, file_out, file_type):
                     f"expected {expected[i]}. coverage_id must be ascending from 1 with no gaps."
                 )
             last_id += len(coverage_ids)
+            # .write(tobytes()), not .tofile(): file_out may be a non-seekable pipe (#2140)
             file_out.write(chunk["tiv"].to_numpy(dtype=tiv_dtype).tobytes())
     except pd.errors.EmptyDataError:
         pass

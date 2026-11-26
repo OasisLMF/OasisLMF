@@ -37,5 +37,7 @@ exec_wait(){
 lecpy -r -Kgul_S1_summaryleccalc -F -f -S -s -M -m -O output/gul_S1_ept.csv & lpid1=$!
 exec_wait $lpid1
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f fifo/*

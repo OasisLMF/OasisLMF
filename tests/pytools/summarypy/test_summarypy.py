@@ -7,11 +7,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from oasislmf.pytools.common.data import def_to_type_and_size
-from oasislmf.pytools.common.event_stream import mv_read
+from oasislmf.pytools.common.data import def_to_type_and_size, gul_summary_xref_dtype
+from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, TIV_IDX,
+                                                  decode_building, decode_local_sidx, mv_read)
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_headers
 from oasislmf.pytools.summary.cli import parser, manager
+from oasislmf.utils.defaults import SUMMARY_OUTPUT
 from oasislmf.utils.exceptions import OasisStreamException
+from tests.pytools.utils import packed_gul_stream, read_gul_stream, read_summary_stream
 
 
 TESTS_ASSETS_DIR = Path(__file__).parent.parent.parent.joinpath("assets").joinpath("test_summarypy")
@@ -86,6 +89,57 @@ def test_multiple_summary_set():
     case_runner('multiple_summary_set', test_case)
 
 
+@pytest.mark.parametrize('map_format', ['parquet', 'csv'])
+@pytest.mark.parametrize('sample_size', [10, 0], ids=['samples', 'mean_only'])
+def test_a_packed_items_buildings_add_into_its_summary(tmp_path, sample_size, map_format):
+    """A summary is per item, and a packed item stands for all its buildings, so every building's
+    samples, mean, maximum and TIV go into the item's summary, and each building of an affected
+    location counts as an affected risk, as it would as an item of its own. A mean-only run
+    (number_of_samples defaults to 0) still carries a set of specials per building.
+
+    The summary map is written here; that generation puts ``number_of_buildings`` on it is tested
+    by the summary-info TIV test in tests/computation/test_generate_losses.py. Generation writes it
+    as parquet; a csv is what older versions wrote."""
+    n_buildings = 3
+    run_dir, gul = packed_gul_stream(tmp_path / 'model', n_building=-n_buildings, sample_size=sample_size)
+    # a location per coverage, and a summary per parity of the location
+    items = pd.read_csv(run_dir / 'input' / 'items.csv').set_index('item_id')['coverage_id']
+    xref = np.zeros(len(items), dtype=gul_summary_xref_dtype)
+    xref['item_id'], xref['summary_id'], xref['summaryset_id'] = items.index, 1 + items % 2, 1
+    xref.tofile(tmp_path / 'gulsummaryxref.bin')
+    summary_map = pd.DataFrame({'loc_id': items, 'item_id': items.index, 'building_id': 1,
+                                'number_of_buildings': n_buildings})
+    if map_format == 'parquet':
+        summary_map.to_parquet(tmp_path / 'gul_summary_map.parquet', index=False)
+    else:
+        summary_map.to_csv(tmp_path / 'gul_summary_map.csv', index=False)
+
+    out = tmp_path / 'summary.bin'
+    manager.run(files_in=[str(gul)], static_path=str(tmp_path), run_type=manager.RUNTYPE_GROUNDUP_LOSS,
+                low_memory=False, output_zeros=False, summary_sets_output=['-1', str(out)])
+    got = read_summary_stream(out)
+
+    stream = read_gul_stream(gul)[2]
+    assert decode_building(stream['sidx'].min(), sample_size) == n_buildings, "the stream is not packed"
+    stream['loc_id'] = stream['item_id'].map(items)
+    stream['summary_id'] = 1 + stream['loc_id'] % 2
+    stream['sidx'] = [decode_local_sidx(s, sample_size) for s in stream['sidx']]
+    expected = stream.groupby(['event_id', 'summary_id', 'sidx'])['loss'].sum()
+
+    assert set(got['sidx']) == {MAX_LOSS_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MEAN_IDX, *range(1, sample_size + 1)}
+    summed = got[got['sidx'] != NUMBER_OF_AFFECTED_RISK_IDX].set_index(['event_id', 'summary_id', 'sidx'])['loss']
+    summed_sidx = expected.index.get_level_values('sidx').isin([MAX_LOSS_IDX, MEAN_IDX, *range(1, sample_size + 1)])
+    expected_summed = expected[summed_sidx & (expected != 0)]  # summarypy writes no zero loss
+    assert summed.index.sort_values().equals(expected_summed.index.sort_values())
+    np.testing.assert_allclose(summed, expected_summed.loc[summed.index], rtol=1e-5)
+    risks = got[got['sidx'] == NUMBER_OF_AFFECTED_RISK_IDX].set_index(['event_id', 'summary_id'])['loss']
+    affected_locations = stream[stream['loss'] != 0].groupby(['event_id', 'summary_id'])['loc_id'].nunique()
+    pd.testing.assert_series_equal(risks.sort_index(), (n_buildings * affected_locations).sort_index(),
+                                   check_names=False, check_dtype=False)
+    exposure = got.groupby(['event_id', 'summary_id'])['exposure_value'].first()
+    np.testing.assert_allclose(exposure, expected.xs(TIV_IDX, level='sidx').loc[exposure.index], rtol=1e-5)
+
+
 def read_summary_bin_as_rows(file_path):
     """Decode a binary summary stream into (EventId, SummaryId, SampleId, Loss, ImpactedExposure) rows."""
     buf = np.fromfile(file_path, dtype=np.uint8)
@@ -151,6 +205,8 @@ def test_tabular_output_matches_binary_stream(test_name, test_case, ext, buffer_
 @pytest.mark.parametrize('extra_args, error', [
     ('-E csv -m -1 {tmp}/S1.csv', 'only available for bin output'),
     ('-E parquet -1 {tmp}/S1.csv', 'Invalid file extension'),
+    ('-E csv -s -1 {tmp}/S1.csv', 'sentinel events are only available for bin output'),
+    ('-m -s -1 {tmp}/S1.bin', 'cannot combine `low_memory` and `sentinel_event`'),
 ])
 def test_tabular_output_invalid_arguments(extra_args, error):
     with TemporaryDirectory() as tmp:
@@ -232,3 +288,72 @@ def test_requested_summary_set_missing_item(monkeypatch):
         with pytest.raises(OasisStreamException, match='has no summaryxref row'):
             run_summarypy(manager.RUNTYPE_INSURED_LOSS, static_path,
                           {i: Path(tmp_dir_str, f'S{i}_summary.bin') for i in (1, 2)})
+
+
+# sentinel events (-s)
+
+SENTINEL_EXPECTED_DIR = TESTS_ASSETS_DIR.joinpath('sentinel_event')
+
+
+def write_rl_static(test_name, static_path):
+    """Save the risummaryxref of the test_name assets as an rlsummaryxref in static_path, so -t rl can run
+    on the ri.bin asset."""
+    static_path.mkdir(parents=True, exist_ok=True)
+    for xref_path in Path(TESTS_ASSETS_DIR, test_name, 'RI_1').glob(f"{SUMMARY_OUTPUT['ri']}.*"):
+        shutil.copy(xref_path, static_path / f"{SUMMARY_OUTPUT['rl']}{xref_path.suffix}")
+    return static_path
+
+
+@pytest.fixture
+def update_expected(request):
+    return request.config.getoption('--update-expected')
+
+
+def test_get_sentinel_bytes():
+    """The sentinel is a summary record for summary_id 0 with expval 0 and no pairs, just the terminator."""
+    header = np.array([(7, 0, 0.0)], dtype=[('event_id', EVENT_ID_DTYPE), ('summary_id', SUMMARY_ID_DTYPE),
+                                            ('expval', LOSS_DTYPE)])
+    terminator = np.array([(0, 0.0)], dtype=[('sidx', SIDX_DTYPE), ('loss', LOSS_DTYPE)])
+    assert manager.get_sentinel_bytes(7).tobytes() == header.tobytes() + terminator.tobytes()
+
+
+@pytest.mark.parametrize('test_name, summary_set_ids', [
+    pytest.param('single_summary_set', [1], id='single_summary_set'),
+    pytest.param('multiple_summary_set', [1, 2], id='multiple_summary_set'),
+])
+def test_sentinel_after_every_event(tmp_path, test_name, summary_set_ids, update_expected):
+    """With -s, every rl summary set stream equals its expected stream in
+    tests/assets/test_summarypy/sentinel_event/<test_name>, which closes every event with an E:S0 sentinel.
+    Run pytest with --update-expected to rewrite the expected streams."""
+    static_path = write_rl_static(test_name, tmp_path / 'RI_1')
+    expected_dir = SENTINEL_EXPECTED_DIR.joinpath(test_name)
+    file_names = {summary_set_id: f'rl_S{summary_set_id}_summary.bin' for summary_set_id in summary_set_ids}
+    # with -z as for the ri assets, so the expected streams are those assets with sentinels added
+    manager.run(str(Path(TESTS_ASSETS_DIR, 'ri.bin')), str(static_path), manager.RUNTYPE_REINSURANCE_GROSS_LOSS, False, True,
+                sentinel_event=True,
+                summary_sets_output=[arg for summary_set_id, file_name in file_names.items()
+                                     for arg in (f'-{summary_set_id}', str(tmp_path / file_name))])
+
+    for summary_set_id, file_name in file_names.items():
+        if update_expected:
+            expected_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(tmp_path / file_name, expected_dir / file_name)
+        if (tmp_path / file_name).read_bytes() != (expected_dir / file_name).read_bytes():
+            pytest.fail(f'summarypy -s output for rl summary set {summary_set_id} differs from {expected_dir / file_name}')
+
+
+def test_rl_run_type_reads_rlsummaryxref(tmp_path):
+    """-t rl reads rlsummaryxref, not risummaryxref: with the ri assets' risummaryxref saved as an
+    rlsummaryxref, -t rl writes what -t ri writes from the original, and -t ri finds no risummaryxref."""
+    base_path = Path(TESTS_ASSETS_DIR, 'single_summary_set')
+    static_path = write_rl_static('single_summary_set', tmp_path / 'RI_1')
+    files_in = str(Path(TESTS_ASSETS_DIR, 'ri.bin'))
+
+    out_path = tmp_path / 'rl_S1_summary.bin'
+    manager.run(files_in, str(static_path), manager.RUNTYPE_REINSURANCE_GROSS_LOSS, False, True,
+                summary_sets_output=['-1', str(out_path)])
+    assert out_path.read_bytes() == (base_path / 'ri_S1_summary.bin').read_bytes()
+
+    with pytest.raises(FileNotFoundError):
+        manager.run(files_in, str(static_path), manager.RUNTYPE_REINSURANCE_LOSS, False, True,
+                    summary_sets_output=['-1', str(tmp_path / 'ri_S1_summary.bin')])

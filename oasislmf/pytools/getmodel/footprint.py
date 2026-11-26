@@ -13,6 +13,7 @@ import pandas as pd
 import numba as nb
 import pyarrow as pa
 import pyarrow.compute as pc
+import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 
 from oasis_data_manager.df_reader.config import clean_config, InputReaderConfig, get_df_reader
@@ -26,13 +27,26 @@ from .common import (
     parquetfootprint_meta_filename, event_defintion_filename,
     hazard_case_filename, fp_format_priorities,
     parquetfootprint_chunked_dir,
-    parquetfootprint_chunked_lookup, footprint_bin_lookup
+    parquetfootprint_chunked_lookup, footprint_bin_lookup,
+    SECTION_MERGE_OPTIONS, SECTION_MERGE_DEFAULT,
 )
 from oasislmf.pytools.common.data import (
     footprint_event_dtype, areaperil_int, memmap_or_empty, is_first_entry_zlib_compressed
 )
+from oasislmf.pytools.getmodel.dynamic_footprint import (
+    LEVEL_SCALE, MERGE_MAX, MERGE_MAX_INDEPENDENT, MERGE_SUM, collapse, interpolate_brackets, is_sorted, merge_sections)
 
 logger = logging.getLogger(__name__)
+
+# the section_id key of a file partitioned by section (section_id=N/), given as an integer so that
+# a reader does not infer its type from every partition name
+SECTION_PARTITIONING = ds.partitioning(pa.schema([("section_id", pa.int64())]), flavor="hive")
+
+# files of a dynamic footprint's hazard saved for sharing between processes, see FootprintParquetDynamic.save_shared
+SHARED_MANIFEST = 'manifest.json'
+# (required, optional) columns the footprint build uses, the only ones saved; other columns are not needed
+SHARED_HAZARD_CASE_COLUMNS = (['section_id', 'areaperil_id', 'return_period', 'intensity'], ['probability'])
+SHARED_EVENT_DEFINITION_COLUMNS = (['event_id', 'section_id', 'rp_from', 'rp_to', 'interpolation'], [])
 
 uncompressedMask = 1 << 1
 intensityMask = 1
@@ -69,11 +83,13 @@ def select_row_groups(metadata, sorted_areaperil_ids):
 
 
 @nb.njit(cache=True)
-def has_number_in_range(areaperil_ids, min_areaperil_id, max_areaperil_id):
-    for apid in areaperil_ids:
-        if min_areaperil_id <= apid <= max_areaperil_id:
-            return True
-    return False
+def has_number_in_range(sorted_areaperil_ids, min_areaperil_id, max_areaperil_id):
+    """Whether any of sorted_areaperil_ids lies in [min_areaperil_id, max_areaperil_id].
+
+    sorted_areaperil_ids must be sorted ascending; unsorted ids give a wrong answer, not an error.
+    """
+    j = np.searchsorted(sorted_areaperil_ids, min_areaperil_id)
+    return j < sorted_areaperil_ids.shape[0] and sorted_areaperil_ids[j] <= max_areaperil_id
 
 
 def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
@@ -143,13 +159,14 @@ class Footprint:
         Args:
             storage (BaseStorage): the storage object used to lookup files
             df_engine (str): the engine to use when loading dataframes
-            areaperil_ids (list): areaperil_ids that will be useful
+            areaperil_ids (list): areaperil_ids that will be useful. Stored sorted and unique, which
+              areaperil_in_range relies on.
         """
         self.storage = storage
         self.stack = ExitStack()
         self.df_engine = df_engine
         if areaperil_ids is not None:
-            self.areaperil_ids = np.array(areaperil_ids, dtype=areaperil_int)
+            self.areaperil_ids = np.unique(np.array(areaperil_ids, dtype=areaperil_int))
         else:
             self.areaperil_ids = None
 
@@ -179,6 +196,9 @@ class Footprint:
         ignore_file_type=set(),
         df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
         areaperil_ids=None,
+        section_merge=None,
+        shared_dir=None,
+        lazy=False,
         **kwargs
     ):
         """Loads the loading classes defined in this file checking to see if the files are in the static path
@@ -206,6 +226,14 @@ class Footprint:
 
             df_engine (str): the engine to use when loading dataframes
             areaperil_ids (list): areaperil_ids to filter the loaded footprint to
+            section_merge (str or None): how a dynamic footprint merges an areaperil's intensities
+                across the sections of one event, one of SECTION_MERGE_OPTIONS. None takes the
+                default. Ignored by the other footprint formats, which have no sections.
+            shared_dir (str or None): directory where a dynamic footprint's hazard was saved by
+                FootprintParquetDynamic.save_shared, memory-mapped instead of read from the model data
+                when present. Ignored by the other footprint formats.
+            lazy (bool): if True, a dynamic footprint does not load its sections when opened, only in
+                save_shared: for a caller that needs num_intensity_bins. Ignored by the other footprint formats.
             **kwargs: additional keyword arguments, accepted and ignored so that callers can
                 forward a wider parameter dict
 
@@ -221,6 +249,9 @@ class Footprint:
             if valid:
                 for filename in footprint_class.footprint_filenames:
                     logger.debug(f"loading {filename}")
+                if footprint_class is FootprintParquetDynamic:
+                    return footprint_class(storage, df_engine=df_engine, areaperil_ids=areaperil_ids,
+                                           section_merge=section_merge, shared_dir=shared_dir, lazy=lazy)
                 return footprint_class(storage, df_engine=df_engine, areaperil_ids=areaperil_ids)
         else:
             if storage.isfile("footprint.parquet"):
@@ -322,6 +353,9 @@ class FootprintBin(Footprint):
         footprint_file = self.stack.enter_context(self.storage.with_fileno(footprint_filename))
 
         self.footprint = mmap.mmap(footprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
+        # closing the file doesn't release the mapping, and Windows can't delete a mapped file (#2238).
+        # Safe as reads copy out of the mapping (slices) rather than holding views into it.
+        self.stack.callback(self.footprint.close)
 
         footprint_header = np.frombuffer(bytearray(self.footprint[:FootprintHeader.itemsize]), dtype=FootprintHeader)
 
@@ -398,6 +432,7 @@ class FootprintBinZ(Footprint):
     def __enter__(self):
         zfootprint_file = self.stack.enter_context(self.storage.with_fileno(zfootprint_filename))
         self.zfootprint = mmap.mmap(zfootprint_file.fileno(), length=0, access=mmap.ACCESS_READ)
+        self.stack.callback(self.zfootprint.close)  # as in FootprintBin
 
         footprint_header = np.frombuffer(bytearray(self.zfootprint[:FootprintHeader.itemsize]), dtype=FootprintHeader)
 
@@ -585,18 +620,37 @@ class FootprintParquetChunk(Footprint):
         return events
 
 
+def validate_section_merge(section_merge):
+    """Resolve the section_merge option, failing at load on an unknown value.
+
+    Raises here rather than at the first event with a multi-section areaperil: a portfolio may
+    hold no such areaperil, and a mistyped option must not go unnoticed until one does.
+    """
+    if section_merge is None:
+        return SECTION_MERGE_DEFAULT
+    if section_merge not in SECTION_MERGE_OPTIONS:
+        raise OasisFootPrintError(
+            f"unknown section_merge {section_merge!r}, valid options are {', '.join(SECTION_MERGE_OPTIONS)}")
+    return section_merge
+
+
 class FootprintParquetDynamic(Footprint):
     """This class is responsible for loading event data from parquet dynamic event sets and maps
     It will build the footprint from the underlying event defintion and hazard case files
 
     Either file may be partitioned by section_id (i.e. be a directory of section_id=N/
     subdirectories) or be a single unpartitioned parquet file, independently of the other.
-    Both layouts are read the same way, by pushing a section_id filter down to the reader.
+    A partitioned file is read by opening the portfolio's section_id=N/ directories one by one
+    when it needs only a small share of them, otherwise in one go with a section_id filter, as
+    an unpartitioned file is.
 
-    The hazard case is bulk-loaded at __enter__ for this portfolio's sections and areaperils,
-    which is all get_event ever needs of it. The event definition is bulk-loaded too when it
-    is partitioned, giving indexed per-event lookups; when it is unpartitioned it is instead
-    filtered to the event per get_event call.
+    __enter__ bulk-loads the hazard case for this portfolio's sections and areaperils, which is
+    all get_event ever needs of it, so model data the footprint cannot use is refused when it is
+    opened. A lazy footprint (lazy=True) only loads in save_shared, for a caller that needs
+    num_intensity_bins. Every process loading the hazard case holds its own copy, so it can be saved once with save_shared and memory-mapped by each
+    process instead (shared_dir), in which case __enter__ maps it straight away. The event
+    definition is bulk-loaded too when it is partitioned, giving indexed per-event lookups;
+    when it is unpartitioned it is instead filtered to the event per get_event call.
 
     Both files may also be sparse: a section that is absent from the event definition has no
     events affecting it, and a section absent from the hazard case is unaffected by the
@@ -610,8 +664,35 @@ class FootprintParquetDynamic(Footprint):
     """
     footprint_filenames: List[str] = [event_defintion_filename, hazard_case_filename, parquetfootprint_meta_filename]
 
-    def _is_partitioned_by_section(self, filename):
-        """Check whether a parquet file is a dataset partitioned by section_id.
+    # partitions are opened one by one when the portfolio needs at most this share of them
+    partition_read_max_share = 1 / 1000
+
+    def __init__(self, storage: BaseStorage, df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
+                 areaperil_ids=None, section_merge=None, shared_dir=None, lazy=False) -> None:
+        """The constructor for the FootprintParquetDynamic class.
+
+        Args:
+            storage (BaseStorage): the storage object used to lookup files
+            df_engine (str): the engine to use when loading dataframes
+            areaperil_ids (list): areaperil_ids that will be useful
+            section_merge (str or None): how an areaperil's intensities are merged across the
+                sections of one event, one of SECTION_MERGE_OPTIONS. None takes SECTION_MERGE_DEFAULT.
+            shared_dir (str or None): directory written by save_shared. When it holds a complete save,
+                the hazard case and partitioned event definition are memory-mapped from it rather than
+                read from the model data.
+            lazy (bool): if True, __enter__ does not load the sections, save_shared does; get_event
+                is then not available.
+
+        Raises:
+            OasisFootPrintError: if section_merge is not a known option
+        """
+        super().__init__(storage, df_engine=df_engine, areaperil_ids=areaperil_ids)
+        self.section_merge = validate_section_merge(section_merge)
+        self.shared_dir = shared_dir
+        self.lazy = lazy
+
+    def _section_partitions(self, filename):
+        """List the section_ids a parquet file is partitioned into.
 
         This is a property of the model data alone: it must not depend on which sections the
         portfolio happens to use, as a partitioned file is allowed to hold none of them.
@@ -619,15 +700,18 @@ class FootprintParquetDynamic(Footprint):
         Args:
             filename (str): the parquet file or dataset directory to inspect
 
-        Returns: (bool) True if the file is a directory of section_id=N/ partitions
+        Returns: (set[int] | None) the section_ids of its section_id=N/ partitions, or None if
+            the file is not partitioned by section_id
         """
         if not self.storage.exists(filename) or self.storage.isfile(filename):
-            return False
+            return None
 
-        return any(
-            os.path.basename(str(entry).rstrip('/')).startswith('section_id=')
-            for entry in self.storage.listdir(filename)
-        )
+        partitions = set()
+        for entry in self.storage.listdir(filename):
+            name = os.path.basename(str(entry).rstrip('/'))
+            if name.startswith('section_id='):
+                partitions.add(int(name[len('section_id='):]))
+        return partitions or None
 
     def __enter__(self):
         with self.storage.open(parquetfootprint_meta_filename, 'r') as outfile:
@@ -641,24 +725,34 @@ class FootprintParquetDynamic(Footprint):
         if self.areaperil_ids is None:
             self.areaperil_ids = pd.read_csv('input/keys.csv', usecols=['AreaPerilID']).AreaPerilID.unique()
 
-        self.event_definition_partitioned = self._is_partitioned_by_section(event_defintion_filename)
-
         self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
         self.absent_sections_reported = {}
 
         self.df_event_definition = None
         self.df_hazard_case = None
+        self.confluence_areaperils = np.empty(0, np.uint64)
         self.event_set = set()
+        self.shared_hazard = None
 
-        if self.event_definition_partitioned:
-            self.get_event = self._get_event_partitioned
-            if not self._load_event_definitions():
-                return self
-        else:
-            self.get_event = self._get_event_flat
+        if self.shared_dir is not None and self._load_shared():
+            return self
 
-        self._load_hazard_case()
+        if not self.lazy:
+            # at open rather than on first use: the footprint server catches each request's error and
+            # keeps serving, so model data refused by a get_event would not stop the run
+            self._load()
         return self
+
+    def _load(self):
+        """Load the portfolio's sections from the model data and set get_event to the layout's path.
+
+        The hazard case is not read when no event in the model data affects the portfolio.
+        """
+        partitions = self._section_partitions(event_defintion_filename)
+        self.event_definition_partitioned = partitions is not None
+        if not self.event_definition_partitioned or self._load_event_definitions(partitions):
+            self._load_hazard_case(self._section_partitions(hazard_case_filename))
+        self.get_event = self._get_event_partitioned if self.event_definition_partitioned else self._get_event_flat
 
     def _report_absent_sections(self, filename, absent):
         reported = self.absent_sections_reported.setdefault(filename, set())
@@ -670,12 +764,14 @@ class FootprintParquetDynamic(Footprint):
         logger.info(f"sections {newly_absent} have no data in {filename} for this portfolio, "
                     f"so their locations are treated as not at risk")
 
-    def _read_sections(self, filename, sections, filters=None):
+    def _read_sections(self, filename, sections, partitions, filters=None):
         """Read the requested sections of a parquet file, treating absent sections as empty.
 
         Args:
             filename (str): the parquet file or dataset directory to read
             sections (iterable): the section_ids to read
+            partitions (set[int] | None): the section_ids the file is partitioned into, or None
+                if it is not partitioned
             filters (list): optional pyarrow filters pushed down to the reader
 
         Returns: (pd.DataFrame) the concatenated sections with a section_id column, or an
@@ -685,47 +781,179 @@ class FootprintParquetDynamic(Footprint):
         if not sections:
             return pd.DataFrame()
 
-        section_filters = (filters or []) + [("section_id", "in", sections)]
-        df_sections = self.get_df_reader(filename, filters=section_filters).as_pandas()
-        # a hive partition key is read back as a category, which does not survive the
-        # fillna and merge in _build_footprint the way the flat file's integer column does
+        if partitions is not None and len(sections) <= len(partitions) * self.partition_read_max_share:
+            df_sections = self._read_partitions(filename, sorted(partitions.intersection(sections)), filters)
+        else:
+            section_filters = (filters or []) + [("section_id", "in", sections)]
+            df_sections = self.get_df_reader(filename, filters=section_filters, partitioning=SECTION_PARTITIONING).as_pandas()
+        # one integer type whichever layout the file has, so the fillna and merge in
+        # _build_footprint behave the same for partitioned and flat files
         df_sections['section_id'] = df_sections['section_id'].astype('int64')
         present = set() if df_sections.empty else set(df_sections['section_id'])
         self._report_absent_sections(filename, set(sections) - present)
         return df_sections
 
-    def _load_event_definitions(self):
+    def _read_partitions(self, filename, sections, filters=None):
+        """Read the section_id=N/ directories of a partitioned file.
+
+        Args:
+            filename (str): the partitioned dataset directory
+            sections (list[int]): the section_ids to read, all of which have a partition
+            filters (list): optional pyarrow filters pushed down to the reader
+
+        Returns: (pd.DataFrame) the concatenated sections with a section_id column
+        """
+        reader_kwargs = {'filters': filters} if filters else {}
+        df_partitions = []
+        for section in sections:
+            df_partition = self.get_df_reader(f'{filename}/section_id={section}', **reader_kwargs).as_pandas()
+            df_partitions.append(df_partition.assign(section_id=section))
+
+        if not df_partitions:
+            return pd.DataFrame({'section_id': pd.Series(dtype='int64')})
+        return pd.concat(df_partitions, ignore_index=True)
+
+    def _load_event_definitions(self, partitions):
         """Bulk-load the event definitions of this portfolio's sections.
+
+        Args:
+            partitions (set[int]): the section_ids the event definition is partitioned into
 
         Returns: (bool) False if no event in the model data affects the portfolio at all
         """
-        df_event_definition = self._read_sections(event_defintion_filename, self.location_sections)
+        df_event_definition = self._read_sections(event_defintion_filename, self.location_sections, partitions)
         if df_event_definition.empty:
             logger.warning(f"no section of this portfolio is in {event_defintion_filename}, "
                            f"so no event affects it and every loss will be zero")
             return False
 
+        validate_event_definition(df_event_definition)
         # sorted so that the per-event .loc lookups in _get_event_partitioned are indexed;
         # a stable sort keeps the row order the model data was written in
         self.df_event_definition = df_event_definition.set_index('event_id').sort_index(kind='stable')
         self.event_set = set(df_event_definition['event_id'].unique())
         return True
 
-    def _load_hazard_case(self):
+    def _load_hazard_case(self, partitions):
         """Bulk-load the hazard of this portfolio's sections and areaperils.
 
         The hazard case does not depend on the event, so it is read once here for both
         get_event paths rather than per call.
+
+        Args:
+            partitions (set[int] | None): the section_ids the hazard case is partitioned into,
+                or None if it is not partitioned
         """
         df_hazard_case = self._read_sections(
-            hazard_case_filename, self.location_sections, filters=self.areaperil_ids_filter)
+            hazard_case_filename, self.location_sections, partitions, filters=self.areaperil_ids_filter)
         if df_hazard_case.empty:
             # the modelled perils leave every section of this portfolio unaffected
             logger.warning(f"no section of this portfolio has hazard in {hazard_case_filename}, "
                            f"so every loss will be zero")
             return
 
-        self.df_hazard_case = df_hazard_case.set_index('section_id').sort_index(kind='stable')
+        validate_hazard_case(df_hazard_case)
+        # in the order the footprint build walks it, so that no event has to sort it again
+        df_hazard_case = df_hazard_case.sort_values(['section_id', 'areaperil_id', 'return_period', 'intensity'],
+                                                    kind='stable')
+        self.confluence_areaperils = confluence_areaperils(df_hazard_case)
+        self.df_hazard_case = df_hazard_case.set_index('section_id')
+
+    def save_shared(self, shared_dir):
+        """Save the loaded hazard case, and the event definition if partitioned, for other processes
+        to memory-map (see shared_dir).
+
+        Each column the footprint build uses (SHARED_HAZARD_CASE_COLUMNS, SHARED_EVENT_DEFINITION_COLUMNS)
+        is saved as its own .npy file in the order the footprint build walks it, with the
+        row offsets of each section and the areaperils lying in several sections. The manifest is written last, so a save that did not finish is
+        not used.
+
+        Args:
+            shared_dir (str): the directory to save into
+
+        Returns: (bool) True if saved; False if there is nothing to share (no event or hazard affects
+            the portfolio) or a column it uses is missing or not numeric, in which case each process reads
+            the model data
+        """
+        if self.lazy:
+            self._load()
+        if self.df_hazard_case is None or (self.event_definition_partitioned and self.df_event_definition is None):
+            return False
+
+        tables = {'hazard_case': (self.df_hazard_case.reset_index(), SHARED_HAZARD_CASE_COLUMNS)}
+        if self.event_definition_partitioned:
+            tables['event_definition'] = (self.df_event_definition.reset_index(), SHARED_EVENT_DEFINITION_COLUMNS)
+        for name, (df, (required, optional)) in tables.items():
+            missing = [column for column in required if column not in df.columns]
+            columns = required + [column for column in optional if column in df.columns]
+            not_numeric = [column for column in columns if column in df.columns and df[column].dtype.kind not in 'biuf']
+            if missing or not_numeric:
+                logger.warning(f"dynamic footprint not shared between processes, each process reads the model data: "
+                               f"{name} column(s) missing {missing}, not numeric {not_numeric}")
+                return False
+            tables[name] = (df, columns)
+
+        manifest_path = os.path.join(shared_dir, SHARED_MANIFEST)
+        if os.path.exists(manifest_path):
+            os.remove(manifest_path)
+        os.makedirs(shared_dir, exist_ok=True)
+
+        for name, (df, columns) in tables.items():
+            for column in columns:
+                np.save(os.path.join(shared_dir, f'{name}.{column}.npy'), df[column].to_numpy())
+        section_id = tables['hazard_case'][0]['section_id'].to_numpy()
+        starts = np.flatnonzero(np.diff(section_id)) + 1
+        np.save(os.path.join(shared_dir, 'hazard_case_sections.npy'), section_id[np.concatenate(([0], starts))])
+        np.save(os.path.join(shared_dir, 'hazard_case_offsets.npy'),
+                np.concatenate(([0], starts, [len(section_id)])).astype(np.int64))
+        np.save(os.path.join(shared_dir, 'confluence_areaperils.npy'), self.confluence_areaperils)
+
+        manifest = {'event_definition_partitioned': self.event_definition_partitioned,
+                    'columns': {name: columns for name, (df, columns) in tables.items()}}
+        with open(manifest_path, 'w') as f:
+            json.dump(manifest, f)
+        return True
+
+    def _load_shared(self):
+        """Memory-map the hazard case, and the event definition if partitioned, saved by save_shared.
+
+        Returns: (bool) False if shared_dir holds no complete save for this model data's layout
+        """
+        manifest_path = os.path.join(self.shared_dir, SHARED_MANIFEST)
+        if not os.path.isfile(manifest_path):
+            return False
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        event_definition_partitioned = self._section_partitions(event_defintion_filename) is not None
+        if manifest['event_definition_partitioned'] != event_definition_partitioned:
+            return False
+        self.event_definition_partitioned = event_definition_partitioned
+
+        def load(name):
+            return np.load(os.path.join(self.shared_dir, f'{name}.npy'), mmap_mode='r')
+
+        self.shared_hazard = {column: load(f'hazard_case.{column}') for column in manifest['columns']['hazard_case']}
+        self.shared_hazard_sections = load('hazard_case_sections')
+        self.shared_hazard_offsets = load('hazard_case_offsets')
+        self.confluence_areaperils = np.asarray(load('confluence_areaperils'))
+        if self.event_definition_partitioned:
+            self.shared_event_definition = {column: load(f'event_definition.{column}')
+                                            for column in manifest['columns']['event_definition']}
+            self.get_event = self._get_event_shared
+        else:
+            self.get_event = self._get_event_flat
+        logger.info(f"dynamic footprint memory-mapped from {self.shared_dir}")
+        return True
+
+    def _get_event_shared(self, event_id):
+        """Shared path: the event definition is memory-mapped and sorted by event_id."""
+        event_ids = self.shared_event_definition['event_id']
+        start, end = np.searchsorted(event_ids, event_id, 'left'), np.searchsorted(event_ids, event_id, 'right')
+        if start == end:
+            return None
+
+        return self._build_event(pd.DataFrame(
+            {column: np.array(values[start:end]) for column, values in self.shared_event_definition.items()}))
 
     def _get_event_partitioned(self, event_id):
         """Fast path: the event definition is indexed in memory, so look the event up."""
@@ -741,6 +969,7 @@ class FootprintParquetDynamic(Footprint):
         if df_event_definition.empty:
             return None
 
+        validate_event_definition(df_event_definition)
         return self._build_event(df_event_definition)
 
     def _build_event(self, df_event_definition):
@@ -754,88 +983,206 @@ class FootprintParquetDynamic(Footprint):
             with its index drops both the sections outside the portfolio and those the
             modelled perils leave unaffected.
         """
-        if self.df_hazard_case is None:
-            return None
+        if self.shared_hazard is not None:
+            sections = np.intersect1d(self.shared_hazard_sections, df_event_definition['section_id'].unique())
+            if len(sections) == 0:
+                return None
 
-        sections = self.df_hazard_case.index.intersection(df_event_definition['section_id'].unique())
-        if sections.empty:
+            at = np.searchsorted(self.shared_hazard_sections, sections)
+            rows = np.concatenate([np.arange(self.shared_hazard_offsets[i], self.shared_hazard_offsets[i + 1])
+                                   for i in at])
+            df_hazard_case = pd.DataFrame({column: values[rows] for column, values in self.shared_hazard.items()})
+        elif self.df_hazard_case is None:
             return None
+        else:
+            sections = self.df_hazard_case.index.intersection(df_event_definition['section_id'].unique()).sort_values()
+            if sections.empty:
+                return None
 
-        df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
+            df_hazard_case = self.df_hazard_case.loc[sections].reset_index()
         df_event_definition = df_event_definition[df_event_definition['section_id'].isin(sections)]
 
-        return self._build_footprint(df_hazard_case, df_event_definition)
+        return self._build_footprint(df_hazard_case, df_event_definition, self.confluence_areaperils)
 
-    def _build_footprint(self, df_hazard_case, df_event_definition):
+    def _build_footprint(self, df_hazard_case, df_event_definition, confluences=None):
         """Build the interpolated footprint from hazard case and event definition DataFrames.
 
         Args:
             df_hazard_case: (pd.DataFrame) hazard case data with section_id, areaperil_id, return_period, intensity,
                 and optionally probability (float) for stochastic hazard. When probability is absent, all rows are
-                treated as deterministic (probability=1). Multiple rows per (section_id, areaperil_id, return_period)
-                are supported; realisation_id is assigned automatically by ranking intensities ascending within each
-                group to pair rp_from and rp_to brackets by rank and avoid a cartesian product.
+                treated as deterministic (probability=1). Several rows per (section_id, areaperil_id, return_period)
+                form a discrete distribution of intensity; the rp_from and rp_to brackets may hold different
+                numbers of them, with different probabilities (see dynamic_footprint.interpolate_brackets).
+                Rows sorted by section_id, areaperil_id, return_period, intensity, as the hazard case is at
+                load, are used as they are; any other order is sorted first.
             df_event_definition: (pd.DataFrame) event definition with section_id, rp_from, rp_to, interpolation
+            confluences: (np.ndarray or None) sorted areaperil_ids lying in more than one section of the
+                hazard case, as recorded at load; worked out from df_hazard_case when None.
 
         A return period bracket that the hazard case does not cover for an areaperil is read as
         intensity 0, so the intensity interpolates from or toward zero rather than being dropped.
 
-        Returns: (np.array[EventDynamic]) the interpolated footprint, or None if empty
+        An areaperil lying in several sections of the event is then merged into one distribution
+        by the section_merge option (see dynamic_footprint.merge_sections).
+
+        Returns: (np.array[EventDynamic]) the interpolated footprint, or None if empty. Each
+            areaperil's rows are together, largest intensity first.
         """
         if 'probability' not in df_hazard_case.columns:
             df_hazard_case = df_hazard_case.assign(probability=1.0)
 
-        df_hazard_case = df_hazard_case.sort_values(
-            ['section_id', 'areaperil_id', 'return_period', 'intensity']
-        )
-        df_hazard_case['realisation_id'] = df_hazard_case.groupby(
-            ['section_id', 'areaperil_id', 'return_period']
-        ).cumcount()
-
-        from_cols = ['section_id', 'areaperil_id', 'realisation_id', 'intensity', 'probability']
-        to_cols = ['section_id', 'areaperil_id', 'realisation_id', 'intensity', 'interpolation', 'return_period', 'probability']
-        merge_keys = ['section_id', 'areaperil_id', 'realisation_id']
-
-        df_hazard_case_from = df_hazard_case.merge(
-            df_event_definition, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_from']
-        )[from_cols].rename(columns={'intensity': 'from_intensity', 'probability': 'from_probability'})
-
-        df_hazard_case_to = df_hazard_case.merge(
-            df_event_definition, left_on=['section_id', 'return_period'], right_on=['section_id', 'rp_to']
-        )[to_cols].rename(columns={'intensity': 'to_intensity', 'probability': 'to_probability'})
-
-        df_footprint = df_hazard_case_from.merge(df_hazard_case_to, on=merge_keys, how='outer')
-        df_footprint['from_intensity'] = df_footprint['from_intensity'].fillna(0)
-        df_footprint['to_intensity'] = df_footprint['to_intensity'].fillna(0)
-        # interpolation and return_period come from the rp_to side of the merge, so they are
-        # missing wherever that side is; recover them from the event definition, which holds
-        # one row per section for the event being built
-        df_event_sections = df_event_definition.drop_duplicates('section_id').set_index('section_id')
-        df_footprint['interpolation'] = df_footprint['interpolation'].fillna(
-            df_footprint['section_id'].map(df_event_sections['interpolation']))
-        df_footprint['return_period'] = df_footprint['return_period'].fillna(
-            df_footprint['section_id'].map(df_event_sections['rp_to']))
-        df_footprint['probability'] = df_footprint['from_probability'].fillna(df_footprint['to_probability']).fillna(1.0)
-        df_footprint = df_footprint.drop(columns=['from_probability', 'to_probability'])
-
-        if len(df_footprint) > 0:
-            df_footprint['intensity'] = np.floor(df_footprint.from_intensity + (
-                (df_footprint.to_intensity - df_footprint.from_intensity) * df_footprint.interpolation))
-            df_footprint['intensity'] = df_footprint['intensity'].astype('int')
-
-            # Collapse realisations that produce the same intensity after interpolation,
-            # summing their probabilities, then normalise per areaperil to absorb float drift.
-            df_footprint = df_footprint.groupby(
-                ['areaperil_id', 'intensity', 'return_period'], as_index=False
-            )['probability'].sum()
-            df_footprint['probability'] /= df_footprint.groupby('areaperil_id')['probability'].transform('sum')
-            df_footprint = df_footprint.sort_values(['areaperil_id', 'intensity'], ascending=[True, False])
-
-            df_footprint['intensity_bin_id'] = 0
-
-            return df_to_numpy(df_footprint, EventDynamic)
-        else:
+        # one row per section for the event being built, in section order; a section given twice with
+        # different brackets has no single meaning
+        df_event_sections = df_event_definition.drop_duplicates(
+            ['section_id', 'rp_from', 'rp_to', 'interpolation']).sort_values('section_id')
+        event_id = df_event_sections['event_id'].iloc[0] if 'event_id' in df_event_sections else ''
+        repeated = df_event_sections['section_id'].duplicated()
+        if repeated.any():
+            raise OasisFootPrintError(
+                f"event {event_id} defines "
+                f"section(s) {sorted(df_event_sections.loc[repeated, 'section_id'].unique().tolist())} more than once, "
+                f"with different rp_from, rp_to or interpolation")
+        event_section = df_event_sections['section_id'].to_numpy(np.int64)
+        if len(event_section) == 0 or len(df_hazard_case) == 0:
             return None
+
+        hazard_section = df_hazard_case['section_id'].to_numpy(np.int64)
+        hazard_areaperil = df_hazard_case['areaperil_id'].to_numpy(np.uint64)
+        hazard_rp = df_hazard_case['return_period'].to_numpy(np.int64)
+        hazard_intensity = df_hazard_case['intensity'].to_numpy(np.float64)
+        hazard_probability = df_hazard_case['probability'].to_numpy(np.float64)
+        if not is_sorted(hazard_section, hazard_areaperil, hazard_rp, hazard_intensity):
+            order = np.lexsort((hazard_intensity, hazard_rp, hazard_areaperil, hazard_section))
+            hazard_section, hazard_areaperil, hazard_rp = hazard_section[order], hazard_areaperil[order], hazard_rp[order]
+            hazard_intensity, hazard_probability = hazard_intensity[order], hazard_probability[order]
+
+        # each hazard row's section in the event; the rows at its rp_from and at its rp_to are the two
+        # brackets, each in the hazard case's order: section, areaperil, intensity
+        index = np.minimum(np.searchsorted(event_section, hazard_section), len(event_section) - 1)
+        in_event = event_section[index] == hazard_section
+        interpolation = df_event_sections['interpolation'].to_numpy(np.float64)[index]
+        streams = []
+        for rp_col in ('rp_from', 'rp_to'):
+            rows = np.flatnonzero(in_event & (hazard_rp == df_event_sections[rp_col].to_numpy(np.int64)[index]))
+            streams += [hazard_section[rows], hazard_areaperil[rows], hazard_intensity[rows],
+                        hazard_probability[rows], interpolation[rows]]
+        if len(streams[0]) == 0 and len(streams[5]) == 0:
+            return None
+        section_id, areaperil_id, intensity, width = interpolate_brackets(*streams)
+        probability = width / LEVEL_SCALE
+        return_period = df_event_sections['rp_to'].to_numpy(np.int64)[np.searchsorted(event_section, section_id)]
+
+        # areaperils lying in several sections are merged; intensities stay unfloored until then, as a
+        # sum of floors would lose up to a unit per section
+        if confluences is None:
+            confluences = confluence_areaperils(df_hazard_case)
+        if len(confluences):
+            at = np.minimum(np.searchsorted(confluences, areaperil_id), len(confluences) - 1)
+            merged = confluences[at] == areaperil_id
+            if merged.any():
+                order = np.flatnonzero(merged)
+                order = order[np.lexsort((intensity[order], section_id[order], areaperil_id[order]))]
+                # the merge re-derives each section's levels from the exact integer widths
+                merged_rows = merge_sections(areaperil_id[order], section_id[order], intensity[order], width[order],
+                                             return_period[order], SECTION_MERGE_MODES[self.section_merge])
+                kept = ~merged
+                areaperil_id, intensity, probability, return_period = (
+                    np.concatenate((column[kept], merged_column))
+                    for column, merged_column in zip((areaperil_id, intensity, probability, return_period), merged_rows))
+
+        # the hazard case is in the int32 range, but an extrapolating weight or a sum of sections can
+        # leave it, and the cast in collapse would wrap silently
+        int32 = np.iinfo(np.int32)
+        out_of_range = ~np.isfinite(intensity) | (intensity < int32.min) | (intensity >= int32.max + 1.0)
+        if out_of_range.any():
+            raise OasisFootPrintError(
+                f"event {event_id}: {int(out_of_range.sum())} interpolated or merged intensity(ies) outside the int32 "
+                f"range, e.g. {intensity[out_of_range][0]} at areaperil_id {areaperil_id[out_of_range][0]}; check the "
+                f"event's interpolation weights and the section merge ({self.section_merge})")
+        areaperil_id, intensity, probability, return_period = collapse(areaperil_id, intensity, probability, return_period)
+        footprint = np.empty(len(areaperil_id), dtype=EventDynamic)
+        footprint['areaperil_id'] = areaperil_id
+        footprint['intensity_bin_id'] = 0
+        footprint['intensity'] = intensity
+        footprint['probability'] = probability
+        footprint['return_period'] = return_period
+        return footprint
+
+
+SECTION_MERGE_MODES = {
+    'max': MERGE_MAX,
+    'max_independent': MERGE_MAX_INDEPENDENT,
+    'sum': MERGE_SUM,
+}
+
+
+def refuse_rows(filename, df, reason, bad):
+    """Raise an OasisFootPrintError counting the rows of `df` flagged by `bad`, with the first as an example."""
+    example = df.loc[bad].iloc[0].to_dict()
+    raise OasisFootPrintError(f"{filename}: {int(bad.sum())} row(s) with {reason}, e.g. {example}")
+
+
+def not_whole_numbers(values):
+    """Flag the values that are missing or not whole numbers; return periods are int32 from the footprint on."""
+    values = values.to_numpy(np.float64)
+    return ~np.isfinite(values) | (values != np.floor(values))
+
+
+def validate_event_definition(df_event_definition):
+    """Refuse event definition values the footprint build cannot use.
+
+    rp_from and rp_to are matched against the hazard case's return periods, so they must be whole
+    numbers; interpolation must be finite, as a NaN weight would make every intensity of the
+    section NaN. A weight outside [0, 1] extrapolates and is allowed.
+    """
+    for rp_col in ('rp_from', 'rp_to'):
+        bad = not_whole_numbers(df_event_definition[rp_col])
+        if bad.any():
+            refuse_rows(event_defintion_filename, df_event_definition, f"an {rp_col} that is missing or not a whole number", bad)
+    bad = ~np.isfinite(df_event_definition['interpolation'].to_numpy(np.float64))
+    if bad.any():
+        refuse_rows(event_defintion_filename, df_event_definition, "an interpolation that is missing or not finite", bad)
+
+
+def validate_hazard_case(df_hazard_case):
+    """Refuse hazard case values the footprint build cannot represent, once, at load.
+
+    Return periods must be whole numbers, as they are int32 from the footprint on. Intensities are
+    written as int32 after flooring, so they must be finite and in range; each (section, areaperil,
+    return period) distribution needs non-negative probabilities with a positive total, as they are
+    normalised per distribution.
+    """
+    def refuse(reason, bad):
+        refuse_rows(hazard_case_filename, df_hazard_case, reason, bad)
+
+    bad = not_whole_numbers(df_hazard_case['return_period'])
+    if bad.any():
+        refuse("a return_period that is missing or not a whole number", bad)
+    intensity = df_hazard_case['intensity'].to_numpy(np.float64)
+    int32 = np.iinfo(np.int32)
+    bad = ~np.isfinite(intensity) | (intensity < int32.min) | (intensity > int32.max)
+    if bad.any():
+        refuse("an intensity that is not finite or outside the int32 range", bad)
+    if 'probability' in df_hazard_case.columns:
+        probability = df_hazard_case['probability'].to_numpy(np.float64)
+        bad = ~np.isfinite(probability) | (probability < 0)
+        if bad.any():
+            refuse("a probability that is not finite or negative", bad)
+        total = df_hazard_case.groupby(['section_id', 'areaperil_id', 'return_period'], observed=True)[
+            'probability'].transform('sum').to_numpy(np.float64)
+        bad = total <= 0
+        if bad.any():
+            refuse("probabilities adding up to 0 for their (section_id, areaperil_id, return_period)", bad)
+
+
+def confluence_areaperils(df_hazard_case):
+    """The areaperil_ids lying in more than one section of the hazard case, sorted.
+
+    Only those can need a section merge; with none, as in most models, the merge is skipped.
+    """
+    pairs = df_hazard_case[['areaperil_id', 'section_id']].drop_duplicates()
+    counts = pairs['areaperil_id'].value_counts()
+    return np.sort(counts.index[counts.to_numpy() > 1].to_numpy(np.uint64))
 
 
 if __name__ == "__main__":

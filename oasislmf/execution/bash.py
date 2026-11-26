@@ -68,12 +68,16 @@ from ..utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES,
                               EVE_NO_SHUFFLE, EVE_ROUND_ROBIN, EVE_STD_SHUFFLE,
                               KERNEL_N_FM_PER_LB, KERNEL_N_GUL_PER_LB,
                               KERNEL_ALLOC_GUL_DEFAULT,
-                              KERNEL_ALLOC_IL_DEFAULT, KERNEL_ALLOC_RI_DEFAULT)
+                              KERNEL_ALLOC_IL_DEFAULT, KERNEL_ALLOC_RI_DEFAULT,
+                              SERVER_DEFAULT_IP, SERVER_DEFAULT_PORT)
 from ..utils.exceptions import OasisException
+from ..pytools.getmodel.common import SECTION_MERGE_DEFAULT
+from ..utils.ping import platform_progress_configured
 
 logger = logging.getLogger(__name__)
 
 
+from oasislmf.pytools.common.input_files import read_coverage_buildings
 from oasislmf.pytools.common.run_types import (
     RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS,
     RUNTYPE_REINSURANCE_GROSS_LOSS, RUNTYPE_FULL_CORRELATION, RUNTYPE_LOAD_BALANCED_LOSS,
@@ -123,6 +127,7 @@ ORD_ALT_MEANONLY_OUTPUT_SWITCHES = {
     "alt_meanonly": {
         'executable': 'aalpy',
         'subfolder_flag': '-K',
+        'meanonly_flag': '-M',
         'csv_flag': '-a',
         'skip_header_flag': '-H',
     }
@@ -311,7 +316,9 @@ def get_modelcmd(server=False, peril_filter=[]) -> str:
     return py_cmd
 
 
-def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False):
+def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc_vuln_cache_size, modelpy_server, peril_filter,
+               model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader', dynamic_footprint=False,
+               section_merge=SECTION_MERGE_DEFAULT):
     """Get the ground-up loss calculation command.
 
     Args:
@@ -325,6 +332,8 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
         peril_filter (list): list of perils to include (all included if empty)
         model_df_engine (str): the dataframe reading engine to use when loading model files
         dynamic_footprint (bool): if True, enable dynamic footprint processing
+        section_merge (str): dynamic footprint section merge option, written only when it is not
+            the default gulmc already applies
 
     Returns:
         str: the ground-up loss calculation command
@@ -343,6 +352,9 @@ def get_gulcmd(gulmc, gul_random_generator, gulmc_effective_damageability, gulmc
 
         if dynamic_footprint:
             cmd += " --dynamic-footprint True"
+
+        if section_merge and section_merge != SECTION_MERGE_DEFAULT:
+            cmd += f" --section-merge {section_merge}"
     else:
         cmd = f'gulpy --random-generator={gul_random_generator}'
 
@@ -423,6 +435,7 @@ def do_post_wait_processing(
     stderr_guard=True,
     inuring_priority=None,
     join_summary_info=False,
+    server_flags='',
 ):
     """Write post-wait aggregation commands (aalpy, lecpy) to the bash script.
 
@@ -450,6 +463,8 @@ def do_post_wait_processing(
             file names, or None / empty for the final priority.
         join_summary_info (bool): If True, append ``join-summary-info``
             commands to enrich outputs with summary metadata.
+        server_flags (str): Progress-update flags from :func:`get_server_flags`
+            added to each ``aalpy``, ``lecpy`` and ``join-summary-info`` command.
     """
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return []
@@ -466,7 +481,7 @@ def do_post_wait_processing(
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 aal_executable = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["executable"]
                 aal_subfolder_flag = ORD_ALT_OUTPUT_SWITCHES["alt_period"]["subfolder_flag"]
-                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt"
+                cmd = f"{aal_executable}{server_flags} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_palt"
 
                 palt_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_palt"
                 alct_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_alct"
@@ -499,17 +514,19 @@ def do_post_wait_processing(
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                     process_counter['jpid_monitor_count'] += 1
                     post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {palt_outfile_stem}.{outfile_ext} -o {palt_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                        f'join-summary-info{server_flags} -s {summary_info_filename} -d {palt_outfile_stem}.{outfile_ext} -o {palt_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
                     if summary.get('ord_output', {}).get('alct_convergence'):
                         process_counter['jpid_monitor_count'] += 1
                         post_wait_cmds.append(
-                            f'join-summary-info -s {summary_info_filename} -d {alct_outfile_stem}.{outfile_ext} -o {alct_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                            f'join-summary-info{server_flags} -s {summary_info_filename} -d {alct_outfile_stem}.{outfile_ext} -o {alct_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
             # ORD - aalcalcmeanonly
             if ord_enabled(summary, ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
                 aal_executable = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["executable"]
                 aal_subfolder_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["subfolder_flag"]
-                cmd = f"{aal_executable} {aal_subfolder_flag}{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly"
+                aal_meanonly_flag = ORD_ALT_MEANONLY_OUTPUT_SWITCHES["alt_meanonly"]["meanonly_flag"]
+                aal_subfolder = f"{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summary_altmeanonly"
+                cmd = f"{aal_executable}{server_flags} {aal_subfolder_flag}{aal_subfolder} {aal_meanonly_flag}"
                 altmeanonly_outfile_stem = f"{output_dir}{runtype}_{inuring_priority}S{summary_set}_altmeanonly"
 
                 outfile_ext = 'csv'
@@ -530,7 +547,7 @@ def do_post_wait_processing(
                     summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                     process_counter['jpid_monitor_count'] += 1
                     post_wait_cmds.append(
-                        f'join-summary-info -s {summary_info_filename} -d {altmeanonly_outfile_stem}.{outfile_ext} -o {altmeanonly_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                        f'join-summary-info{server_flags} -s {summary_info_filename} -d {altmeanonly_outfile_stem}.{outfile_ext} -o {altmeanonly_outfile_stem}.{outfile_ext} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
             # ORD - PSEPT,EPT
             if ord_enabled(summary, ORD_LECCALC):
@@ -540,7 +557,7 @@ def do_post_wait_processing(
                 psept_output = False
                 lec_executable = "lecpy"
 
-                cmd = f"{lec_executable} {'-r' if ord_outputs.get('return_period_file') else ''}"
+                cmd = f"{lec_executable}{server_flags} {'-r' if ord_outputs.get('return_period_file') else ''}"
                 cmd = f"{cmd} -K{work_sub_dir}{runtype}_{inuring_priority}S{summary_set}_summaryleccalc"
 
                 process_counter['lpid_monitor_count'] += 1
@@ -596,11 +613,11 @@ def do_post_wait_processing(
                     if ept_output:
                         process_counter['jpid_monitor_count'] += 1
                         post_wait_cmds.append(
-                            f'join-summary-info -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                            f'join-summary-info{server_flags} -s {summary_info_filename} -d {ept_filename} -o {ept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
                     if psept_output:
                         process_counter['jpid_monitor_count'] += 1
                         post_wait_cmds.append(
-                            f'join-summary-info -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                            f'join-summary-info{server_flags} -s {summary_info_filename} -d {psept_filename} -o {psept_filename} & jpid{process_counter["jpid_monitor_count"]}=$!')
 
     return post_wait_cmds
 
@@ -668,6 +685,30 @@ def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=No
     """
     fifos = [do_fifo_exec(runtype, process_id, filename, fifo_dir, action, consumer)
              for process_id in process_range(max_process_id, process_number)]
+    print_command(filename, '')
+    return fifos
+
+
+def do_fifos_rlcombine(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None,
+                       consumer_prefix=None, action='mkfifo'):
+    if runtype != 'rl':
+        raise ValueError('rlcombine tool only supported for `rl` runtype')
+    summaries = analysis_settings.get(f'{runtype}_summaries')
+    if not summaries:
+        return []
+
+    if not consumer_prefix:
+        consumer_prefix = ''
+
+    fifos = []
+    for process_id in process_range(max_process_id, process_number):
+        for summary in summaries:
+            if 'id' in summary:
+                summary_set = summary['id']
+                fifos.append(do_fifo_exec(runtype, process_id, filename,
+                                          fifo_dir, action,
+                                          f'{consumer_prefix}S{summary_set}_rlcombine'))
+
     print_command(filename, '')
     return fifos
 
@@ -790,6 +831,7 @@ def do_kats(
     process_number=None,
     inuring_priority=None,
     join_summary_info=False,
+    server_flags='',
 ):
     """Write ``katpy`` concatenation commands to merge per-process ORD files.
 
@@ -812,6 +854,8 @@ def do_kats(
         inuring_priority (str or None): Inuring priority label for file names.
         join_summary_info (bool): If True, append ``join-summary-info``
             commands after each concatenation.
+        server_flags (str): Progress-update flags from :func:`get_server_flags`
+            added to each ``katpy`` and ``join-summary-info`` command.
 
     Returns:
         bool: True if any ``katpy`` commands were emitted, False otherwise.
@@ -834,7 +878,7 @@ def do_kats(
 
                         anykats = True
 
-                        cmd = f'katpy {v["kat_flag"]}' if sort_by_event else f'katpy -u {v["kat_flag"]}'
+                        cmd = f'katpy{server_flags} {v["kat_flag"]}' if sort_by_event else f'katpy{server_flags} -u {v["kat_flag"]}'
                         outfile_flag = '-o'
                         outfile_ext = 'csv'
 
@@ -856,7 +900,7 @@ def do_kats(
                             summary_info_filename = f'{output_dir}{runtype}_S{summary_set}_summary-info.{outfile_ext}'
                             process_counter['jpid_monitor_count'] += 1
                             post_wait_cmds.append(
-                                f'join-summary-info -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile} & jpid{process_counter["jpid_monitor_count"]}=$!')
+                                f'join-summary-info{server_flags} -s {summary_info_filename} -d {csv_outfile} -o {csv_outfile} & jpid{process_counter["jpid_monitor_count"]}=$!')
     return anykats, post_wait_cmds
 
 
@@ -871,6 +915,7 @@ def do_summarycalcs(
     gul_full_correlation=False,
     inuring_priority=None,
     summarypy_low_memory=False,
+    rlcombine=False,
 ):
     """Write a ``summarypy`` command for one process to the bash script.
 
@@ -898,18 +943,23 @@ def do_summarycalcs(
             chain (see ``do_tees``). The Python aggregators (``lecpy``,
             ``aalpy``, ``eltpy``, ``pltpy``) glob ``*.bin`` work files and
             do not read ``.idx`` -- so they don't require this flag.
+        rlcombine (bool): If True, write the ``summarypy -s`` streams that ``rlcombine``
+            reads for each inuring priority (``rl`` runtype only).
+
+    Raises:
+        ValueError: if rlcombine is set for a runtype other than ``rl``
     """
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
+    if rlcombine and runtype != RUNTYPE_REINSURANCE_GROSS_LOSS:
+        raise ValueError('rlcombine only supported for the rl runtype')
+
     if process_id == 1:
         print_command(filename, '')
 
-    if runtype == RUNTYPE_REINSURANCE_GROSS_LOSS:
-        summarycalc_switch = '-t ri'
-    else:
-        summarycalc_switch = f'-t {runtype}'
+    summarycalc_switch = f'-t {runtype}'
 
     summarycalc_directory_switch = ""
     inuring_priority_text = ''   # Only relevant for reinsurance
@@ -924,14 +974,21 @@ def do_summarycalcs(
         input_filename_component = '_sumcalc'
 
     cmd = 'summarypy'
-    low_memory_switch = ' -m' if summarypy_low_memory else ''
-    cmd = f'{cmd}{low_memory_switch} {summarycalc_switch} {summarycalc_directory_switch}'
+
+    if rlcombine:
+        flag_switch = ' -s'
+        output_suffix = 'rlcombine'
+    else:
+        flag_switch = ' -m' if summarypy_low_memory else ''
+        output_suffix = 'summary'
+
+    cmd = f'{cmd}{flag_switch} {summarycalc_switch} {summarycalc_directory_switch}'
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            cmd = '{0} -{1} {4}{2}_{5}S{1}_summary_P{3}'.format(
+            cmd = '{0} -{1} {4}{2}_{5}S{1}_{6}_P{3}'.format(
                 cmd, summary_set, runtype, process_id, fifo_dir,
-                inuring_priority_text
+                inuring_priority_text, output_suffix
             )
 
     cmd = '{0} < {1}{2}{3}_{5}P{4}'.format(
@@ -940,6 +997,79 @@ def do_summarycalcs(
     )
     cmd = '( {0} ) 2>> $LOG_DIR/stderror.err  &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
     print_command(filename, cmd)
+
+
+def do_rlcombine(
+    analysis_settings,
+    process_id,
+    filename,
+    process_counter,
+    combine_levels,
+    passthrough_levels,
+    fifo_dir='fifo/',
+    stderr_guard=True,
+    summarypy_low_memory=False,
+):
+    runtype = RUNTYPE_REINSURANCE_GROSS_LOSS
+    summaries = analysis_settings.get('{}_summaries'.format(runtype))
+    if not summaries:
+        return
+
+    if process_id == 1:
+        print_command(filename, '')
+
+    input_index_map = {ip["level"]: i for i, ip in enumerate(combine_levels)}
+    static_paths = ' '.join(os.path.join('input', f'RI_{ip["level"]}') for ip in combine_levels)
+
+    for summary in summaries:
+        if 'id' not in summary:
+            continue
+
+        summary_set = summary['id']
+        inputs = ' '.join(get_fifo_name(fifo_dir, runtype, process_id,
+                                        f"{ip['text']}S{summary_set}_rlcombine") for ip in combine_levels)
+
+        output = get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_summary")
+        cmd = f"rlcombine -i {inputs} -p {static_paths} -o {output}"
+
+        if passthrough_levels:
+            intermediates = []
+            for ip in passthrough_levels:
+                intermediates.append(f"{input_index_map[ip['level']]}=" +
+                                     get_fifo_name(fifo_dir, runtype,
+                                                   process_id,
+                                                   f"{ip['text']}S{summary_set}_summary"))
+
+            cmd = f"{cmd} -I {' '.join(intermediates)}"
+
+        if summarypy_low_memory and (ord_enabled(summary, ORD_LECCALC) or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES)):
+            cmd = f"{cmd} -m"
+
+        process_counter['pid_monitor_count'] += 1
+        if stderr_guard:
+            cmd = f'( {cmd} ) 2>> $LOG_DIR/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+        else:
+            cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
+        print_command(filename, cmd)
+
+
+def do_ri_final_output(filename,
+                       analysis_settings,
+                       num_reinsurance_iterations,
+                       output_dir='output/'
+                       ):
+    final_text = f'{INTERMEDIATE_INURING_PRIORITY_PREFIX}{num_reinsurance_iterations}_'
+    final_requested = num_reinsurance_iterations in analysis_settings.get('ri_inuring_priorities', [])
+
+    action = 'cp' if final_requested else 'mv'
+    src_prefix = f'{output_dir}{RUNTYPE_REINSURANCE_LOSS}_{final_text}'
+    dst_prefix = f'{output_dir}{RUNTYPE_REINSURANCE_LOSS}_'
+
+    print_command(filename, '')
+    print_command(filename, f'# --- ri final output {"copy" if final_requested else "rename"}')
+    print_command(filename, f'for f in {src_prefix}*; do')
+    print_command(filename, f'    if [ -e "$f" ]; then {action} "$f" "{dst_prefix}${{f#{src_prefix}}}"; fi')
+    print_command(filename, 'done')
 
 
 def do_tees(
@@ -1113,56 +1243,88 @@ def do_ord(
                     print_command(filename, cmd)
 
 
-def get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
-    """Build the list of inuring priority dicts for reinsurance net loss.
+def get_valid_reinsurance_levels(requested_levels, num_reinsurance_iterations):
+    """Keep the requested RI levels that exist, without duplicates.
+
+    Args:
+        requested_levels (list): RI levels requested in ``ri_inuring_priorities`` or ``rl_inuring_priorities``.
+        num_reinsurance_iterations (int): Total number of reinsurance iterations.
+
+    Returns:
+        list[int]: Sorted levels between 1 and ``num_reinsurance_iterations``.
+    """
+    return sorted({int(level) for level in requested_levels if 1 <= int(level) <= num_reinsurance_iterations})
+
+
+def get_reinsurance_inuring_priorities(analysis_settings,
+                                       num_reinsurance_iterations,
+                                       perspective='ri', all_layers=False,
+                                       include_final=True):
+    """Build the list of inuring priority dicts for reinsurance net and gross loss.
 
     Returns intermediate inuring priorities specified in the analysis settings
     plus the final priority (the full reinsurance iteration count).
 
     Args:
         analysis_settings (dict): The full analysis settings dictionary,
-            checked for the ``'ri_inuring_priorities'`` key.
+            checked for the ``'r{i,l}_inuring_priorities'`` key.
         num_reinsurance_iterations (int): Total number of reinsurance
             iterations.
+        perspective (str): ``'ri'`` for net loss or ``'rl'`` for the reinsurer's
+            loss, selecting ``ri_inuring_priorities`` or ``rl_inuring_priorities``.
+        all_layers (bool): If True return every iteration instead of the
+            requested inuring priorities.
+        include_final (bool): If True add the final iteration when it is not
+            already included.
 
     Returns:
         list[dict]: Each dict has ``'text'`` (file-name prefix) and
         ``'level'`` (iteration number) keys.
     """
-    intermediate_inuring_priorities = set(analysis_settings.get('ri_inuring_priorities', []))
-    ri_inuring_priorities = [
+    if all_layers:
+        intermediate_inuring_priorities = list(range(1, num_reinsurance_iterations + 1))
+    else:
+        intermediate_inuring_priorities = get_valid_reinsurance_levels(
+            analysis_settings.get(f'{perspective}_inuring_priorities', []), num_reinsurance_iterations)
+
+    if include_final and num_reinsurance_iterations not in intermediate_inuring_priorities:
+        intermediate_inuring_priorities.append(num_reinsurance_iterations)
+
+    reins_inuring_priorities = [
         {
             'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
             'level': inuring_priority
-        } for inuring_priority in intermediate_inuring_priorities if inuring_priority < num_reinsurance_iterations
+        } for inuring_priority in intermediate_inuring_priorities
     ]
-    ri_inuring_priorities.append({'text': '', 'level': num_reinsurance_iterations})   # Final inuring priority
 
-    return ri_inuring_priorities
+    return reins_inuring_priorities
 
 
-def get_rl_inuring_priorities(num_reinsurance_iterations):
-    """Build the list of inuring priority dicts for reinsurance gross loss.
+def get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
+    """Build the list of reinsurance gross loss (RL) levels that produce outputs.
 
-    Unlike :func:`get_ri_inuring_priorities`, every iteration from 1 to
-    ``num_reinsurance_iterations`` is included (there is no "final" entry).
+    These are the inuring priorities requested in ``rl_inuring_priorities``
+    (passed through ``rlcombine`` as ``rl_IP{i}_S{j}``) followed by the final
+    combined output (``rl_S{j}``), which has an empty ``'text'`` prefix.
+
+    Each pass-through level is a single RI layer. ``bash_params`` converts an
+    OED inuring priority in ``rl_inuring_priorities`` to every layer of that
+    priority (for example LOC and ACC treaties at the same priority), so each
+    layer is written on its own.
 
     Args:
+        analysis_settings (dict): The full analysis settings dictionary.
         num_reinsurance_iterations (int): Total number of reinsurance
             iterations.
 
     Returns:
         list[dict]: Each dict has ``'text'`` (file-name prefix) and
-        ``'level'`` (iteration number) keys.
+        ``'level'`` keys. The final combined output has ``'level'``
+        ``num_reinsurance_iterations + 1``.
     """
-    rl_inuring_priorities = [
-        {
-            'text': INTERMEDIATE_INURING_PRIORITY_PREFIX + str(inuring_priority) + '_',
-            'level': inuring_priority
-        } for inuring_priority in range(1, num_reinsurance_iterations + 1)
-    ]
-
-    return rl_inuring_priorities
+    passthrough_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                            perspective='rl', include_final=False)
+    return passthrough_levels + [{'text': '', 'level': num_reinsurance_iterations + 1}]
 
 
 def rl(
@@ -1197,7 +1359,12 @@ def rl(
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
     """
-    for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+    combine_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                        perspective='rl', all_layers=True)
+    passthrough_levels = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                            perspective='rl', include_final=False)
+
+    for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
         for process_id in process_range(max_process_id, process_number):
             do_ord(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, process_id,
@@ -1213,6 +1380,20 @@ def rl(
                 summarypy_low_memory=summarypy_low_memory,
             )
 
+    for process_id in process_range(max_process_id, process_number):
+        do_rlcombine(
+            analysis_settings=analysis_settings,
+            process_id=process_id,
+            filename=filename,
+            process_counter=process_counter,
+            combine_levels=combine_levels,
+            passthrough_levels=passthrough_levels,  # requested IP levels
+            fifo_dir=fifo_dir,
+            stderr_guard=stderr_guard,
+            summarypy_low_memory=summarypy_low_memory,
+        )
+
+    for inuring_priority in combine_levels:
         for process_id in process_range(max_process_id, process_number):
             do_summarycalcs(
                 runtype=RUNTYPE_REINSURANCE_GROSS_LOSS,
@@ -1223,7 +1404,7 @@ def rl(
                 stderr_guard=stderr_guard,
                 num_reinsurance_iterations=num_reinsurance_iterations,
                 inuring_priority=inuring_priority,
-                summarypy_low_memory=summarypy_low_memory,
+                rlcombine=True
             )
 
 
@@ -1238,6 +1419,7 @@ def ri(
     stderr_guard=True,
     process_number=None,
     summarypy_low_memory=False,
+    final_only=False,
 ):
     """Write all reinsurance net loss (RI) consumer commands.
 
@@ -1258,8 +1440,14 @@ def ri(
         process_number (int or None): If set, restrict to a single process.
         summarypy_low_memory (bool): Enable summarypy ``-m`` (write ``.idx``
             side-files for downstream seek-by-event consumers).
+        final_only (bool): If True only the final inuring priority is
+            consumed, as for fully correlated outputs.
     """
-    for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+    inuring_priorities = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)
+    if final_only:
+        inuring_priorities = inuring_priorities[-1:]
+
+    for inuring_priority in inuring_priorities:
 
         for process_id in process_range(max_process_id, process_number):
             do_ord(
@@ -1439,6 +1627,7 @@ def get_getmodel_cmd(
         gulmc_vuln_cache_size=200,
         model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
         dynamic_footprint=False,
+        section_merge=SECTION_MERGE_DEFAULT,
         **kwargs):
     """Gets the GUL pipeline command (gulpy/gulmc) for a single process
 
@@ -1463,6 +1652,8 @@ def get_getmodel_cmd(
         gulmc_vuln_cache_size (int): size in MB of the cache for the vulnerability calculations
         model_df_engine (str): The engine to use when loading dataframes
         dynamic_footprint (bool): if True, enable dynamic footprint processing
+        section_merge (str): dynamic footprint section merge option, passed to gulmc (modelpy
+            cannot run a dynamic footprint)
         **kwargs: additional keyword arguments, accepted and ignored so that callers can forward
             the whole bash_params dict
 
@@ -1477,7 +1668,7 @@ def get_getmodel_cmd(
         gulcmd = get_gulcmd(
             gulmc, gul_random_generator, gulmc_effective_damageability,
             gulmc_vuln_cache_size, modelpy_server, peril_filter, model_df_engine=model_df_engine,
-            dynamic_footprint=dynamic_footprint
+            dynamic_footprint=dynamic_footprint, section_merge=section_merge
         )
         cmd += f'{gulcmd} -S{number_of_samples} -L{gul_threshold}'
 
@@ -1564,7 +1755,8 @@ def get_main_cmd_ri_stream(
             main_cmd += ' -n -'
         if i in ri_inuring_priorities.keys():
             if i == num_reinsurance_iterations:   # Final inuring priority always produces net output if ri output requested
-                ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
+                ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id,
+                                             consumer=ri_inuring_priorities[i].rstrip('_'))
                 main_cmd += f" -n - > {ri_fifo_name}"
             else:
                 main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id, consumer=ri_inuring_priorities[i].rstrip('_'))}"
@@ -1656,6 +1848,69 @@ def get_main_cmd_gul_stream(
     return main_cmd
 
 
+def resolve_custom_gulcalc_cmd(custom_gulcalc_cmd, analysis_settings):
+    """The custom GUL binary this run will use, or None for the built-in pipeline.
+
+    Factored out so a caller can ask *whether* a run is a complex model without building the
+    command for it. The answer is frequently not what was configured: a model that sets none of
+    gulmc/gulpy/modelpy is picked up by probing PATH for ``<supplier>_<model>_gulcalc``, so a
+    check of ``model_custom_gulcalc`` alone misses the common case.
+
+    Args:
+        custom_gulcalc_cmd (str or None): explicit custom GUL binary name, or None to infer.
+        analysis_settings (dict): used to infer the name from model_supplier_id / model_name_id.
+
+    Returns:
+        str or None: the binary name, or None when the built-in pipeline will run.
+
+    Raises:
+        OasisException: if ``custom_gulcalc_cmd`` is explicitly set but not found on PATH.
+    """
+    # If `given_gulcalc_cmd` is set then always run as a complex model
+    # and raise an exception when not found in PATH
+    if custom_gulcalc_cmd:
+        if not shutil.which(custom_gulcalc_cmd):
+            raise OasisException(
+                'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
+            )
+        return custom_gulcalc_cmd
+
+    # when not set then fallback to previous behaviour:
+    # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
+    inferred_gulcalc_cmd = "{}_{}_gulcalc".format(
+        analysis_settings.get('model_supplier_id'),
+        analysis_settings.get('model_name_id'))
+    return inferred_gulcalc_cmd if shutil.which(inferred_gulcalc_cmd) else None
+
+
+# where a complex model's maintainer finds what building packing asks of their gulcalc
+PACKING_SUPPORT_DOC_HINT = (
+    "See 'Models with their own ground-up binary', under 'samples: buildings in the sample dimension' "
+    "on the Disaggregation page of the OasisLMF documentation."
+)
+
+
+def check_custom_gulcalc_can_read_inputs(input_dir, custom_gulcalc_cmd, supports_packing):
+    """Refuse building-packed inputs for a custom gulcalc that has not declared it reads them.
+
+    It would emit one block per item and understate every loss by NumberOfBuildings, with no
+    error. Called where the gulcalc is finally chosen as well as before the loss step, because a
+    supplier_model_runner.py can pass its own, which no setting names.
+    """
+    if not custom_gulcalc_cmd or supports_packing:
+        return
+    counts = read_coverage_buildings(input_dir)
+    if counts.shape[0] and int(abs(counts['n_building']).max()) > 1:
+        raise OasisException(
+            f"These inputs are building-packed, but this run uses the custom gulcalc "
+            f"'{custom_gulcalc_cmd}', which has not declared that it understands them. It "
+            f"would emit one block per item and understate every loss by NumberOfBuildings, "
+            f"with no error. Regenerate with --disaggregation items, or set "
+            f"custom_gulcalc_supports_packing if this gulcalc does handle packed streams. "
+            f"{PACKING_SUPPORT_DOC_HINT}"
+        )
+
+
 def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
     """Return a custom GUL command function for complex (third-party) models.
 
@@ -1679,21 +1934,7 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
         OasisException: If ``custom_gulcalc_cmd`` is explicitly set but
             cannot be found on ``PATH``.
     """
-    # If `given_gulcalc_cmd` is set then always run as a complex model
-    # and raise an exception when not found in PATH
-    if custom_gulcalc_cmd:
-        if not shutil.which(custom_gulcalc_cmd):
-            raise OasisException(
-                'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
-            )
-    # when not set then fallback to previous behaviour:
-    # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
-    else:
-        inferred_gulcalc_cmd = "{}_{}_gulcalc".format(
-            analysis_settings.get('model_supplier_id'),
-            analysis_settings.get('model_name_id'))
-        if shutil.which(inferred_gulcalc_cmd):
-            custom_gulcalc_cmd = inferred_gulcalc_cmd
+    custom_gulcalc_cmd = resolve_custom_gulcalc_cmd(custom_gulcalc_cmd, analysis_settings)
 
     if custom_gulcalc_cmd:
         def custom_get_getmodel_cmd(
@@ -1713,8 +1954,7 @@ def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
                 max_process_id,
                 os.path.abspath("analysis_settings.json"),
                 "input")
-            if item_output != '':
-                cmd = '{} -i {}'.format(cmd, item_output)
+            cmd = '{}{}'.format(cmd, item_output)
             if stderr_guard:
                 cmd = '({}) 2>> $LOG_DIR/gul_stderror.err'.format(cmd)
 
@@ -1814,6 +2054,41 @@ def get_pla_cmd(pla, secondary_factor, uniform_factor):
     return pla_cmd
 
 
+def get_inuring_priority_levels(ip_to_level):
+    """Expand the inuring priority to output level mapping into every RI level of each priority.
+
+    RI levels are numbered in inuring priority order, so the levels of a priority are the ones
+    after the last level of the previous priority, up to and including its own last level. A
+    priority with contracts at several risk levels (for example LOC and ACC) has several levels.
+
+    Args:
+        ip_to_level (dict): ``{inuring_priority: last_level}``, as in
+            ``ri_inuring_priority_output_levels.json``.
+
+    Returns:
+        dict: ``{inuring_priority: [level, ...]}`` with levels in ascending order.
+    """
+    ip_to_levels = {}
+    previous_level = 0
+    for ip in sorted(ip_to_level):
+        last_level = ip_to_level[ip]
+        ip_to_levels[ip] = list(range(previous_level + 1, last_level + 1))
+        previous_level = last_level
+    return ip_to_levels
+
+
+def get_valid_inuring_priorities(ip_to_level, request_ip, runtype):
+    request_ip = [int(p) for p in request_ip]
+    valid_ip = [p for p in request_ip if p in ip_to_level]
+    invalid_ip = [p for p in request_ip if p not in ip_to_level]
+
+    warning_msg = f'{runtype}_inuring_priorities requested but were not valid so ignored: '
+    if invalid_ip:
+        warning_msg += ', '.join([str(p) for p in invalid_ip])
+        logger.warning(warning_msg)
+    return valid_ip
+
+
 def bash_params(
     analysis_settings,
     max_process_id=-1,
@@ -1853,6 +2128,7 @@ def bash_params(
     exposure_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     model_df_engine="oasis_data_manager.df_reader.reader.OasisPandasReader",
     dynamic_footprint=False,
+    section_merge=SECTION_MERGE_DEFAULT,
     log_level=None,
     **kwargs
 ):
@@ -1902,6 +2178,7 @@ def bash_params(
         peril_filter (list): Peril filter list.
         exposure_df_engine (str): DataFrame engine for exposure data.
         model_df_engine (str): DataFrame engine for model data.
+        section_merge (str): Dynamic footprint section merge option for ``gulmc``.
         dynamic_footprint (bool): Enable dynamic footprint mode.
         log_level (int or None): Enable logging of pytools subprocesses.
         **kwargs: additional keyword arguments, accepted and ignored so that callers can forward a
@@ -1940,19 +2217,43 @@ def bash_params(
     # index of the last RI layer (output level) belonging to that priority.
     # We shadow analysis_settings with a shallow copy so the caller's dict is never mutated —
     # this means repeated bash_params() calls with the same dict remain safe (idempotent).
-    if model_run_dir and analysis_settings.get('ri_inuring_priorities'):
+    if analysis_settings.get('ri_inuring_priorities') or analysis_settings.get('rl_inuring_priorities'):
         mapping_fp = os.path.join(model_run_dir, 'input', 'ri_inuring_priority_output_levels.json')
         if os.path.exists(mapping_fp):
             with io.open(mapping_fp, encoding='utf-8') as _f:
                 _ip_to_level = {int(k): int(v) for k, v in json.load(_f).items()}
-            analysis_settings = {
-                **analysis_settings,
-                'ri_inuring_priorities': [
-                    _ip_to_level[int(p)]
-                    for p in analysis_settings['ri_inuring_priorities']
-                    if int(p) in _ip_to_level
-                ],
-            }
+            if analysis_settings.get('ri_inuring_priorities'):
+                valid_ips = get_valid_inuring_priorities(_ip_to_level, analysis_settings['ri_inuring_priorities'], 'ri')
+                analysis_settings = {
+                    **analysis_settings,
+                    'ri_inuring_priorities': [
+                        _ip_to_level[int(p)] for p in valid_ips
+                    ],
+                }
+
+            # rl outputs every RI level of a priority, each on its own, as the reinsurer's loss of
+            # a level only covers that level's contracts.
+            if analysis_settings.get('rl_inuring_priorities'):
+                valid_ips = get_valid_inuring_priorities(_ip_to_level, analysis_settings['rl_inuring_priorities'], 'rl')
+                _ip_to_levels = get_inuring_priority_levels(_ip_to_level)
+                analysis_settings = {
+                    **analysis_settings,
+                    'rl_inuring_priorities': [
+                        level for p in valid_ips for level in _ip_to_levels[int(p)]
+                    ],
+                }
+
+    # Drop RI levels outside 1..num_reinsurance_iterations and duplicates. Without the mapping file
+    # (older input directories), the requested values are used as RI levels as they are.
+    for perspective in ('ri', 'rl'):
+        requested_levels = analysis_settings.get(f'{perspective}_inuring_priorities')
+        if requested_levels:
+            valid_levels = get_valid_reinsurance_levels(requested_levels, num_reinsurance_iterations)
+            invalid_levels = sorted({int(p) for p in requested_levels} - set(valid_levels))
+            if invalid_levels:
+                logger.warning(f'{perspective}_inuring_priorities requested outside the {num_reinsurance_iterations} '
+                               f'reinsurance levels so ignored: {", ".join(str(p) for p in invalid_levels)}')
+            analysis_settings = {**analysis_settings, f'{perspective}_inuring_priorities': valid_levels}
 
     if model_storage_json:
         bash_params['model_storage_json'] = model_storage_json
@@ -2058,9 +2359,15 @@ def bash_params(
     bash_params['need_summary_fifo_for_gul'] = bash_params['gul_output'] and (
         bash_params['il_output'] or bash_params['ri_output'] or bash_params['rl_output']
     )
+
+    # rl (reinsurer's loss) has no fully correlated output yet, see #2311
+    if bash_params['full_correlation'] and bash_params['rl_output']:
+        logger.warning('full_correlation outputs are not produced for rl_output (reinsurer\'s loss)')
+
     bash_params['exposure_df_engine'] = exposure_df_engine
     bash_params['model_df_engine'] = model_df_engine
     bash_params['dynamic_footprint'] = dynamic_footprint
+    bash_params['section_merge'] = section_merge
     bash_params['log_level'] = log_level
 
     return bash_params
@@ -2208,6 +2515,7 @@ def create_bash_analysis(
     peril_filter,
     model_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     dynamic_footprint=False,
+    section_merge=SECTION_MERGE_DEFAULT,
     log_level=None,
     **kwargs
 ):
@@ -2227,6 +2535,10 @@ def create_bash_analysis(
 
     All parameters are typically supplied by unpacking the dict returned from
     :func:`bash_params`.
+
+    Returns:
+        int: The number of ``gulmc`` processes written, each of which reports ``gul_ready``
+            once it has loaded the model.
     """
     process_counter = process_counter or Counter()
     custom_args = custom_args or {}
@@ -2269,7 +2581,10 @@ def create_bash_analysis(
 
     if model_py_server:
         print_command(filename, '# --- run data server ---')
-        print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']} {max_process_id} &")
+        servedata_cmd = f"servedata {kwargs['static_path']} {max_process_id}"
+        if section_merge and section_merge != SECTION_MERGE_DEFAULT:
+            servedata_cmd += f" --section-merge {section_merge}"
+        print_command(command_file=filename, cmd=f"{servedata_cmd} &")
         # print_command(command_file=filename, cmd="while ! nc -vz localhost 8080 < /dev/null > /dev/null 2>&1; do")
         # print_command(command_file=filename, cmd="  printf '.'")
         # print_command(command_file=filename, cmd="  sleep 2")
@@ -2318,18 +2633,21 @@ def create_bash_analysis(
             )
 
     if ri_output:
-        for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+        for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             create_workfolders(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, work_dir,
                 inuring_priority=inuring_priority['text']
             )
         if full_correlation:
+            # fully correlated outputs are only produced for the final inuring priority
+            final_inuring_priority = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)[-1]
             create_workfolders(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings,
-                filename, work_full_correlation_dir
+                filename, work_full_correlation_dir,
+                inuring_priority=final_inuring_priority['text']
             )
     if rl_output:
-        for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+        for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
             create_workfolders(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
                 work_dir, inuring_priority=inuring_priority['text']
@@ -2337,8 +2655,8 @@ def create_bash_analysis(
     print_command(filename, '')
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
-    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output):
-        block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output else 1))
+    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output or rl_output):
+        block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output or rl_output else 1))
         num_lb = (max_process_id - 1) // block_process_size + 1
         num_gul_output = num_lb * num_gul_per_lb
         num_fm_output = num_lb * num_fm_per_lb
@@ -2368,7 +2686,11 @@ def create_bash_analysis(
             fifo_list += do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number,
                                        summarypy_low_memory=summarypy_low_memory)
         if ri_output:
-            for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+            ri_inuring_priorities = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)
+            if fifo_dir == fifo_full_correlation_dir:
+                # fully correlated outputs are only produced for the final inuring priority
+                ri_inuring_priorities = ri_inuring_priorities[-1:]
+            for inuring_priority in ri_inuring_priorities:
                 fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
@@ -2380,13 +2702,23 @@ def create_bash_analysis(
                     consumer_prefix=inuring_priority['text'],
                     summarypy_low_memory=summarypy_low_memory,
                 )
-        if rl_output:
-            for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+        if rl_output and fifo_dir != fifo_full_correlation_dir:  # rl has no fully correlated output
+            for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations,
+                                                                       perspective='rl', all_layers=True):
                 fifo_list += do_fifos_exec(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, num_fm_output, filename,
                     fifo_dir, process_number,
                     consumer=inuring_priority['text'].rstrip('_')
                 )
+
+                fifo_list += do_fifos_rlcombine(
+                    RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
+                    num_fm_output, filename, fifo_dir, process_number,
+                    consumer_prefix=inuring_priority['text']
+                )
+
+            # outputs only need the requested layers and the final combined output
+            for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
                 fifo_list += do_fifos_calc(
                     RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
                     num_fm_output, filename, fifo_dir, process_number,
@@ -2409,7 +2741,7 @@ def create_bash_analysis(
     # before writers start producing data.
     compute_outputs = []
     for (_fifo_dir, _work_dir) in dirs:
-        if rl_output:
+        if rl_output and _fifo_dir != fifo_full_correlation_dir:  # rl has no fully correlated output
             rl_computes = {
                 'loss_type': 'reinsurance gross',
                 'compute_fun': rl,
@@ -2443,6 +2775,7 @@ def create_bash_analysis(
                     'stderr_guard': stderr_guard,
                     'process_number': process_number,
                     'summarypy_low_memory': summarypy_low_memory,
+                    'final_only': _fifo_dir == fifo_full_correlation_dir,
                 }
             }
             compute_outputs.append(ri_computes)
@@ -2497,8 +2830,11 @@ def create_bash_analysis(
     # to read from (when a load balancer is used).
     get_gul_stream_cmds = {}
 
-    if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
+    gul_processes = len(process_range(num_gul_output, process_number)) if gulmc and _get_getmodel_cmd is None else 0
+    if has_local_progress_server(kwargs):
         port_arg = f" {kwargs['socket_server_port']}" if kwargs.get("socket_server_port") is not None else ""
+        if gul_processes:
+            port_arg += f" --gul-processes {gul_processes}"
         print_command(filename, f"socket-server {kwargs['socket_server_size']}{port_arg} > /dev/null & spid=$!")
 
     # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
@@ -2520,7 +2856,8 @@ def create_bash_analysis(
             'modelpy_server': model_py_server,
             'peril_filter': peril_filter,
             "model_df_engine": model_df_engine,
-            'dynamic_footprint': dynamic_footprint
+            'dynamic_footprint': dynamic_footprint,
+            'section_merge': section_merge,
         }
 
         # Establish whether items to amplifications map file is present
@@ -2540,10 +2877,10 @@ def create_bash_analysis(
             getmodel_args['item_output'] = '{} | tee {}'.format(getmodel_args['item_output'], gul_fifo_name)
         _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cmd)
 
-        # gulcalc output file for fully correlated output
-        if full_correlation:
+        # gulcalc output file for fully correlated output (rl has no fully correlated output, see #2311)
+        if full_correlation and (gul_output or il_output or ri_output):
             fc_gul_fifo_name = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
-            if need_summary_fifo_for_gul:  # need both stream for summary and tream for il
+            if gul_output and (il_output or ri_output):  # need both stream for summary and tream for il
                 getmodel_args['correlated_output'] = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
                                                                    consumer=RUNTYPE_FULL_CORRELATION)
                 if num_lb:
@@ -2634,7 +2971,12 @@ def create_bash_analysis(
                 process_id = i + 1
             #######################################################
 
-            if ri_output or rl_output:
+            rl_stream = rl_output and fifo_dir != fifo_full_correlation_dir  # rl has no fully correlated output
+            if ri_output or rl_stream:
+                ri_inuring_priorities = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)
+                if fifo_dir == fifo_full_correlation_dir:
+                    # fully correlated outputs are only produced for the final inuring priority
+                    ri_inuring_priorities = ri_inuring_priorities[-1:]
                 main_cmd = get_main_cmd_ri_stream(
                     getmodel_cmd,
                     process_id,
@@ -2649,9 +2991,9 @@ def create_bash_analysis(
                     fmpy_sort_output,
                     step_flag,
                     process_counter=process_counter,
-                    ri_inuring_priorities={ip['level']: ip['text'] for ip in get_ri_inuring_priorities(
-                        analysis_settings, num_reinsurance_iterations) if ip['level'] and ri_output},
-                    rl_inuring_priorities={ip['level']: ip['text'] for ip in get_rl_inuring_priorities(num_reinsurance_iterations) if rl_output}
+                    ri_inuring_priorities={ip['level']: ip['text'] for ip in ri_inuring_priorities if ip['level'] and ri_output},
+                    rl_inuring_priorities={ip['level']: ip['text'] for ip in get_reinsurance_inuring_priorities(
+                        analysis_settings, num_reinsurance_iterations, perspective='rl', all_layers=True) if rl_stream}
                 )
                 print_command(filename, add_server_call(main_cmd, kwargs.get("analysis_pk", None),
                                                         kwargs.get("socket_server_port")))
@@ -2683,9 +3025,7 @@ def create_bash_analysis(
     # --- Wait for all background pipeline processes ---
     print_command(filename, '')
     do_pwaits(filename, process_counter)
-    if kwargs.get("socket_server_size", False) and kwargs.get("analysis_pk", None) is None:
-        # Ensure killed if server doesnt end
-        print_command(filename, 'kill -0 "$spid" 2>/dev/null && kill -9 "$spid" 2>/dev/null')
+    return gul_processes
 
 
 def create_bash_outputs(
@@ -2725,12 +3065,30 @@ def create_bash_outputs(
        (EPT/PSEPT) run over collected work-folder data.
     3. **Cleanup** -- removes working directories and temporary FIFOs.
 
+    Each ``katpy``, ``aalpy``, ``lecpy`` and ``join-summary-info`` reports to the
+    progress server when it finishes (see :func:`get_server_flags`). With a local
+    progress server, the section starts by sending it the number of these
+    processes and ends by telling it the run is done.
+
     All parameters are typically supplied by unpacking the dict returned from
     :func:`bash_params`.
+
+    Returns:
+        int: The number of ``katpy``, ``aalpy``, ``lecpy`` and ``join-summary-info`` processes written.
     """
     if max_process_id is not None:
         num_gul_per_lb = 0
         num_fm_per_lb = 0
+
+    server_flags = get_server_flags(kwargs.get("analysis_pk", None), kwargs.get("socket_server_port"))
+    processes_before = process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count']
+    joins_before = process_counter['jpid_monitor_count']
+    local_progress = has_local_progress_server(kwargs)
+    if local_progress:
+        section_fd, section_file = tempfile.mkstemp(suffix=".sh")
+        os.close(section_fd)
+    else:
+        section_file = filename
 
     # infer number of calc block and FIFO to create, (no load balancer for old stream option)
     if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output):
@@ -2747,160 +3105,212 @@ def create_bash_outputs(
 
     # Output Kats
     if rl_output:
-        print_command(filename, '')
-        print_command(filename, '# --- Do reinsurance gross loss kats ---')
-        print_command(filename, '')
-        for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+        print_command(section_file, '')
+        print_command(section_file, '# --- Do reinsurance gross loss kats ---')
+        print_command(section_file, '')
+        for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings,
-                num_fm_output, filename, process_counter, work_kat_dir,
+                num_fm_output, section_file, process_counter, work_kat_dir,
                 output_dir, kat_sort_by_event,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
     if ri_output:
-        print_command(filename, '')
-        print_command(filename, '# --- Do reinsurance loss kats ---')
-        print_command(filename, '')
-        for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+        print_command(section_file, '')
+        print_command(section_file, '# --- Do reinsurance loss kats ---')
+        print_command(section_file, '')
+        for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations):
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
-                filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info
+                section_file, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
         if full_correlation:
-            print_command(filename, '')
+            print_command(section_file, '')
             print_command(
-                filename,
+                section_file,
                 '# --- Do reinsurance loss kats for fully correlated output ---'
             )
-            print_command(filename, '')
+            print_command(section_file, '')
+            final_inuring_priority = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)[-1]
             _, cmds = do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
-                filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
+                section_file, process_counter, work_full_correlation_kat_dir,
+                output_full_correlation_dir, kat_sort_by_event,
+                inuring_priority=final_inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
     if il_output:
-        print_command(filename, '')
-        print_command(filename, '# --- Do insured loss kats ---')
-        print_command(filename, '')
+        print_command(section_file, '')
+        print_command(section_file, '# --- Do insured loss kats ---')
+        print_command(section_file, '')
         _, cmds = do_kats(
-            RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info
+            RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, section_file,
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
         )
         post_wait_cmds.extend(cmds)
         if full_correlation:
-            print_command(filename, '')
+            print_command(section_file, '')
             print_command(
-                filename,
+                section_file,
                 '# --- Do insured loss kats for fully correlated output ---'
             )
-            print_command(filename, '')
+            print_command(section_file, '')
             _, cmds = do_kats(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
-                filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
+                section_file, process_counter, work_full_correlation_kat_dir,
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
     if gul_output:
-        print_command(filename, '')
-        print_command(filename, '# --- Do ground up loss kats ---')
-        print_command(filename, '')
+        print_command(section_file, '')
+        print_command(section_file, '# --- Do ground up loss kats ---')
+        print_command(section_file, '')
         _, cmds = do_kats(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info
+            RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, section_file,
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
         )
         post_wait_cmds.extend(cmds)
         if full_correlation:
-            print_command(filename, '')
+            print_command(section_file, '')
             print_command(
-                filename,
+                section_file,
                 '# --- Do ground up loss kats for fully correlated output ---'
             )
-            print_command(filename, '')
+            print_command(section_file, '')
             _, cmds = do_kats(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
-                filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info
+                section_file, process_counter, work_full_correlation_kat_dir,
+                output_full_correlation_dir, kat_sort_by_event, join_summary_info=join_summary_info, server_flags=server_flags
             )
             post_wait_cmds.extend(cmds)
 
-    do_kwaits(filename, process_counter)
+    do_kwaits(section_file, process_counter)
 
     for cmd in post_wait_cmds:
-        print_command(filename, cmd)
-    do_jwaits(filename, process_counter)
+        print_command(section_file, cmd)
+    do_jwaits(section_file, process_counter)
+    kat_joins = process_counter['jpid_monitor_count'] - joins_before
     process_counter['jpid_monitor_count'] = 0
     post_wait_cmds = []
 
     # Output calcs
-    print_command(filename, '')
+    print_command(section_file, '')
     if rl_output:
-        for inuring_priority in get_rl_inuring_priorities(num_reinsurance_iterations):
+        for inuring_priority in get_rl_output_levels(analysis_settings, num_reinsurance_iterations):
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, filename,
+                RUNTYPE_REINSURANCE_GROSS_LOSS, analysis_settings, section_file,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags,
             ))
     if ri_output:
-        for inuring_priority in get_ri_inuring_priorities(analysis_settings, num_reinsurance_iterations):
+        for inuring_priority in get_reinsurance_inuring_priorities(analysis_settings,
+                                                                   num_reinsurance_iterations):
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings, section_file,
                 process_counter, '', output_dir, stderr_guard,
-                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info,
+                inuring_priority=inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags,
             ))
     if il_output:
         post_wait_cmds.extend(do_post_wait_processing(
-            RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, join_summary_info=join_summary_info
+            RUNTYPE_INSURED_LOSS, analysis_settings, section_file, process_counter, '',
+            output_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags
         ))
     if gul_output:
         post_wait_cmds.extend(do_post_wait_processing(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir, stderr_guard, join_summary_info=join_summary_info
+            RUNTYPE_GROUNDUP_LOSS, analysis_settings, section_file, process_counter, '',
+            output_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags
         ))
 
     if full_correlation:
         work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
         if ri_output:
+            final_inuring_priority = get_reinsurance_inuring_priorities(analysis_settings, num_reinsurance_iterations)[-1]
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings, section_file, process_counter,
+                work_sub_dir, output_full_correlation_dir, stderr_guard,
+                inuring_priority=final_inuring_priority['text'], join_summary_info=join_summary_info, server_flags=server_flags,
             ))
         if il_output:
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                RUNTYPE_INSURED_LOSS, analysis_settings, section_file, process_counter,
+                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags,
             ))
         if gul_output:
             post_wait_cmds.extend(do_post_wait_processing(
-                RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info,
+                RUNTYPE_GROUNDUP_LOSS, analysis_settings, section_file, process_counter,
+                work_sub_dir, output_full_correlation_dir, stderr_guard, join_summary_info=join_summary_info, server_flags=server_flags,
             ))
 
-    do_awaits(filename, process_counter)  # waits for aalcalc
-    do_lwaits(filename, process_counter)  # waits for leccalc
+    do_awaits(section_file, process_counter)  # waits for aalcalc
+    do_lwaits(section_file, process_counter)  # waits for leccalc
 
     for cmd in post_wait_cmds:
-        print_command(filename, cmd)
-    do_jwaits(filename, process_counter)
+        print_command(section_file, cmd)
+    do_jwaits(section_file, process_counter)
+
+    if ri_output:
+        do_ri_final_output(section_file, analysis_settings, num_reinsurance_iterations, output_dir)
+        if full_correlation:
+            do_ri_final_output(section_file, analysis_settings, num_reinsurance_iterations, output_full_correlation_dir)
 
     if remove_working_files:
-        print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
+        print_command(section_file, '')
+        print_command(section_file, '# --- removing working files')
+        print_command(section_file, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
 
         if fifo_tmp_dir:
             # workaround to match bash tests
             if fifo_queue_dir.endswith('fifo/'):
-                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
+                print_command(section_file, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
             else:
-                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
+                print_command(section_file, 'rm -R -f {}'.format(fifo_queue_dir))
         else:
-            print_command(filename, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
+            print_command(section_file, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
+
+    outputs_total = (process_counter['kpid_monitor_count'] + process_counter['lpid_monitor_count'] - processes_before
+                     + kat_joins + process_counter['jpid_monitor_count'])
+    if local_progress:
+        port = kwargs.get("socket_server_port")
+        print_command(filename, progress_server_message({'outputs_total': outputs_total}, port))
+        with io.open(section_file, "r", encoding='utf-8') as section, io.open(filename, "a", encoding='utf-8') as script:
+            shutil.copyfileobj(section, script)
+        os.remove(section_file)
+        print_command(filename, progress_server_message({'outputs_done': 1}, port))
+        # Give the server time to draw the final counts before it is killed
+        print_command(filename, 'for _ in $(seq 30); do kill -0 "${spid:-}" 2>/dev/null || break; sleep 0.1; done')
+        print_command(filename, 'kill -9 "${spid:-}" 2>/dev/null || true')
+
+    return outputs_total
+
+
+def has_local_progress_server(params):
+    """Whether the script runs a local progress server: progress updates are on and this is not a platform run."""
+    return bool(params.get("socket_server_size")) and params.get("analysis_pk") is None
+
+
+def progress_server_message(payload, socket_server_port=None):
+    """Bash command that sends a JSON message to the local progress server.
+
+    It uses bash's ``/dev/tcp`` so no process is started, and never fails the script
+    if the server cannot be reached.
+
+    Args:
+        payload (dict): The message to send.
+        socket_server_port (int or None): Port of the local progress server. Defaults to
+            ``OASIS_SOCKET_SERVER_PORT`` or SERVER_DEFAULT_PORT at run time.
+
+    Returns:
+        str: The command.
+    """
+    host = f"${{OASIS_SOCKET_SERVER_IP:-{SERVER_DEFAULT_IP}}}"
+    port = socket_server_port if socket_server_port is not None else f"${{OASIS_SOCKET_SERVER_PORT:-{SERVER_DEFAULT_PORT}}}"
+    return f"{{ printf '%s\\n' '{json.dumps(payload)}' > /dev/tcp/{host}/{port}; }} 2>/dev/null || true"
 
 
 # ========================================================================== #
@@ -2938,6 +3348,7 @@ def genbash(
     base_df_engine='oasis_data_manager.df_reader.reader.OasisPandasReader',
     model_df_engine=None,
     dynamic_footprint=False,
+    section_merge=SECTION_MERGE_DEFAULT,
     analysis_pk=None,
     socket_server_size=None,
     socket_server_port=None,
@@ -2983,12 +3394,18 @@ def genbash(
         base_df_engine (str): The engine to use when loading dataframes.
         model_df_engine (str): The engine to use when loading model dataframes.
         dynamic_footprint (bool): Enable dynamic footprint mode.
+        section_merge (str): Dynamic footprint section merge option for ``gulmc``.
         analysis_pk (int or None): analysis primary key reported with progress pings. When set,
             no local socket-server is started.
         socket_server_size (int or None): total number of events, passed to the local
             socket-server that reports run progress.
         socket_server_port (int or None): port the local socket-server listens on.
         log_level (int or None): Enable logging of pytools subprocesses.
+
+    Returns:
+        dict: The run's progress totals: ``gul_processes``, the number of GUL processes that report
+            ``gul_ready`` (from :func:`create_bash_analysis`), and ``outputs_total``, the number of
+            output processes that report completion (from :func:`create_bash_outputs`).
     """
     model_df_engine = model_df_engine or base_df_engine
 
@@ -3022,6 +3439,7 @@ def genbash(
         join_summary_info=join_summary_info,
         model_df_engine=model_df_engine,
         dynamic_footprint=dynamic_footprint,
+        section_merge=section_merge,
         log_level=log_level
     )
 
@@ -3034,8 +3452,9 @@ def genbash(
     params['socket_server_port'] = socket_server_port
 
     with bash_wrapper(filename, bash_trace, stderr_guard):
-        create_bash_analysis(**params)
-        create_bash_outputs(**params)
+        gul_processes = create_bash_analysis(**params)
+        outputs_total = create_bash_outputs(**params)
+    return {'gul_processes': gul_processes, 'outputs_total': outputs_total}
 
 
 def add_server_call(call, analysis_pk=None, socket_server_port=None):
@@ -3044,8 +3463,8 @@ def add_server_call(call, analysis_pk=None, socket_server_port=None):
     If ``analysis_pk`` is provided and either the environment variables
     ``OASIS_WEBSOCKET_URL``/``OASIS_WEBSOCKET_PORT`` (websocket mode) or
     ``OASIS_ANALYSIS_STATUS_URL`` (HTTP mode) are set, the ``gulmc``/``gulpy``
-    invocation within *call* is augmented with ``--socket-server`` and
-    ``--analysis-pk`` flags.  Otherwise, the ``--socket-server`` flag is set
+    invocation within *call*, and any ``modelpy`` feeding ``gulpy``, is
+    augmented with ``--socket-server`` and ``--analysis-pk`` flags.  Otherwise, the ``--socket-server`` flag is set
     to ``IP:port`` when a port is known.
 
     Args:
@@ -3058,10 +3477,40 @@ def add_server_call(call, analysis_pk=None, socket_server_port=None):
     """
     if '| gul' not in call:
         return call
-    has_websocket = all(item in os.environ for item in ['OASIS_WEBSOCKET_URL', 'OASIS_WEBSOCKET_PORT'])
-    has_http = 'OASIS_ANALYSIS_STATUS_URL' in os.environ
-    if (has_websocket or has_http) and analysis_pk is not None:
-        return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='True' --analysis-pk='{analysis_pk}'", call)
+    server_flags = get_server_flags(analysis_pk, socket_server_port)
+    if not server_flags:
+        return call
+    return re.sub(r'(\bgulmc\b|\bgulpy\b|\bmodelpy\b)', lambda m: f"{m.group(1)}{server_flags}", call)
+
+
+def has_platform_progress(analysis_pk):
+    """Whether progress updates for this run go to the platform: it has an ``analysis_pk`` and a platform target is set.
+
+    Args:
+        analysis_pk (int or None): Analysis primary key for platform runs.
+
+    Returns:
+        bool: True if updates go to the platform.
+    """
+    return analysis_pk is not None and platform_progress_configured()
+
+
+def get_server_flags(analysis_pk=None, socket_server_port=None):
+    """Progress-update flags for a pytool command, with a leading space, or '' if there is nowhere to report to.
+
+    With an ``analysis_pk`` and either ``OASIS_WEBSOCKET_URL``/``OASIS_WEBSOCKET_PORT`` or
+    ``OASIS_ANALYSIS_STATUS_URL`` set, updates go to the platform. Otherwise, with a
+    ``socket_server_port``, they go to the local socket server on that port.
+
+    Args:
+        analysis_pk (int or None): Analysis primary key for platform runs.
+        socket_server_port (int or None): Port of the local socket server.
+
+    Returns:
+        str: The flags to insert after the tool name.
+    """
+    if has_platform_progress(analysis_pk):
+        return f" --socket-server='True' --analysis-pk='{analysis_pk}'"
     if socket_server_port is not None:
-        return re.sub(r'(\bgulmc\b|\bgulpy\b)', rf"\1 --socket-server='{socket_server_port}'", call)
-    return call
+        return f" --socket-server='{socket_server_port}'"
+    return ""

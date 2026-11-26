@@ -159,7 +159,7 @@ OasisLMF installs natively on Apple Silicon Macs via ``pip install oasislmf``. E
 * **Python 3.10+** — the system Python on macOS is 3.9; install a newer version via ``brew install python@3.12`` or ``pyenv``.
 * **macOS 12 (Monterey) or later** — required for scipy ARM64 wheels.
 
-For optional geospatial extras (``pip install oasislmf[extra]``), also install:
+For the optional spatial packages (``pip install "oasislmf[spatial]"``), also install:
 
 .. code-block::
 

@@ -1,6 +1,4 @@
 """This file contains the utilities for all the I/O necessary in gulpy."""
-from select import select
-
 import numpy as np
 from numba import njit
 from numba.typed import Dict, List
@@ -95,12 +93,9 @@ def read_getmodel_stream(stream_in, items,
     dmgcdfrecs = []
 
     items_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_data_type)
-    select_stream_list = [stream_in]
 
     while True:
         if valid_buf < buff_size and len_read:
-            select(select_stream_list, [], select_stream_list)
-
             # read the stream from valid_buf onwards
             len_read = stream_in.readinto1(mv[valid_buf:])
             valid_buf += len_read
@@ -158,7 +153,8 @@ def read_getmodel_stream(stream_in, items,
 def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
                    item_map_hm, item_map_hm_keys, item_map_ja_offsets,
                    coverages,
-                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index, damagecdf_i, rec_idx_ptr):
+                   compute_i, compute, items_data_i, items_data, seeds, rng_index, group_id_rng_index,
+                   damagecdf_i, rec_idx_ptr):
     """Parse streamed data into data arrays.
 
     Args:

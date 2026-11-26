@@ -8,10 +8,9 @@ import csv
 import json
 import os
 import types
-import warnings
 
 from collections import OrderedDict
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 
 import numpy as np
 import pandas as pd
@@ -19,6 +18,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ..utils.data import get_json
+from ..utils.deprecation import warn_deprecated
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.multiproc import run_multiproc
@@ -31,9 +31,42 @@ from .builtin import Lookup as NewLookup
 
 
 def _split_locations(loc_df, part_count):
-    """Yield part_count chunks of loc_df, split by unique 'loc_id' values."""
+    """Yield part_count chunks of loc_df, split by unique 'loc_id' values.
+
+    A slice of a categorical column keeps the full category list, so each chunk drops its unused
+    categories. Otherwise every chunk pickled to a worker carries the whole portfolio's values of a
+    column such as a unique LocNumber.
+    """
     loc_ids_parts = np.array_split(np.unique(loc_df['loc_id']), part_count)
-    return (loc_df[loc_df['loc_id'].isin(loc_ids_parts[i])] for i in range(part_count))
+    category_cols = loc_df.select_dtypes('category').columns
+    for loc_ids in loc_ids_parts:
+        # the masked slice is already new data; the shallow copy only avoids pandas 2's SettingWithCopyWarning
+        chunk_df = loc_df[loc_df['loc_id'].isin(loc_ids)].copy(deep=False)
+        for col in category_cols:
+            chunk_df[col] = chunk_df[col].cat.remove_unused_categories()
+        yield chunk_df
+
+
+def _keys_table(df):
+    """Arrow table of df, typed so that any result chunk can be cast to the first chunk's schema.
+
+    The parquet writer fixes its schema from the first chunk and casts the later ones to it. Two
+    arrow types depend on the chunk's own data and would break that cast:
+
+    - a categorical's indices are sized from its category count (int8 up to 127): widened to int32;
+    - an all-null column, or on pandas 2 a categorical with no categories, has the null type, which
+      nothing casts to: written as string. An all-null keys column is text (e.g. message); an all-NaN
+      numeric column is float, not null.
+    """
+    def chunk_independent(arrow_type):
+        if pa.types.is_dictionary(arrow_type):
+            return pa.dictionary(pa.int32(), chunk_independent(arrow_type.value_type), arrow_type.ordered)
+        return pa.string() if pa.types.is_null(arrow_type) else arrow_type
+
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    schema = pa.schema([field.with_type(chunk_independent(field.type)) for field in table.schema],
+                       metadata=table.schema.metadata)
+    return table if schema.equals(table.schema) else table.cast(schema)
 
 
 class KeyServerFactory(object):
@@ -72,9 +105,9 @@ class KeyServerFactory(object):
     def update_deprecated_args(cls, config_dir, config,
                                complex_lookup_config_fp, model_keys_data_path, model_version_file_path, lookup_module_path):
         if (complex_lookup_config_fp or model_keys_data_path or model_version_file_path or lookup_module_path):
-            warnings.warn('usage of complex_lookup_config_fp, model_keys_data_path, '
-                          'model_version_file_path and lookup_module_path is now deprecated'
-                          'those variables now need to be set in lookup config see (key server documentation)')
+            warn_deprecated('usage of complex_lookup_config_fp, model_keys_data_path, '
+                            'model_version_file_path and lookup_module_path is now deprecated'
+                            'those variables now need to be set in lookup config see (key server documentation)')
 
         if complex_lookup_config_fp and not isinstance(complex_lookup_config_fp, dict):
             config_dir, config = cls.get_config(complex_lookup_config_fp)
@@ -254,6 +287,9 @@ class BasicKeyServer:
 
     min_bloc_size = int(os.environ.get('OASIS_MIN_BLOC_SIZE', 1000))
     max_bloc_size = int(os.environ.get('OASIS_MAX_BLOC_SIZE', 10000))
+    # rows the lookup runs on in the parent process before forking, so steps can index their shared data
+    # on the columns they actually use (see Lookup.multiproc_shared_data)
+    SHARED_DATA_SAMPLE_SIZE = 100
 
     def __init__(self, config, config_dir=None, user_data_dir=None, output_dir=None):
         self.config = config
@@ -300,10 +336,10 @@ class BasicKeyServer:
                               user_data_dir=user_data_dir,
                               output_dir=output_dir)
         elif lookup_interface_version == '0':
-            warnings.warn('OasisLookupInterface (or OasisBaseKeysLookup) is now deprecated'
-                          ' Interface for lookup is now lookup.interface.LookupInterface'
-                          ' for similar functionality use lookup.base.AbstractBasicKeyLookup'
-                          ' for multiprocess implementation add lookup.base.MultiprocLookupMixin')
+            warn_deprecated('OasisLookupInterface (or OasisBaseKeysLookup) is now deprecated'
+                            ' Interface for lookup is now lookup.interface.LookupInterface'
+                            ' for similar functionality use lookup.base.AbstractBasicKeyLookup'
+                            ' for multiprocess implementation add lookup.base.MultiprocLookupMixin')
             if not (config and output_dir):
                 return lookup_cls(
                     keys_data_directory=config.get('keys_data_path'),
@@ -422,14 +458,14 @@ class BasicKeyServer:
                     if successes_count == 0:
                         success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
                         selected_df = success_df[success_heading_row.keys()].rename(columns=success_heading_row)
-                        successes_table = pa.Table.from_pandas(selected_df, preserve_index=False)
+                        successes_table = _keys_table(selected_df)
                         successes_writer = stack.enter_context(
                             pq.ParquetWriter(successes_fp, schema=successes_table.schema))
                         successes_writer.write_table(successes_table)
                         successes_count += success_df.shape[0]
                     else:
                         selected_df = success_df[success_heading_row.keys()].rename(columns=success_heading_row)
-                        successes_table = pa.Table.from_pandas(selected_df, preserve_index=False)
+                        successes_table = _keys_table(selected_df)
                         # Cast to match schema if needed
                         if not successes_table.schema.equals(successes_writer.schema):
                             successes_table = successes_table.cast(successes_writer.schema)
@@ -441,9 +477,8 @@ class BasicKeyServer:
                     if not errors_df.empty:
                         if 'message' not in errors_df.columns:
                             errors_df['message'] = ""
-                        errors_table = pa.Table.from_pandas(
-                            errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row),
-                            preserve_index=False)
+                        errors_table = _keys_table(
+                            errors_df[self.error_heading_row.keys()].rename(columns=self.error_heading_row))
                         if error_count == 0:
                             errors_writer = stack.enter_context(pq.ParquetWriter(errors_fp, schema=errors_table.schema))
                         else:
@@ -522,18 +557,31 @@ class BasicKeyServer:
                                         self.user_data_dir, self.output_dir, lookup_id)
             return lookup.process_locations_multiproc
 
-        return run_multiproc(
-            _split_locations(loc_df, part_count),
-            make_process_chunk,
-            pool_count,
-            lambda results: self.write_keys_file(
-                results,
-                successes_fp=successes_fp,
-                errors_fp=errors_fp,
-                output_format=output_format,
-                keys_success_msg=keys_success_msg,
-            ),
-        )
+        # Data a lookup loads here, before the workers are forked, is shared by all of them
+        # (copy-on-write) instead of being loaded again by each one.
+        if hasattr(self.lookup_cls, 'multiproc_shared_data'):
+            shared_data = self.create_lookup(self.lookup_cls, self.config, self.config_dir,
+                                             self.user_data_dir, self.output_dir, None).multiproc_shared_data(
+                sample_locations=loc_df.head(self.SHARED_DATA_SAMPLE_SIZE))
+        else:
+            shared_data = nullcontext()
+
+        with shared_data:
+            return run_multiproc(
+                _split_locations(loc_df, part_count),
+                make_process_chunk,
+                pool_count,
+                lambda results: self.write_keys_file(
+                    results,
+                    successes_fp=successes_fp,
+                    errors_fp=errors_fp,
+                    output_format=output_format,
+                    keys_success_msg=keys_success_msg,
+                ),
+                # keys file row order sets item_id downstream, so it must not depend on which
+                # worker finishes first (see #2211)
+                ordered=True,
+            )
 
     @oasis_log()
     def generate_key_files(
