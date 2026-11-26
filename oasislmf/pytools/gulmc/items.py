@@ -192,11 +192,11 @@ def build_areaperil_placements(blended_areaperil_ja_offsets, blended_areaperil_p
         indexes within its blended areaperil, ascending. Uncovered placements are not listed.
     """
     n_positions = int(blended_areaperil_ja_offsets[-1])
-    counts = np.zeros(n_positions + 1, dtype=np.int64)
+    counts = np.zeros(n_positions, dtype=np.int64)
     _count_areaperil_placements(blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets,
                                 blended_areaperil_placement_ja_areaperil_j, counts)
     offsets = np.zeros(n_positions + 1, dtype=oasis_int)
-    np.cumsum(counts[:n_positions], out=offsets[1:])
+    np.cumsum(counts, out=offsets[1:])
     placements = np.empty(int(offsets[-1]), dtype=np.int32)
     _fill_areaperil_placements(blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets,
                                blended_areaperil_placement_ja_areaperil_j, offsets, counts, placements)

@@ -118,10 +118,10 @@ def _make_items_array(intensity_adjustment=0, return_period=0):
     return items
 
 
-# no item computes only its live samples (see prepare_event_samples): its samples, areaperils and draws
+# no item computes only its live samples (see prepare_event_samples): their codes, areaperils and
+# damage and hazard base values
 _NO_SPARSE_SAMPLES = (np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int32),
-                      np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.float64),
-                      np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.float64))
+                      np.zeros(0, dtype=np.float64), np.zeros(0, dtype=np.float64))
 
 
 def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment=0,

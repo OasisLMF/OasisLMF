@@ -555,10 +555,8 @@ def run(run_dir,
         # what an event without any sparse item passes
         event_sample_codes = np.zeros(0, dtype=np.int64)
         event_sample_areaperil_j = np.zeros(0, dtype=np.int32)
-        vuln_draw_keys = np.zeros(0, dtype=np.int64)
-        vuln_draw_values = np.zeros(0, dtype=np.float64)
-        haz_draw_keys = np.zeros(0, dtype=np.int64)
-        haz_draw_values = np.zeros(0, dtype=np.float64)
+        event_sample_vuln = np.zeros(0, dtype=np.float64)
+        event_sample_haz = np.zeros(0, dtype=np.float64)
 
         # default random values array for sample_size==0 case
         haz_eps_ij = np.empty((1, sample_size), dtype='float64')
@@ -692,8 +690,8 @@ def run(run_dir,
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
                 if sample_live_only:
-                    (event_sample_codes, event_sample_areaperil_j, vuln_draw_keys, vuln_draw_values,
-                     haz_draw_keys, haz_draw_values) = prepare_event_samples(
+                    (event_sample_codes, event_sample_areaperil_j, event_sample_vuln,
+                     event_sample_haz) = prepare_event_samples(
                         compute_info, coverages, compute, compute_depth, coverage_has_dependents,
                         items_event_data, items, item_mixed_cdf_groups,
                         fp_ap_inds, Nhaz_arr_this_event, item_map_ja_offsets, item_map_ja_mixed_cdf_group_areaperil_idxs,
@@ -704,7 +702,8 @@ def run(run_dir,
                         placement_item_ind, placement_item_locations, placement_item_code_starts,
                         placement_location_ja_offsets, placement_location_ja_placements,
                         placement_location_ja_code_offsets, placement_location_ja_codes,
-                        sample_size, building_losses.shape[2], vuln_seeds, rng_index, haz_seeds, hazard_rng_index)
+                        sample_size, building_losses.shape[2], vuln_seeds, vuln_rndms_base, rng_index,
+                        haz_seeds, haz_rndms_base, hazard_rng_index)
 
                 # Invalidate the cdf cache for the new event without touching mixed_cdf_cache_tag, whose
                 # size is the number of mixed cdf groups of the portfolio: a cached cdf is valid only while
@@ -777,10 +776,8 @@ def run(run_dir,
                             perm_scratch,
                             event_sample_codes,
                             event_sample_areaperil_j,
-                            vuln_draw_keys,
-                            vuln_draw_values,
-                            haz_draw_keys,
-                            haz_draw_values,
+                            event_sample_vuln,
+                            event_sample_haz,
                             coverage_has_dependents,
                             compute_depth,
                             source_damage_bin_stack,
@@ -1296,20 +1293,6 @@ def resolve_sample_areaperils(n_samples, areaperil_j_of_sample, item_stamp, area
     return haz_used
 
 
-@nb.njit(cache=True, inline='always')
-def keyed_draw(keys, values, key):
-    """The value drawn for ``key``, which ``keys`` (sorted) must hold (see prepare_event_samples)."""
-    lo = 0
-    hi = keys.shape[0]
-    while lo < hi:
-        mid = (lo + hi) >> 1
-        if keys[mid] < key:
-            lo = mid + 1
-        else:
-            hi = mid
-    return values[lo]
-
-
 @nb.njit(cache=True, fastmath=True, inline='always')
 def sample_item_losses(compute_info, sample_size, hazard_rng_index,
                        haz_z_unif, vuln_z_unif, areaperil_j_of_sample, areaperil_j_live,
@@ -1486,10 +1469,8 @@ def _compute_event_losses_core(compute_info,
                                perm_scratch,
                                event_sample_codes,
                                event_sample_areaperil_j,
-                               vuln_draw_keys,
-                               vuln_draw_values,
-                               haz_draw_keys,
-                               haz_draw_values,
+                               event_sample_vuln,
+                               event_sample_haz,
                                coverage_has_dependents,
                                compute_depth,
                                source_damage_bin_stack,
@@ -1770,7 +1751,8 @@ def _compute_event_losses_core(compute_info,
                 item_placement_start = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx']]
                 n_placements = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx'] + 1] - item_placement_start
                 has_placements = n_placements > 1 and full_monte_carlo
-                if has_placements:
+                if has_placements and item_event_data['sparse'] == 0:
+                    # read by the every-sample loop below only
                     location_start = placement_item_starts[id_index_get_idx(placement_item_ind, item_idx)]
                 else:
                     location_start = nb_int64(0)
@@ -1789,7 +1771,6 @@ def _compute_event_losses_core(compute_info,
                     # ((building - 1) * S + sample), one building's run at a time. A sample on a dead
                     # areaperil loses nothing, so the rest of the item's buildings stay at 0.
                     building_losses[:, item_j, :n_buildings] = 0
-                    n_buildings_max = building_losses.shape[2]
                     sample_k = item_event_data['sample_start']
                     sample_end = item_event_data['sample_end']
                     while sample_k < sample_end:
@@ -1799,20 +1780,8 @@ def _compute_event_losses_core(compute_info,
                             sample_idx = event_sample_codes[sample_k] - building_i * sample_size
                             sample_idx_buf[n_live] = sample_idx
                             areaperil_j_of_building[n_live] = event_sample_areaperil_j[sample_k]
-                            # building 1 is the group's shared row; the others were drawn for the
-                            # event's live samples, per (rng group, building)
-                            if building_i == 0:
-                                vuln_draw_scratch[n_live] = vuln_rndms_base[rng_index, sample_idx]
-                                if hazard_rng_index >= 0:
-                                    haz_draw_scratch[n_live] = haz_rndms_base[hazard_rng_index, sample_idx]
-                            else:
-                                vuln_draw_scratch[n_live] = keyed_draw(
-                                    vuln_draw_keys, vuln_draw_values,
-                                    (rng_index * n_buildings_max + building_i) * sample_size + sample_idx)
-                                if hazard_rng_index >= 0:
-                                    haz_draw_scratch[n_live] = keyed_draw(
-                                        haz_draw_keys, haz_draw_values,
-                                        (hazard_rng_index * n_buildings_max + building_i) * sample_size + sample_idx)
+                            vuln_draw_scratch[n_live] = event_sample_vuln[sample_k]
+                            haz_draw_scratch[n_live] = event_sample_haz[sample_k]
                             n_live += 1
                             sample_k += 1
                         draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_index, n_live,
@@ -2010,10 +1979,8 @@ def compute_event_losses(compute_info,
                          perm_scratch,
                          event_sample_codes,
                          event_sample_areaperil_j,
-                         vuln_draw_keys,
-                         vuln_draw_values,
-                         haz_draw_keys,
-                         haz_draw_values,
+                         event_sample_vuln,
+                         event_sample_haz,
                          coverage_has_dependents,
                          compute_depth,
                          source_damage_bin_stack,
@@ -2132,12 +2099,9 @@ def compute_event_losses(compute_info,
           ``(building - 1) * S + sample``, ascending per item; an item's are those in
           ``[sample_start, sample_end)`` of its items_event_data.
         event_sample_areaperil_j (np.array[int32]): the item areaperil each of them reads.
-        vuln_draw_keys (np.array[int64]): ascending keys ``(rng_index * B + building - 1) * S +
-          sample``, B being ``building_losses``' building width: the damage base values of the
-          sparse items' live samples in buildings 2 and up.
-        vuln_draw_values (np.array[float64]): the value drawn for each key.
-        haz_draw_keys (np.array[int64]): the same for hazard, keyed by hazard_rng_index.
-        haz_draw_values (np.array[float64]): the value drawn for each of those keys.
+        event_sample_vuln (np.array[float64]): the damage base random value of each of them.
+        event_sample_haz (np.array[float64]): the hazard base random value of each of them, 0 when
+          the item draws no hazard.
 
     Returns:
         bool: True if all coverages have been processed, False if the buffer is full and
@@ -2260,10 +2224,8 @@ def compute_event_losses(compute_info,
                                       perm_scratch,
                                       event_sample_codes,
                                       event_sample_areaperil_j,
-                                      vuln_draw_keys,
-                                      vuln_draw_values,
-                                      haz_draw_keys,
-                                      haz_draw_values,
+                                      event_sample_vuln,
+                                      event_sample_haz,
                                       coverage_has_dependents,
                                       compute_depth,
                                       source_damage_bin_stack,
@@ -2753,8 +2715,9 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
                           placement_item_ind, placement_item_locations, placement_item_code_starts,
                           placement_location_ja_offsets, placement_location_ja_placements,
                           placement_location_ja_code_offsets, placement_location_ja_codes,
-                          sample_size, n_buildings_max, vuln_seeds, n_vuln_rng, haz_seeds, n_haz_rng):
-    """List the live samples of the event's blended items, and draw their base random values.
+                          sample_size, n_buildings_max, vuln_seeds, vuln_rndms_base, n_vuln_rng,
+                          haz_seeds, haz_rndms_base, n_haz_rng):
+    """List the live samples of the event's blended items, with their base random values.
 
     An item whose blended areaperil has several placements usually has most of its samples on
     areaperils with no hazard this event, which lose nothing. Such an item is made sparse
@@ -2766,18 +2729,14 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
     Not made sparse, and computed whole as before: dependents and sources of coverage dependency,
     whose damage bins are read per sample across items, and every item of a single placement.
 
-    The base random values of a building other than the first are drawn per (rng group, building)
-    for the event, and every item of the group reads them. A building whose every sample some item
-    needs -- that is, any building of an item computed whole -- is drawn as a full Latin Hypercube
-    block, exactly as the whole computation draws it. Otherwise only its needed samples are drawn,
-    with a partial block over the union of the samples the group's items need, so the items still
-    agree on each value. The first building reads the group's shared row and is not drawn here.
+    A sample's base random values are its rng group's, per building (see ``draw_keyed_samples``),
+    so every item of the group reads the same ones.
 
     Returns:
-        tuple: ``event_sample_codes`` (int64) and ``event_sample_areaperil_j`` (int32), per live
-        sample its item code ``(building - 1) * S + sample`` and the item areaperil it reads, each
-        sparse item's run ascending; then ``vuln_draw_keys``, ``vuln_draw_values``,
-        ``haz_draw_keys`` and ``haz_draw_values`` (see compute_event_losses).
+        tuple: per live sample, ``event_sample_codes`` (int64), its item code ``(building - 1) * S +
+        sample``, each sparse item's run ascending; ``event_sample_areaperil_j`` (int32), the item
+        areaperil it reads; ``event_sample_vuln`` and ``event_sample_haz`` (float64), its damage and
+        hazard base random values (the latter 0 when the item draws no hazard).
     """
     # the group areaperils with hazard this event, ascending, so that a group's are one run
     n_touched = 0
@@ -2793,9 +2752,15 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
             n_touched += 1
     touched.sort()
 
-    codes = np.empty(1024, dtype=np.int64)
-    codes_j = np.empty(1024, dtype=np.int32)
+    # per live sample: its code, areaperil, and the keys of its damage and hazard draws,
+    # (rng group, building, sample) as rng_index * B * S + code (-1 for no hazard draw)
+    capacity = 1024
+    codes = np.empty(capacity, dtype=np.int64)
+    codes_j = np.empty(capacity, dtype=np.int32)
+    vuln_keys = np.empty(capacity, dtype=np.int64)
+    haz_keys = np.empty(capacity, dtype=np.int64)
     n_codes = 0
+    rng_stride = n_buildings_max * sample_size
     # per rng group, the buildings 1..n drawn as full blocks
     vuln_full = np.zeros(max(n_vuln_rng, 1), dtype=np.int64)
     haz_full = np.zeros(max(n_haz_rng, 1), dtype=np.int64)
@@ -2810,13 +2775,13 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
             item_idx = items_event_data[item_i]['item_idx']
             item = items[item_idx]
             n_buildings = abs(items_event_data[item_i]['packed_buildings'])
+            rng = items_event_data[item_i]['rng_index']
+            haz_rng = items_event_data[item_i]['hazard_rng_index']
             blend = item['blended_areaperil_idx']
             n_placements = blended_areaperil_placement_ja_offsets[blend + 1] - blended_areaperil_placement_ja_offsets[blend]
             is_dependent = coverage_is_dependent and items_event_data[item_i]['source_item_j'] >= 0
             if n_placements <= 1 or is_dependent or has_dependents:
-                rng = items_event_data[item_i]['rng_index']
                 vuln_full[rng] = max(vuln_full[rng], n_buildings)
-                haz_rng = items_event_data[item_i]['hazard_rng_index']
                 if haz_rng >= 0:
                     haz_full[haz_rng] = max(haz_full[haz_rng], n_buildings)
                 continue
@@ -2851,9 +2816,13 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
                     run = placement_location_ja_codes[placement_location_ja_code_offsets[d]:placement_location_ja_code_offsets[d + 1]]
                     lo = np.searchsorted(run, code_start)
                     hi = np.searchsorted(run, code_end)
-                    while n_codes + hi - lo > codes.shape[0]:
-                        codes = np.concatenate((codes, np.empty(codes.shape[0], dtype=np.int64)))
-                        codes_j = np.concatenate((codes_j, np.empty(codes_j.shape[0], dtype=np.int32)))
+                    if n_codes + hi - lo > capacity:
+                        while n_codes + hi - lo > capacity:
+                            capacity *= 2
+                        codes = _resized(codes, n_codes, capacity)
+                        codes_j = _resized(codes_j, n_codes, capacity)
+                        vuln_keys = _resized(vuln_keys, n_codes, capacity)
+                        haz_keys = _resized(haz_keys, n_codes, capacity)
                     for c in range(lo, hi):
                         codes[n_codes] = np.int64(run[c]) - code_start
                         codes_j[n_codes] = areaperil_j
@@ -2863,48 +2832,39 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
                 order = np.argsort(codes[item_first:n_codes], kind='mergesort')
                 codes[item_first:n_codes] = codes[item_first:n_codes][order]
                 codes_j[item_first:n_codes] = codes_j[item_first:n_codes][order]
+            for k in range(item_first, n_codes):
+                vuln_keys[k] = rng * rng_stride + codes[k]
+                haz_keys[k] = haz_rng * rng_stride + codes[k] if haz_rng >= 0 else -1
             items_event_data[item_i]['sparse'] = 1
             items_event_data[item_i]['sample_start'] = item_first
             items_event_data[item_i]['sample_end'] = n_codes
 
-    # the (rng group, building, sample) the sparse items need, building 2 and up
-    vuln_keys = np.empty(n_codes, dtype=np.int64)
-    haz_keys = np.empty(n_codes, dtype=np.int64)
-    n_vuln_keys = 0
-    n_haz_keys = 0
-    for position in range(compute_info['coverage_n']):
-        coverage = coverages[coverage_ids[position]]
-        for item_i in range(coverage['start_items'], coverage['start_items'] + coverage['cur_items']):
-            if items_event_data[item_i]['sparse'] != 1:
-                continue
-            rng = items_event_data[item_i]['rng_index']
-            haz_rng = items_event_data[item_i]['hazard_rng_index']
-            for k in range(items_event_data[item_i]['sample_start'], items_event_data[item_i]['sample_end']):
-                building_i = codes[k] // sample_size
-                if building_i == 0:
-                    continue
-                sample_idx = codes[k] - building_i * sample_size
-                vuln_keys[n_vuln_keys] = (rng * n_buildings_max + building_i) * sample_size + sample_idx
-                n_vuln_keys += 1
-                if haz_rng >= 0:
-                    haz_keys[n_haz_keys] = (haz_rng * n_buildings_max + building_i) * sample_size + sample_idx
-                    n_haz_keys += 1
-    vuln_keys = np.unique(vuln_keys[:n_vuln_keys])
-    haz_keys = np.unique(haz_keys[:n_haz_keys])
     return (codes[:n_codes], codes_j[:n_codes],
-            vuln_keys, draw_keyed_samples(vuln_keys, vuln_seeds, vuln_full, sample_size, n_buildings_max),
-            haz_keys, draw_keyed_samples(haz_keys, haz_seeds, haz_full, sample_size, n_buildings_max))
+            draw_keyed_samples(vuln_keys[:n_codes], vuln_seeds, vuln_rndms_base, vuln_full, sample_size, n_buildings_max),
+            draw_keyed_samples(haz_keys[:n_codes], haz_seeds, haz_rndms_base, haz_full, sample_size, n_buildings_max))
 
 
 @nb.njit(cache=True)
-def draw_keyed_samples(keys, seeds, full_buildings, sample_size, n_buildings_max):
-    """The base random value of each key ``(rng_index * B + building - 1) * S + sample`` (ascending).
+def _resized(a, n, capacity):
+    """A copy of ``a``'s first ``n`` entries in a new array of ``capacity``."""
+    out = np.empty(capacity, dtype=a.dtype)
+    out[:n] = a[:n]
+    return out
 
-    One draw per (rng group, building) run of keys: the full Latin Hypercube block when the building
-    is among the group's first ``full_buildings[rng_index]``, a partial block over the run's samples
-    otherwise.
+
+@nb.njit(cache=True)
+def draw_keyed_samples(sample_keys, seeds, rndms_base, full_buildings, sample_size, n_buildings_max):
+    """The base random value of each key ``rng_index * B * S + (building - 1) * S + sample``; 0 for -1.
+
+    The first building reads the rng group's row, ``rndms_base``. Any other is drawn once per (rng
+    group, building) present: the full Latin Hypercube block when the building is among the group's
+    first ``full_buildings[rng_index]``, which some item computes whole; otherwise a partial block
+    over the distinct samples asked for, the union of what the group's items need, so that they
+    agree on each value.
     """
-    values = np.empty(keys.shape[0], dtype=np.float64)
+    values = np.zeros(sample_keys.shape[0], dtype=np.float64)
+    keys = np.unique(sample_keys[sample_keys >= 0])
+    key_values = np.empty(keys.shape[0], dtype=np.float64)
     perms = np.empty(max(sample_size, 1), dtype=np.float64)
     block = np.empty(max(sample_size, 1), dtype=np.float64)
     samples = np.empty(max(sample_size, 1), dtype=np.int64)
@@ -2917,17 +2877,24 @@ def draw_keyed_samples(keys, seeds, full_buildings, sample_size, n_buildings_max
             run_end += 1
         rng = run_key // n_buildings_max
         building_i = run_key - rng * n_buildings_max
-        seed = np.uint64(seeds[rng])
-        k0 = np.uint32(seed & PHILOX_U32_MASK)
-        k1 = np.uint32(seed >> PHILOX_SHIFT32)
         m = run_end - run_start
-        if building_i < full_buildings[rng]:
-            _lh_philox_block(k0, k1, building_i, sample_size, perms, block)
+        if building_i == 0:
             for i in range(m):
-                values[run_start + i] = block[samples[i]]
+                key_values[run_start + i] = rndms_base[rng, samples[i]]
         else:
-            _lh_philox_partial_block(k0, k1, building_i, sample_size, samples, m, perms, block)
-            for i in range(m):
-                values[run_start + i] = block[i]
+            seed = np.uint64(seeds[rng])
+            k0 = np.uint32(seed & PHILOX_U32_MASK)
+            k1 = np.uint32(seed >> PHILOX_SHIFT32)
+            if building_i < full_buildings[rng]:
+                _lh_philox_block(k0, k1, building_i, sample_size, perms, block)
+                for i in range(m):
+                    key_values[run_start + i] = block[samples[i]]
+            else:
+                _lh_philox_partial_block(k0, k1, building_i, sample_size, samples, m, perms, block)
+                for i in range(m):
+                    key_values[run_start + i] = block[i]
         run_start = run_end
+    for k in range(sample_keys.shape[0]):
+        if sample_keys[k] >= 0:
+            values[k] = key_values[np.searchsorted(keys, sample_keys[k])]
     return values
