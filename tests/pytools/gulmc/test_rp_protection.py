@@ -278,7 +278,8 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     dynamic_footprint = True  # truthy, enables dynamic footprint path
 
     # one block per building; a single building here, so this is the unpacked N == 1 case
-    building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
+    # the coverage's sample losses: one run of S per item, the first item's at 0
+    sample_losses = np.zeros(max(sample_size, 1) * losses.shape[1], dtype=oasis_float)
     # float64 to match the precision write_losses accumulates a summed item at
     # only a summed, correlated item reads these; the RP path never does
     loss_correlation_by_item = np.zeros(losses.shape[1], dtype=oasis_float)
@@ -315,14 +316,14 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
-        building_losses, loss_correlation_by_item, hermite_coeffs,
+        sample_losses, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_base, haz_rndms_base,
         vuln_seeds, haz_seeds, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
         *_NO_SPARSE_SAMPLES,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
         source_eff_damage_cdf_len_stack,
     )
-    return args, losses, building_losses
+    return args, losses, sample_losses
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +444,7 @@ def test_rp_protection_zeros_all_losses_when_event_rp_below_item_rp():
     When event_rp (12) < item return_period (25), all losses for that item
     must be zero regardless of the vulnerability function.
     """
-    args, losses, building_losses = _make_compute_event_losses_args(
+    args, losses, sample_losses = _make_compute_event_losses_args(
         event_rp=EVENT_RP_BELOW,     # 12
         item_rp=ITEM_RP_PROTECTION,  # 25
     )
@@ -457,7 +458,7 @@ def test_rp_protection_zeros_all_losses_when_event_rp_below_item_rp():
 
 def test_rp_protection_does_not_zero_losses_when_event_rp_equals_item_rp():
     """When event_rp == item_rp the protection does not trigger; losses are non-zero."""
-    args, losses, building_losses = _make_compute_event_losses_args(
+    args, losses, sample_losses = _make_compute_event_losses_args(
         event_rp=ITEM_RP_PROTECTION,  # 25 == 25
         item_rp=ITEM_RP_PROTECTION,   # 25
     )
@@ -471,7 +472,7 @@ def test_rp_protection_does_not_zero_losses_when_event_rp_equals_item_rp():
 
 def test_rp_protection_does_not_zero_losses_when_event_rp_above_item_rp():
     """When event_rp (50) > item_rp (25) the protection does not trigger."""
-    args, losses, building_losses = _make_compute_event_losses_args(
+    args, losses, sample_losses = _make_compute_event_losses_args(
         event_rp=EVENT_RP_ABOVE,     # 50
         item_rp=ITEM_RP_PROTECTION,  # 25
     )
@@ -484,7 +485,7 @@ def test_rp_protection_does_not_zero_losses_when_event_rp_above_item_rp():
 
 def test_rp_protection_does_not_trigger_when_item_rp_is_zero():
     """When item return_period is 0 (no protection configured), losses are non-zero."""
-    args, losses, building_losses = _make_compute_event_losses_args(
+    args, losses, sample_losses = _make_compute_event_losses_args(
         event_rp=EVENT_RP_BELOW,  # 12 — would trigger if item_rp > 0
         item_rp=np.int32(0),      # no protection
     )
@@ -610,7 +611,8 @@ def test_rp_protection_only_affects_protected_items():
     intensity_bins[0, HAZ_INTENSITY] = HAZ_BIN_ID
 
     # one block per building; a single building here, so this is the unpacked N == 1 case
-    building_losses = np.zeros((max(sample_size, 1), losses.shape[1], 1), dtype=oasis_float)
+    # the coverage's sample losses: one run of S per item, the first item's at 0
+    sample_losses = np.zeros(max(sample_size, 1) * losses.shape[1], dtype=oasis_float)
     # float64 to match the precision write_losses accumulates a summed item at
     # only a summed, correlated item reads these; the RP path never does
     loss_correlation_by_item = np.zeros(losses.shape[1], dtype=oasis_float)
@@ -646,7 +648,7 @@ def test_rp_protection_only_affects_protected_items():
         haz_eps_ij, damage_eps_ij,
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
-        building_losses, loss_correlation_by_item, hermite_coeffs,
+        sample_losses, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_base, haz_rndms_base,
         vuln_seeds, haz_seeds, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
         *_NO_SPARSE_SAMPLES,
@@ -676,7 +678,7 @@ def test_rp_protection_records_no_damage_source_state_for_dependents():
     (per-sample damage bin 0, point-mass CDF on bin 0) rather than whatever the previously
     processed coverage wrote.
     """
-    args, losses, building_losses = _make_compute_event_losses_args(event_rp=EVENT_RP_BELOW, item_rp=ITEM_RP_PROTECTION)
+    args, losses, sample_losses = _make_compute_event_losses_args(event_rp=EVENT_RP_BELOW, item_rp=ITEM_RP_PROTECTION)
     compute_info = args[0]
     compute_info['do_coverage_dependency'] = 1
 
@@ -688,7 +690,7 @@ def test_rp_protection_records_no_damage_source_state_for_dependents():
 
     assert compute_event_losses(*args) is True
     assert np.all(losses == 0.0), "protected item still yields zero losses"
-    assert np.all(building_losses == 0.0), "protected item still yields zero samples"
+    assert np.all(sample_losses == 0.0), "protected item still yields zero samples"
 
     assert np.all(source_damage_bin_stack[0, 0, :] == 0), \
         "protected source must expose damage bin 0 to its dependents, not the stale bin"
@@ -718,19 +720,19 @@ def test_rp_protection_zeros_samples_and_analytics_whatever_the_bin_count(n_haz_
     the number of footprint hazard records for the item's areaperil must not change this.
     """
     sample_size = 8
-    args, losses, building_losses = _make_compute_event_losses_args(
+    args, losses, sample_losses = _make_compute_event_losses_args(
         event_rp=EVENT_RP_BELOW, item_rp=ITEM_RP_PROTECTION,
         sample_size=sample_size, n_haz_records=n_haz_records)
     assert compute_event_losses(*args) is True
     assert np.all(losses == 0.0), f"protected item reported {losses[:, 0]}"
-    assert np.all(building_losses == 0.0), f"protected item reported samples {building_losses[:, 0, 0]}"
+    assert np.all(sample_losses == 0.0), f"protected item reported samples {sample_losses[:sample_size]}"
 
     # the same item unprotected does have losses, so the assertion above is not vacuous
-    args, losses, building_losses = _make_compute_event_losses_args(
+    args, losses, sample_losses = _make_compute_event_losses_args(
         event_rp=EVENT_RP_BELOW, item_rp=0,
         sample_size=sample_size, n_haz_records=n_haz_records)
     assert compute_event_losses(*args) is True
-    assert (building_losses[:sample_size, 0, 0] > 0).all()
+    assert (sample_losses[:sample_size] > 0).all()
     assert losses[MEAN_IDX, 0] > 0 and losses[MAX_LOSS_IDX, 0] > 0
 
 
@@ -741,16 +743,16 @@ def test_rp_protection_applies_to_a_dependent_item(n_haz_records):
     source's damage bins rather than the footprint's, and whatever the footprint record count.
     """
     sample_size = 8
-    args, losses, building_losses = _make_compute_event_losses_args(
+    args, losses, sample_losses = _make_compute_event_losses_args(
         event_rp=EVENT_RP_BELOW, item_rp=ITEM_RP_PROTECTION,
         sample_size=sample_size, n_haz_records=n_haz_records, dependent=True)
     assert compute_event_losses(*args) is True
     assert np.all(losses == 0.0), f"protected dependent reported {losses[:, 0]}"
-    assert np.all(building_losses == 0.0), f"protected dependent reported samples {building_losses[:, 0, 0]}"
+    assert np.all(sample_losses == 0.0), f"protected dependent reported samples {sample_losses[:sample_size]}"
 
     # unprotected, the dependent is driven by its fully damaged source and does have losses
-    args, losses, building_losses = _make_compute_event_losses_args(
+    args, losses, sample_losses = _make_compute_event_losses_args(
         event_rp=EVENT_RP_BELOW, item_rp=0,
         sample_size=sample_size, n_haz_records=n_haz_records, dependent=True)
     assert compute_event_losses(*args) is True
-    assert (building_losses[:sample_size, 0, 0] > 0).all()
+    assert (sample_losses[:sample_size] > 0).all()

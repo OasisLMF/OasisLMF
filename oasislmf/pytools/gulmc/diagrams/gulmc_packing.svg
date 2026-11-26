@@ -18,10 +18,10 @@
 <!-- draw -->
 <g id="node2" class="node">
 <title>draw</title>
-<path fill="#eef3fb" stroke="#4a6fa5" d="M487.5,-351C487.5,-351 200.5,-351 200.5,-351 194.5,-351 188.5,-345 188.5,-339 188.5,-339 188.5,-322 188.5,-322 188.5,-316 194.5,-310 200.5,-310 200.5,-310 487.5,-310 487.5,-310 493.5,-310 499.5,-316 499.5,-322 499.5,-322 499.5,-339 499.5,-339 499.5,-345 493.5,-351 487.5,-351"/>
-<text text-anchor="start" x="196.5" y="-339" font-family="Helvetica,sans-Serif" font-size="10.00">for b in 1..N: &#160;draw S values at offsets[g] + (b&#45;1)*S</text>
-<text text-anchor="start" x="196.5" y="-328" font-family="Helvetica,sans-Serif" font-size="10.00">sample_item_losses &#160;&#45;&gt; &#160;building_losses[:, item_j, b&#45;1]</text>
-<text text-anchor="start" x="196.5" y="-317" font-family="Helvetica,sans-Serif" font-size="10.00">the buildings differ only in their draws; the CDF is the item&#39;s</text>
+<path fill="#eef3fb" stroke="#4a6fa5" d="M520.5,-351C520.5,-351 167.5,-351 167.5,-351 161.5,-351 155.5,-345 155.5,-339 155.5,-339 155.5,-322 155.5,-322 155.5,-316 161.5,-310 167.5,-310 167.5,-310 520.5,-310 520.5,-310 526.5,-310 532.5,-316 532.5,-322 532.5,-322 532.5,-339 532.5,-339 532.5,-345 526.5,-351 520.5,-351"/>
+<text text-anchor="start" x="163.5" y="-339" font-family="Helvetica,sans-Serif" font-size="10.00">for b in 1..N: &#160;draw S values at offsets[g] + (b&#45;1)*S</text>
+<text text-anchor="start" x="163.5" y="-328" font-family="Helvetica,sans-Serif" font-size="10.00">sample_item_losses &#160;&#45;&gt; &#160;the item&#39;s run of sample_losses, building b&#45;1&#39;s S</text>
+<text text-anchor="start" x="163.5" y="-317" font-family="Helvetica,sans-Serif" font-size="10.00">the buildings differ only in their draws; the CDF is the item&#39;s</text>
 </g>
 <!-- item&#45;&gt;draw -->
 <g id="edge1" class="edge">
@@ -44,9 +44,9 @@
 <!-- cap -->
 <g id="node3" class="node">
 <title>cap</title>
-<path fill="#eef3fb" stroke="#4a6fa5" d="M498,-277C498,-277 190,-277 190,-277 184,-277 178,-271 178,-265 178,-265 178,-253 178,-253 178,-247 184,-241 190,-241 190,-241 498,-241 498,-241 504,-241 510,-247 510,-253 510,-253 510,-265 510,-265 510,-271 504,-277 498,-277"/>
-<text text-anchor="start" x="186" y="-262" font-family="Helvetica,sans-Serif" font-size="10.00">write_losses: alloc_rule caps across items at each building index</text>
-<text text-anchor="start" x="186" y="-251" font-family="Helvetica,sans-Serif" font-size="10.00">the coverage tiv is the PER&#45;BUILDING share</text>
+<path fill="#eef3fb" stroke="#4a6fa5" d="M508,-277C508,-277 180,-277 180,-277 174,-277 168,-271 168,-265 168,-265 168,-253 168,-253 168,-247 174,-241 180,-241 180,-241 508,-241 508,-241 514,-241 520,-247 520,-253 520,-253 520,-265 520,-265 520,-271 514,-277 508,-277"/>
+<text text-anchor="start" x="176" y="-262" font-family="Helvetica,sans-Serif" font-size="10.00">write_losses: alloc_rule caps across items at each (building, sample)</text>
+<text text-anchor="start" x="176" y="-251" font-family="Helvetica,sans-Serif" font-size="10.00">the coverage tiv is the PER&#45;BUILDING share</text>
 </g>
 <!-- draw&#45;&gt;cap -->
 <g id="edge2" class="edge">

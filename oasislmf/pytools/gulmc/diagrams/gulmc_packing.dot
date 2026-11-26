@@ -11,9 +11,9 @@ digraph gulmc_packing {
     item [label="one item: one location, one peril, one coverage type\lpacked_buildings = ±N   (magnitude N = buildings, sign = what the writer does)\l",
           fillcolor="#fdf0e0", color="#c8863c"];
 
-    draw [label="for b in 1..N:  draw S values at offsets[g] + (b-1)*S\lsample_item_losses  ->  building_losses[:, item_j, b-1]\lthe buildings differ only in their draws; the CDF is the item's\l"];
+    draw [label="for b in 1..N:  draw S values at offsets[g] + (b-1)*S\lsample_item_losses  ->  the item's run of sample_losses, building b-1's S\lthe buildings differ only in their draws; the CDF is the item's\l"];
 
-    cap [label="write_losses: alloc_rule caps across items at each building index\lthe coverage tiv is the PER-BUILDING share\l"];
+    cap [label="write_losses: alloc_rule caps across items at each (building, sample)\lthe coverage tiv is the PER-BUILDING share\l"];
 
     item -> draw [label="  N = |packed_buildings|"];
     draw -> cap;

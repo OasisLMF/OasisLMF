@@ -320,8 +320,11 @@ sample, and `(-sidx - 1) // 5 + 1` for a special. No extra header field is neede
 ![gulmc data structures: the static items and coverages tables, the per-event random draws and item data, the per-coverage loss buffers, and the output stream](diagrams/gulmc_objects.svg)
 
 The building dimension appears in three places: `n_building` in the coverage_buildings file, the flat
-random arrays (one block of S per building, per rng group), and `building_losses`, which holds one
-column per building.
+random arrays (one block of S per building, per rng group), and `sample_losses`, which holds each
+item's samples as a run ordered by building then sample: N * S of them for an item computed for
+every sample, or only the live ones of a sparse item, listed with their codes
+`(building - 1) * S + sample`. `write_losses` applies the alloc rule at each code any item of the
+coverage has, merging the items' runs, and writes each item from its run.
 
 ### How a packed item is written
 
