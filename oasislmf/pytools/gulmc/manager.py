@@ -561,6 +561,7 @@ def run(run_dir,
         # what an event without any sparse item passes
         event_sample_codes = np.zeros(0, dtype=np.int64)
         event_sample_areaperil_j = np.zeros(0, dtype=np.int32)
+        event_sample_bins = np.zeros(0, dtype=np.int32)
         event_sample_vuln = np.zeros(0, dtype=np.float64)
         event_sample_haz = np.zeros(0, dtype=np.float64)
 
@@ -696,9 +697,9 @@ def run(run_dir,
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
                 if sample_live_only:
-                    (event_sample_codes, event_sample_areaperil_j, event_sample_vuln,
+                    (event_sample_codes, event_sample_areaperil_j, event_sample_bins, event_sample_vuln,
                      event_sample_haz, event_sample_losses_size) = prepare_event_samples(
-                        compute_info, coverages, compute, compute_depth, coverage_has_dependents,
+                        compute_info, coverages, compute, compute_depth, coverage_source_id,
                         items_event_data, items, item_mixed_cdf_groups,
                         fp_ap_inds, Nhaz_arr_this_event, item_map_ja_offsets, item_map_ja_mixed_cdf_group_areaperil_idxs,
                         mixed_cdf_group_areaperil_ja_offsets, mixed_cdf_group_areaperil_haz_arr_i,
@@ -784,6 +785,7 @@ def run(run_dir,
                             perm_scratch,
                             event_sample_codes,
                             event_sample_areaperil_j,
+                            event_sample_bins,
                             event_sample_vuln,
                             event_sample_haz,
                             coverage_has_dependents,
@@ -1477,6 +1479,7 @@ def _compute_event_losses_core(compute_info,
                                perm_scratch,
                                event_sample_codes,
                                event_sample_areaperil_j,
+                               event_sample_bins,
                                event_sample_vuln,
                                event_sample_haz,
                                coverage_has_dependents,
@@ -1509,6 +1512,7 @@ def _compute_event_losses_core(compute_info,
                                every_sample,
                                sample_idx_buf,
                                sample_bin_buf,
+                               parent_bin_buf,
                                eps_buf,
                                run_offsets,
                                run_lengths,
@@ -1790,6 +1794,10 @@ def _compute_event_losses_core(compute_info,
                     sample_end = item_event_data['sample_end']
                     run_code_starts[item_j] = sample_k
                     run_lengths[item_j] = sample_end - sample_k
+                    if is_dependent:
+                        # its source's live samples, ascending like its own, with their damage bins
+                        source_k = items_event_data[item_event_data['source_item_i']]['sample_start']
+                        source_end = items_event_data[item_event_data['source_item_i']]['sample_end']
                     while sample_k < sample_end:
                         building_i = event_sample_codes[sample_k] // sample_size
                         # this building's run of samples: where its losses go
@@ -1801,28 +1809,39 @@ def _compute_event_losses_core(compute_info,
                             areaperil_j_of_building[n_live] = event_sample_areaperil_j[sample_k]
                             vuln_draw_scratch[n_live] = event_sample_vuln[sample_k]
                             haz_draw_scratch[n_live] = event_sample_haz[sample_k]
+                            if is_dependent:
+                                # the source's bin at the same building and sample, none where it lost nothing
+                                while source_k < source_end and event_sample_codes[source_k] < event_sample_codes[sample_k]:
+                                    source_k += 1
+                                parent_bin_buf[n_live] = (event_sample_bins[source_k] if source_k < source_end
+                                                          and event_sample_codes[source_k] == event_sample_codes[sample_k]
+                                                          else 0)
                             n_live += 1
                             sample_k += 1
                         draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_index, n_live,
                                                  sample_idx_buf, haz_draw_scratch, vuln_draw_scratch, haz_eps_ij,
                                                  damage_eps_ij, norm_inv_parameters, norm_inv_cdf, norm_cdf, eps_buf,
                                                  haz_z_unif, vuln_z_unif)
-                        haz_used = resolve_sample_areaperils(
-                            n_live, areaperil_j_of_building, item_stamp, areaperil_j_stamp, areaperil_j_live,
-                            areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
-                            group_start, mixed_cdf_group_areaperil_haz_arr_i, mixed_cdf_group_areaperil_event_rp,
-                            mixed_cdf_group_areaperil_ja_member_blocks, protection_rp, dynamic_footprint,
-                            haz_pdf, haz_arr_ptr, item, intensity_adjustment, intensity_bin_peril_ids, intensity_bins,
-                            bin_slot, haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf, haz_used)
-                        # a sparse item is neither a dependent nor a source, so its bins go to scratch
+                        if not is_dependent:
+                            # a dependent's areaperils were resolved with its cdf above
+                            haz_used = resolve_sample_areaperils(
+                                n_live, areaperil_j_of_building, item_stamp, areaperil_j_stamp, areaperil_j_live,
+                                areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
+                                group_start, mixed_cdf_group_areaperil_haz_arr_i, mixed_cdf_group_areaperil_event_rp,
+                                mixed_cdf_group_areaperil_ja_member_blocks, protection_rp, dynamic_footprint,
+                                haz_pdf, haz_arr_ptr, item, intensity_adjustment, intensity_bin_peril_ids, intensity_bins,
+                                bin_slot, haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf, haz_used)
+                        # a source keeps its live samples' bins for its dependents; anything else's go to scratch
+                        building_k = sample_k - n_live
                         sample_item_losses(compute_info, n_live, hazard_rng_index,
                                            haz_z_unif, vuln_z_unif, areaperil_j_of_building, areaperil_j_live,
                                            areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
                                            haz_cdf_buf, haz_bin_id_buf, row_cdf_buf, row_lengths, row_stamp, item_stamp,
                                            table, table_lengths, vuln_member_ja_offsets, vuln_member_ja_rows,
                                            vuln_member_ja_weights, mixed_eff_damage_cdf, n_mixed, damage_bin_scaling,
-                                           damage_bins, sample_losses[building_run:building_run + n_live], False,
-                                           sample_bin_buf, sample_bin_buf)
+                                           damage_bins, sample_losses[building_run:building_run + n_live], is_dependent,
+                                           event_sample_bins[building_k:sample_k] if store_source_bin else sample_bin_buf,
+                                           parent_bin_buf)
 
                 else:
                     run_lengths[item_j] = n_buildings * sample_size
@@ -2008,6 +2027,7 @@ def compute_event_losses(compute_info,
                          perm_scratch,
                          event_sample_codes,
                          event_sample_areaperil_j,
+                         event_sample_bins,
                          event_sample_vuln,
                          event_sample_haz,
                          coverage_has_dependents,
@@ -2129,6 +2149,8 @@ def compute_event_losses(compute_info,
           ``(building - 1) * S + sample``, ascending per item; an item's are those in
           ``[sample_start, sample_end)`` of its items_event_data.
         event_sample_areaperil_j (np.array[int32]): the item areaperil each of them reads.
+        event_sample_bins (np.array[int32]): the damage bin each of them drew, written by a source
+          of coverage dependency for its dependents to read.
         event_sample_vuln (np.array[float64]): the damage base random value of each of them.
         event_sample_haz (np.array[float64]): the hazard base random value of each of them, 0 when
           the item draws no hazard.
@@ -2188,10 +2210,12 @@ def compute_event_losses(compute_info,
     hermite_he_hi = np.empty(HERMITE_TERMS, dtype=np.float64)
 
     # the samples drawn at once: every one of a building (every_sample), or a sparse item's live
-    # ones of a building, with their (unread) damage bins and their correlated values
+    # ones of a building, with their (unread) damage bins, a dependent's source bins and their
+    # correlated values
     every_sample = np.arange(max(sample_size, 1), dtype=np.int64)
     sample_idx_buf = np.empty(max(sample_size, 1), dtype=np.int64)
     sample_bin_buf = np.empty(max(sample_size, 1), dtype=np.int32)
+    parent_bin_buf = np.zeros(max(sample_size, 1), dtype=np.int32)
     eps_buf = np.empty(max(sample_size, 1), dtype=np.float64)
     # per item of a coverage, its run of sample_losses, and write_losses' scratch
     max_items = losses.shape[1]
@@ -2261,6 +2285,7 @@ def compute_event_losses(compute_info,
                                       perm_scratch,
                                       event_sample_codes,
                                       event_sample_areaperil_j,
+                                      event_sample_bins,
                                       event_sample_vuln,
                                       event_sample_haz,
                                       coverage_has_dependents,
@@ -2293,6 +2318,7 @@ def compute_event_losses(compute_info,
                                       every_sample,
                                       sample_idx_buf,
                                       sample_bin_buf,
+                                      parent_bin_buf,
                                       eps_buf,
                                       run_offsets,
                                       run_lengths,
@@ -2747,7 +2773,7 @@ if __name__ == '__main__':
 
 
 @nb.njit(cache=True)
-def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, coverage_has_dependents,
+def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, coverage_source_id,
                           items_event_data, items, item_mixed_cdf_groups,
                           ap_inds, Nhaz_arr_this_event, item_map_ja_offsets, item_map_ja_mixed_cdf_group_areaperil_idxs,
                           mixed_cdf_group_areaperil_ja_offsets, mixed_cdf_group_areaperil_haz_arr_i,
@@ -2768,8 +2794,10 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
     then the placements that read them (``blended_areaperil_ja_placements``), then the samples of
     the item's buildings standing there (the inverted placements of its location).
 
-    Not made sparse, and computed whole as before: dependents and sources of coverage dependency,
-    whose damage bins are read per sample across items, and every item of a single placement.
+    An item of a single placement is not made sparse: it is live or dead whole. A dependent of
+    coverage dependency shares its source's areaperil, so both are sparse or neither: a sparse
+    source records its live samples' damage bins (``event_sample_bins``), and its dependent reads
+    the bin at each of its own live samples, "no damage" where its source has none.
 
     A sample's base random values are its rng group's, per building (see ``draw_keyed_samples``),
     so every item of the group reads the same ones.
@@ -2777,7 +2805,8 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
     Returns:
         tuple: per live sample, ``event_sample_codes`` (int64), its item code ``(building - 1) * S +
         sample``, each sparse item's run ascending; ``event_sample_areaperil_j`` (int32), the item
-        areaperil it reads; ``event_sample_vuln`` and ``event_sample_haz`` (float64), its damage and
+        areaperil it reads; ``event_sample_bins`` (int32, zeroed), where a source records its damage
+        bins; ``event_sample_vuln`` and ``event_sample_haz`` (float64), its damage and
         hazard base random values (the latter 0 when the item draws no hazard); and the most sample
         losses one coverage of the event holds, its sparse items' live samples and N * S for each
         of its other items.
@@ -2815,7 +2844,6 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
         coverage_id = coverage_ids[position]
         coverage = coverages[coverage_id]
         coverage_is_dependent = do_coverage_dependency and compute_depth[position] > 0
-        has_dependents = do_coverage_dependency and coverage_has_dependents[coverage_id] == 1
         coverage_samples = 0
         for item_j in range(coverage['cur_items']):
             item_i = coverage['start_items'] + item_j
@@ -2826,8 +2854,7 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
             haz_rng = items_event_data[item_i]['hazard_rng_index']
             blend = item['blended_areaperil_idx']
             n_placements = blended_areaperil_placement_ja_offsets[blend + 1] - blended_areaperil_placement_ja_offsets[blend]
-            is_dependent = coverage_is_dependent and items_event_data[item_i]['source_item_j'] >= 0
-            if n_placements <= 1 or is_dependent or has_dependents:
+            if n_placements <= 1:
                 vuln_full[rng] = max(vuln_full[rng], n_buildings)
                 if haz_rng >= 0:
                     haz_full[haz_rng] = max(haz_full[haz_rng], n_buildings)
@@ -2886,10 +2913,15 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
             items_event_data[item_i]['sparse'] = 1
             items_event_data[item_i]['sample_start'] = item_first
             items_event_data[item_i]['sample_end'] = n_codes
+            if coverage_is_dependent and items_event_data[item_i]['source_item_j'] >= 0:
+                # its source, computed earlier in this DFS order and sparse too (same areaperil)
+                items_event_data[item_i]['source_item_i'] = (coverages[coverage_source_id[coverage_id]]['start_items']
+                                                             + items_event_data[item_i]['source_item_j'])
             coverage_samples += n_codes - item_first
         max_coverage_samples = max(max_coverage_samples, coverage_samples)
 
     return (codes[:n_codes], codes_j[:n_codes],
+            np.zeros(n_codes, dtype=np.int32),
             draw_keyed_samples(vuln_keys[:n_codes], vuln_seeds, vuln_rndms_base, vuln_full, sample_size, n_buildings_max),
             draw_keyed_samples(haz_keys[:n_codes], haz_seeds, haz_rndms_base, haz_full, sample_size, n_buildings_max),
             max_coverage_samples)

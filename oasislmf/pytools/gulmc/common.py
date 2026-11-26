@@ -43,6 +43,9 @@ items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              ('sparse', np.int8),
                                              ('sample_start', np.int64),
                                              ('sample_end', np.int64),
+                                             # a sparse dependent: its source item's row here, whose
+                                             # live samples carry the damage bins it reads
+                                             ('source_item_i', np.int64),
                                              ]))
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),

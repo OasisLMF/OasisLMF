@@ -156,9 +156,12 @@ than from the samples: the group areaperils with hazard, the placements that rea
 (`blended_areaperil_ja_placements`), then the location's samples standing there (the inverse of
 `location_placements`, built with it). The item is then `sparse` and the event loop computes those
 samples only, a building's at a time; everything else stays at zero. The work follows the live
-samples, not buildings times S. Not made sparse: coverage-dependency sources and dependents (their
-damage bins are read per sample across items), debug runs (they write every sample's random
-values), and items of a single placement, which are live or dead whole.
+samples, not buildings times S. Not made sparse: debug runs (they write every sample's random
+values), and items of a single placement, which are live or dead whole. Coverage dependency stays
+sparse: a source and its dependent share an areaperil, hence their placements, so a sparse source
+records its live samples' damage bins (`event_sample_bins`, aligned with the sample codes) and its
+dependent reads the bin at each of its own live samples by merging the two sorted runs, "no damage"
+where the source lost nothing (it can be protected where its dependent is not).
 
 A building other than the first draws its base random values from a block per (rng group,
 building), shared by the group's items. A sparse item needs only some of a block, so it is drawn by
