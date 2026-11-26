@@ -712,7 +712,7 @@ def pdf_to_cdf(pdf, n_pdf, cdf):
     probability, so the returned length can be shorter than ``n_pdf``. It returns a length rather
     than a ``cdf[:n]`` slice so the per-item loop creates no array view (see the refcount note in common/event_stream.py).
     """
-    cumsum = 0
+    cumsum = np.float64(0.)
     i = 0
     while i < n_pdf:
         cumsum += pdf[i]
@@ -738,7 +738,7 @@ def calc_eff_damage_cdf(vuln_pdf, haz_pdf, Nhaz_bins, eff_damage_cdf):
         int: valid length of the cdf written to ``eff_damage_cdf`` (see ``pdf_to_cdf`` for why a
           length rather than a slice).
     """
-    eff_damage_cdf_cumsum = 0.
+    eff_damage_cdf_cumsum = np.float64(0.)
     damage_bin_i = 0
     while damage_bin_i < vuln_pdf.shape[1]:
         for haz_i in range(Nhaz_bins):
@@ -830,11 +830,12 @@ def compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv):
     if tiv <= 0:
         return 0.
 
+    tiv = np.float64(tiv)
     damage_type = damage_bins[Neff_damage_bins - 1]['damage_type']
     if damage_type == DAMAGE_TYPE_RELATIVE:
         damage_bin_scaling = tiv
     elif damage_type == DAMAGE_TYPE_ABSOLUTE:
-        damage_bin_scaling = 1
+        damage_bin_scaling = 1.
     elif damage_type == DAMAGE_TYPE_DURATION:
         # convert annual tiv to daily
         damage_bin_scaling = tiv / 365
