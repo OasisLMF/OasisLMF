@@ -558,13 +558,15 @@ def test_split_loc_perils_covered_accepts_a_single_peril_as_a_string():
 
 
 @pytest.mark.parametrize("loc_ids, perils_covered, expected", [
-    ([1], ["WW1"], {1: "WEC;WSS"}),                               # modelled in part: the rest is listed
-    ([1, 2], ["QQ1;OO1", "WTC"], {1: "ORF;OSF;QEQ;QFF;QLF;QLS;QSL;QTS"}),  # nothing modelled, groups expanded
-    ([1, 1], ["WTC", "QEQ"], {1: "QEQ"}),                         # a row sharing a modelled location's loc_id
-    ([1, 1, 1], ["WTC;QEQ", "OO1", "QEQ"], {1: "ORF;OSF;QEQ"}),   # rows of one location give one line
-    ([1, 1, 2, 2], ["QEQ", "QEQ", "WTC", "WTC"], {1: "QEQ"}),     # identical rows give it once
-    ([1, 2], ["ZZZ", None], {1: "ZZZ", 2: "nan"}),                # no known peril: the codes as listed
-], ids=["partial", "none", "shared loc_id", "union", "duplicates", "unknown codes"])
+    ([1], ["WW1"], {1: "WEC;WSS not modelled"}),                  # modelled in part: the rest is listed
+    ([1, 2], ["QQ1;OO1", "WTC"], {1: "ORF;OSF;QEQ;QFF;QLF;QLS;QSL;QTS not modelled"}),  # nothing modelled, groups expanded
+    ([1, 1], ["WTC", "QEQ"], {1: "QEQ not modelled"}),            # a row sharing a modelled location's loc_id
+    ([1, 1, 1], ["WTC;QEQ", "OO1", "QEQ"], {1: "ORF;OSF;QEQ not modelled"}),  # rows of one location give one line
+    ([1, 1, 2, 2], ["QEQ", "QEQ", "WTC", "WTC"], {1: "QEQ not modelled"}),    # identical rows give it once
+    ([1], ["ZZZ"], {1: "ZZZ not modelled"}),                      # no known peril: the codes as listed
+    ([1, 2, 3, 4], ["WTC", "", None, "  "], {2: "no perils covered", 3: "no perils covered", 4: "no perils covered"}),  # blank
+    ([1, 1, 2, 2], ["", "WTC", "", "QEQ"], {2: "QEQ not modelled"}),  # a blank row adds nothing to its loc_id's other rows
+], ids=["partial", "none", "shared loc_id", "union", "duplicates", "unknown codes", "blank", "blank sharing a loc_id"])
 def test_split_loc_perils_covered_lists_the_perils_not_modelled_once_per_location(loc_ids, perils_covered, expected):
     fct = Lookup(config={}).build_split_loc_perils_covered(["WTC"])
 
@@ -572,8 +574,7 @@ def test_split_loc_perils_covered_lists_the_perils_not_modelled_once_per_locatio
 
     not_modelled = result[result["status"] == OASIS_KEYS_STATUS["notmodelled"]["id"]]
     assert not_modelled["peril_id"].isna().all()
-    assert dict(zip(not_modelled["loc_id"], not_modelled["message"])) == {
-        loc_id: f"{perils} not modelled" for loc_id, perils in expected.items()}
+    assert dict(zip(not_modelled["loc_id"], not_modelled["message"])) == expected
     assert len(not_modelled) == len(expected)
 
 
