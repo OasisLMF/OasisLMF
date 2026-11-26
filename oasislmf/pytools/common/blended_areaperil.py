@@ -71,7 +71,7 @@ import numpy as np
 import pandas as pd
 
 from oasislmf.pytools.common.data import (
-    areaperil_int, oasis_int,
+    areaperil_int, oasis_int, isin_sorted, unique_sorted,
     blended_areaperil_count_dtype, blended_areaperil_count_fmt, blended_areaperil_count_headers,
     blended_areaperil_equal_dtype, blended_areaperil_equal_fmt, blended_areaperil_equal_headers,
     blended_areaperil_float_dtype, blended_areaperil_float_fmt, blended_areaperil_float_headers,
@@ -155,8 +155,22 @@ def write_bin(file_out, table, weight_type):
     file_out.write(to_records(table, weight_type).tobytes())
 
 
-def read_bin(file_in, label='blended areaperil file'):
+def _keep_blended_ids(records, blended_areaperil_ids, label):
+    """The rows of ``records`` whose blended id is in ``blended_areaperil_ids`` (all rows when None), in file order."""
+    if blended_areaperil_ids is None:
+        return records
+    kept = records[isin_sorted(records['blended_areaperil_id'], np.asarray(blended_areaperil_ids, dtype=areaperil_int))]
+    logger.info(f"{label}: kept {len(kept)} of {len(records)} rows, those of the blended ids the run reads")
+    return kept
+
+
+def read_bin(file_in, label='blended areaperil file', blended_areaperil_ids=None):
     """Read a binary blended areaperil table from an open binary file.
+
+    Args:
+        file_in: open binary file.
+        label (str): name used in messages.
+        blended_areaperil_ids (array-like, optional): keep only these blended ids' rows. None keeps all.
 
     Returns:
         BlendTable: rows in file order (not sorted; ``validate`` sorts).
@@ -173,6 +187,7 @@ def read_bin(file_in, label='blended areaperil file'):
             f"{label} holds {body} bytes of records, not a whole number of {dtype.itemsize}-byte "
             f"{WEIGHT_TYPE_NAMES[weight_type]}-weight records; the file is truncated or corrupt")
     records = np.frombuffer(raw, dtype=dtype, offset=blend_header_dtype.itemsize)
+    records = _keep_blended_ids(records, blended_areaperil_ids, label)
     return BlendTable(to_blend_table(records, weight_type), weight_type)
 
 
@@ -180,12 +195,13 @@ def read_bin(file_in, label='blended areaperil file'):
 # CSV
 # ---------------------------------------------------------------------------------------------
 
-def read_csv(file_in, label='blended areaperil csv'):
+def read_csv(file_in, label='blended areaperil csv', blended_areaperil_ids=None):
     """Read a CSV blended areaperil table, taking the weight type from its columns.
 
     Args:
         file_in: path or open text file, as accepted by ``pandas.read_csv``.
         label (str): name used in error messages.
+        blended_areaperil_ids (array-like, optional): keep only these blended ids' rows. None keeps all.
 
     Returns:
         BlendTable: rows in file order (not sorted; ``validate`` sorts).
@@ -230,6 +246,7 @@ def read_csv(file_in, label='blended areaperil csv'):
     records = np.empty(len(df), dtype=dtype)
     for name in dtype.names:
         records[name] = df[name].to_numpy()
+    records = _keep_blended_ids(records, blended_areaperil_ids, label)
     return BlendTable(to_blend_table(records, weight_type), weight_type)
 
 
@@ -237,18 +254,26 @@ def read_csv(file_in, label='blended areaperil csv'):
 # Model storage
 # ---------------------------------------------------------------------------------------------
 
-def read_blended_areaperil(storage, ignore_file_type=set()):
+def read_blended_areaperil(storage, ignore_file_type=set(), blended_areaperil_ids=None):
     """Load and validate the model's blended areaperil table, if it has one.
 
     The binary form is preferred when both are present, as for the other model files.
 
+    A run passes the ``areaperil_id`` values of its items as ``blended_areaperil_ids``, and only
+    their rows are kept, before the table is sorted and validated. A model's table can hold tens of
+    millions of rows for blended ids a portfolio never reads, and sorting and checking all of them
+    was most of the time and memory of reading it. ``validate`` then checks the rows kept; csvtobin
+    checks the whole table when it writes the binary.
+
     Args:
         storage (BaseStorage): model data storage.
         ignore_file_type (Set[str]): file extensions not to load.
+        blended_areaperil_ids (array-like, optional): the ids a run reads; ids not in the table are
+            ordinary areaperils and simply match no row. None keeps the whole table.
 
     Returns:
         BlendTable | None: the validated, sorted table; None when the model has no blended
-        areaperils, which is the ordinary case.
+        areaperils, which is the ordinary case, or the run reads none of them.
     """
     files = set(storage.listdir())
     for ext in ('bin', 'csv'):
@@ -258,10 +283,12 @@ def read_blended_areaperil(storage, ignore_file_type=set()):
         logger.debug(f"loading {storage.get_storage_url(name, encode_params=False)}")
         if ext == 'bin':
             with storage.open(name, 'rb') as f:
-                blend = read_bin(f, label=name)
+                blend = read_bin(f, label=name, blended_areaperil_ids=blended_areaperil_ids)
         else:
             with storage.open(name) as f:
-                blend = read_csv(f, label=name)
+                blend = read_csv(f, label=name, blended_areaperil_ids=blended_areaperil_ids)
+        if blended_areaperil_ids is not None and len(blend.table) == 0:
+            return None  # the run reads no blended id: as for a model without the table
         return validate(blend, label=name)
     return None
 
@@ -374,7 +401,7 @@ def validate(blend, label='blended areaperil table'):
                 f"{label}: placement_scheme_id {_ids(group_scheme[bad])} have a total weight of 0; with "
                 f"{WEIGHT_TYPE_NAMES[weight_type]} weights no position could ever be selected")
 
-    nested = np.isin(blended[group_start], table['areaperil_id'])
+    nested = isin_sorted(blended[group_start], table['areaperil_id'])
     if nested.any():
         raise OasisException(
             f"{label}: blended_areaperil_id {_ids(blended[group_start][nested])} also appear as areaperil_id; "
@@ -430,9 +457,9 @@ def build_blended_areaperils(items, blend=None, cell_blends=False):
         table = blend.table
         row_start = np.searchsorted(table['blended_areaperil_id'], blended_ids, side='left')
         row_end = np.searchsorted(table['blended_areaperil_id'], blended_ids, side='right')
-        n_listed = len(np.unique(table['blended_areaperil_id']))
+        n_listed = len(unique_sorted(table['blended_areaperil_id']))
         n_used = int(np.count_nonzero(row_end > row_start))
-        logger.info(f"blended areaperils: {n_used} of the {n_listed} in the blend table are used by items")
+        logger.info(f"blended areaperils: {n_used} of the {n_listed} in the blend table loaded are used by items")
     is_blended = row_end > row_start
 
     # per blended areaperil: its areaperils and placements, built as lists for the blended ones
@@ -470,8 +497,8 @@ def build_blended_areaperils(items, blend=None, cell_blends=False):
 
     if cell_blends and blended_parts:
         # appended, so the items' indices are unchanged
-        cells = np.unique(np.concatenate([parts[0] for parts in blended_parts.values()]))
-        extra = np.setdiff1d(cells, blended_ids[~is_blended])
+        cells = unique_sorted(np.concatenate([parts[0] for parts in blended_parts.values()]))
+        extra = np.setdiff1d(cells, blended_ids[~is_blended], assume_unique=True)
         blended_ids = np.concatenate([blended_ids, extra.astype(blended_ids.dtype)])
         is_blended = np.concatenate([is_blended, np.zeros(extra.shape[0], dtype=bool)])
         k = np.concatenate([k, np.ones(extra.shape[0], dtype=np.int64)])

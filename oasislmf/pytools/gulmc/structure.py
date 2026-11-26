@@ -17,7 +17,7 @@ import numpy.lib.recfunctions as rfn
 import numba as nb
 import pandas as pd
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import (building_count_dtype, load_as_ndarray, oasis_int, oasis_float)
+from oasislmf.pytools.common.data import (building_count_dtype, isin_sorted, load_as_ndarray, oasis_int, oasis_float, unique_sorted)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.pytools.common.id_index import build as id_index_build
 from oasislmf.pytools.common.blended_areaperil import build_blended_areaperils, read_blended_areaperil
@@ -295,7 +295,7 @@ def get_conditional_vulns(storage, damage_bins, ignore_file_type=set()):
             f"range [{int(damage_bin.min())}, {int(damage_bin.max())}]."
         )
 
-    cond_vuln_ids = np.unique(recs['vulnerability_id'])
+    cond_vuln_ids = unique_sorted(recs['vulnerability_id'])
     conditional_vuln_array = np.zeros((cond_vuln_ids.shape[0], num_damage_bins, num_damage_bins), dtype=oasis_float)
     # cond_vuln_ids is ascending (np.unique), so searchsorted gives each record's row
     conditional_vuln_array[np.searchsorted(cond_vuln_ids, recs['vulnerability_id']),
@@ -431,7 +431,7 @@ def item_location_placement_keys(input_path, items):
         summary_map = pd.read_csv(os.path.join(input_path, 'gul_summary_map.csv'), usecols=columns,
                                   dtype={'PortNumber': str, 'AccNumber': str, 'LocNumber': str})
     summary_map = summary_map.drop_duplicates('item_id').set_index('item_id')
-    missing = ~np.isin(items['item_id'], summary_map.index)
+    missing = ~isin_sorted(items['item_id'], summary_map.index.to_numpy())
     if missing.any():
         raise OasisException(
             f"blended areaperils: item_id {items['item_id'][missing][:5].tolist()} missing from gul_summary_map, "
@@ -551,7 +551,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
             logger.debug(
                 f'Peril specific run: ({peril_filter}), {len(valid_areaperil_id)} AreaPerilID included out of {len(keys_tb)}')
         else:
-            valid_areaperil_id = np.unique(keys_tb['AreaPerilID'])
+            valid_areaperil_id = unique_sorted(keys_tb['AreaPerilID'])
     else:
         valid_areaperil_id = None
 
@@ -598,7 +598,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
                   'source_item_id': 0}
     )
     if valid_areaperil_id is not None:
-        items = items[np.isin(items['areaperil_id'], valid_areaperil_id)]
+        items = items[isin_sorted(items['areaperil_id'], valid_areaperil_id)]
     items = rfn.merge_arrays((items,
                               np.empty(items.shape,
                                        dtype=nb.from_dtype(np.dtype([("vulnerability_idx", oasis_int),
@@ -658,7 +658,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     # --- blended areaperils and item areaperils -----------------------------------
     # Every item reads its hazard through a blended areaperil: the ids listed in the model's blend
     # table carry their placements, and every other id is the size-1 case (K = 1).
-    blend = read_blended_areaperil(model_storage, ignore_file_type)
+    blend = read_blended_areaperil(model_storage, ignore_file_type, blended_areaperil_ids=items['areaperil_id'])
     (items['blended_areaperil_idx'],
      blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_ja_probabilities,
      blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
@@ -670,8 +670,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         items, dynamic_footprint, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_placement_schemes)
     (mixed_cdf_group_areaperil_ja_offsets, mixed_cdf_group_areaperil_ja_cell_groups, entry_areaperil_ids, entry_vuln_ids,
      entry_mixed_cdf_group_idxs, entry_mixed_cdf_group_areaperil_idxs) = build_mixed_cdf_group_areaperils(
-        mixed_cdf_groups, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_placement_schemes,
-        bool(dynamic_footprint))
+        mixed_cdf_groups, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_placement_schemes)
     n_mixed_cdf_group_areaperils = int(mixed_cdf_group_areaperil_ja_offsets[-1])
     placement_item_ind, placement_item_starts, location_placements, placement_sample_size = build_placements(
         input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
@@ -701,7 +700,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
     del areaperil_agg_vuln_idx_ja_areaperil_ids  # only needed during setup
 
     # --- peril correlation groups ----------------------------------------------
-    unique_peril_correlation_groups = np.unique(items['peril_correlation_group'])
+    unique_peril_correlation_groups = unique_sorted(items['peril_correlation_group'])
 
     # --- coverage dependency forest --------------------------------------------
     # NB the dependent-vulnerability guard (each dependent vuln must have one intensity bin per

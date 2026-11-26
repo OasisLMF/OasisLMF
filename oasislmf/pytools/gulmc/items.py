@@ -6,7 +6,7 @@ import numpy as np
 import numba as nb
 from numba.types import int32 as nb_int32
 
-from oasislmf.pytools.common.data import areaperil_int, nb_oasis_int, oasis_int, items_dtype
+from oasislmf.pytools.common.data import areaperil_int, nb_oasis_int, oasis_int, items_dtype, unique_sorted
 from oasislmf.pytools.common.blended_areaperil import select_placement
 from oasislmf.pytools.gul.random import PHILOX_SHIFT32, PHILOX_U32_MASK, _lh_philox_block
 from oasislmf.pytools.common.id_index import get_idx, NOT_FOUND
@@ -202,6 +202,18 @@ def _cell_blends(blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_id
     return cell_ids[order], cell_blend_idxs[order]
 
 
+@nb.njit(cache=True)
+def _fill_cell_codes(key_blend_idxs, key_tail_ranks, blended_areaperil_ja_offsets, ja_blend_ranks, n_tails, codes):
+    """Write the code of every blended key's size-1 groups, K per key (see ``build_item_mixed_cdf_groups``)."""
+    pos = 0
+    for key in range(key_blend_idxs.shape[0]):
+        b = key_blend_idxs[key]
+        tail_rank = key_tail_ranks[key]
+        for a in range(blended_areaperil_ja_offsets[b], blended_areaperil_ja_offsets[b + 1]):
+            codes[pos] = ja_blend_ranks[a] * n_tails + tail_rank
+            pos += 1
+
+
 def build_item_mixed_cdf_groups(items, dynamic_footprint, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
                                 blended_areaperil_placement_schemes):
     """Group the items that report the same effective damage cdf into mixed cdf groups.
@@ -241,46 +253,125 @@ def build_item_mixed_cdf_groups(items, dynamic_footprint, blended_areaperil_ja_o
         intensity_adjustment = return_period = None
     item_keys = _group_keys(blended_idx, items['vulnerability_id'], intensity_adjustment, return_period, dynamic_footprint)
 
-    # the size-1 group of every areaperil a blended group reads
+    # The groups are the items' keys plus, for every blended key, the size-1 group of each of its
+    # areaperils: (that areaperil's size-1 blended areaperil, the key's vulnerability and intensity
+    # adjustment, no protection). That is K rows per blended key, millions on a state-wide blend,
+    # so no row is built: a key is one int64 code, its blended areaperil's rank times the number
+    # of tails plus its tail's rank, the tail being the key after its blended areaperil. Codes
+    # sort as the rows do, so the groups keep key order. The tails are few, every one an item's,
+    # and the code cannot overflow, as both ranks are below 2**31.
     n_key_columns = 3 if dynamic_footprint else 2
     blended_keys, _ = _unique_rows(np.ascontiguousarray(item_keys[~is_cell_blend[blended_idx], :n_key_columns]))
-    k = (blended_areaperil_ja_offsets[blended_keys[:, 0] + 1] - blended_areaperil_ja_offsets[blended_keys[:, 0]]).astype(np.int64)
-    key_of_cell = np.repeat(np.arange(blended_keys.shape[0]), k)
-    j = np.arange(key_of_cell.shape[0]) - np.repeat(np.cumsum(k) - k, k)
-    cell_ids = blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[blended_keys[key_of_cell, 0]] + j]
+    cell_tails = blended_keys[:, 1:]
+    if dynamic_footprint:
+        cell_tails = np.concatenate([cell_tails, np.zeros((cell_tails.shape[0], 1), dtype=np.int64)], axis=1)
+    tails, tail_ranks = _unique_rows(np.ascontiguousarray(np.concatenate([item_keys[:, 1:], cell_tails])))
+    n_tails = np.int64(max(tails.shape[0], 1))
+
+    # the size-1 blended areaperil of each areaperil the blended keys read, ranked, per blend table position
+    key_blend_idxs = unique_sorted(blended_keys[:, 0])
+    starts = blended_areaperil_ja_offsets[key_blend_idxs].astype(np.int64)
+    k = blended_areaperil_ja_offsets[key_blend_idxs + 1] - starts
+    ja_positions = np.repeat(starts - (np.cumsum(k) - k), k) + np.arange(k.sum(), dtype=np.int64)
     sorted_cell_ids, cell_blend_idxs = _cell_blends(blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
                                                     blended_areaperil_placement_schemes)
-    cell_keys = blended_keys[key_of_cell].copy()
-    cell_keys[:, 0] = cell_blend_idxs[np.searchsorted(sorted_cell_ids, cell_ids)]
-    if dynamic_footprint:
-        cell_keys = np.concatenate([cell_keys, np.zeros((cell_keys.shape[0], 1), dtype=np.int64)], axis=1)
+    ja_cell_blend_idxs = cell_blend_idxs[np.searchsorted(sorted_cell_ids, blended_areaperil_ja_areaperil_ids[ja_positions])]
+    blend_values = unique_sorted(np.concatenate([item_keys[:, 0], ja_cell_blend_idxs]))
+    ja_blend_ranks = np.zeros(blended_areaperil_ja_areaperil_ids.shape[0], dtype=np.int64)
+    ja_blend_ranks[ja_positions] = np.searchsorted(blend_values, ja_cell_blend_idxs)
+    del ja_positions, ja_cell_blend_idxs
 
-    keys = np.concatenate([item_keys, cell_keys])
-    if keys.shape[0]:
-        unique_keys, inverse = _unique_rows(keys)
-        item_mixed_cdf_groups = inverse[:n_items].astype(np.int32)
-    else:
-        unique_keys = np.zeros((0, item_keys.shape[1]), dtype=np.int64)
-        item_mixed_cdf_groups = np.zeros(0, dtype=np.int32)
-    mixed_cdf_groups = np.zeros(unique_keys.shape[0], dtype=mixed_cdf_group_dtype)
-    mixed_cdf_groups['blended_areaperil_idx'] = unique_keys[:, 0]
-    mixed_cdf_groups['vulnerability_id'] = unique_keys[:, 1]
+    key_k = (blended_areaperil_ja_offsets[blended_keys[:, 0] + 1] - blended_areaperil_ja_offsets[blended_keys[:, 0]]).astype(np.int64)
+    codes = np.empty(n_items + int(key_k.sum()), dtype=np.int64)
+    codes[:n_items] = np.searchsorted(blend_values, item_keys[:, 0]) * n_tails + tail_ranks[:n_items]
+    _fill_cell_codes(blended_keys[:, 0], tail_ranks[n_items:], blended_areaperil_ja_offsets, ja_blend_ranks, n_tails,
+                     codes[n_items:])
+    del ja_blend_ranks
+    item_codes = codes[:n_items].copy()
+    codes.sort()
+    is_first = np.ones(codes.shape[0], dtype=np.bool_)
+    np.not_equal(codes[1:], codes[:-1], out=is_first[1:])
+    group_codes = codes[is_first]
+    del codes, is_first
+
+    item_mixed_cdf_groups = np.searchsorted(group_codes, item_codes).astype(np.int32)
+    group_blend_ranks, group_tail_ranks = np.divmod(group_codes, n_tails)
+    del group_codes
+    mixed_cdf_groups = np.zeros(group_blend_ranks.shape[0], dtype=mixed_cdf_group_dtype)
+    mixed_cdf_groups['blended_areaperil_idx'] = blend_values[group_blend_ranks]
+    mixed_cdf_groups['vulnerability_id'] = tails[:, 0][group_tail_ranks]
     if dynamic_footprint:
-        mixed_cdf_groups['intensity_adjustment'] = unique_keys[:, 2]
-        mixed_cdf_groups['return_period'] = unique_keys[:, 3]
+        mixed_cdf_groups['intensity_adjustment'] = tails[:, 1][group_tail_ranks]
+        mixed_cdf_groups['return_period'] = tails[:, 2][group_tail_ranks]
     mixed_cdf_group_items_ja_offsets = np.zeros(mixed_cdf_groups.shape[0] + 1, dtype=oasis_int)
     np.cumsum(np.bincount(item_mixed_cdf_groups, minlength=mixed_cdf_groups.shape[0]), out=mixed_cdf_group_items_ja_offsets[1:])
     mixed_cdf_group_items_ja_item_idxs = np.argsort(item_mixed_cdf_groups, kind='stable').astype(oasis_int)
     return item_mixed_cdf_groups, mixed_cdf_groups, mixed_cdf_group_items_ja_offsets, mixed_cdf_group_items_ja_item_idxs
 
 
+@nb.njit(cache=True)
+def _group_key_tail_less(group, vulnerability_id, intensity_adjustment, return_period):
+    """Whether a group's key, after its blended areaperil, sorts before (vulnerability, adjustment, protection)."""
+    if group['vulnerability_id'] != vulnerability_id:
+        return group['vulnerability_id'] < vulnerability_id
+    if group['intensity_adjustment'] != intensity_adjustment:
+        return group['intensity_adjustment'] < intensity_adjustment
+    return group['return_period'] < return_period
+
+
+@nb.njit(cache=True)
+def _find_cell_group(mixed_cdf_groups, blend_group_starts, cell_blend_idx, vulnerability_id, intensity_adjustment):
+    """The size-1 group of (size-1 blended areaperil, vulnerability, adjustment) with no protection, -1 if there is none."""
+    if cell_blend_idx < 0:
+        return -1
+    lo = blend_group_starts[cell_blend_idx]
+    hi = blend_group_starts[cell_blend_idx + 1]
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _group_key_tail_less(mixed_cdf_groups[mid], vulnerability_id, intensity_adjustment, 0):
+            lo = mid + 1
+        else:
+            hi = mid
+    if lo == blend_group_starts[cell_blend_idx + 1]:
+        return -1
+    group = mixed_cdf_groups[lo]
+    if (group['vulnerability_id'] != vulnerability_id or group['intensity_adjustment'] != intensity_adjustment
+            or group['return_period'] != 0):
+        return -1
+    return lo
+
+
+@nb.njit(cache=True)
+def _fill_group_areaperils(mixed_cdf_groups, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
+                           ja_cell_blend_idxs, blend_group_starts,
+                           entry_group, entry_areaperil_id, entry_vuln_id, cell_groups):
+    """Each group's areaperils in group order, with their size-1 group (see ``build_mixed_cdf_group_areaperils``)."""
+    e = 0
+    for g in range(mixed_cdf_groups.shape[0]):
+        group = mixed_cdf_groups[g]
+        b = group['blended_areaperil_idx']
+        vulnerability_id = group['vulnerability_id']
+        intensity_adjustment = group['intensity_adjustment']
+        for a in range(blended_areaperil_ja_offsets[b], blended_areaperil_ja_offsets[b + 1]):
+            areaperil_id = blended_areaperil_ja_areaperil_ids[a]
+            entry_group[e] = g
+            entry_areaperil_id[e] = areaperil_id
+            entry_vuln_id[e] = vulnerability_id
+            cell_groups[e] = _find_cell_group(mixed_cdf_groups, blend_group_starts, ja_cell_blend_idxs[a],
+                                              vulnerability_id, intensity_adjustment)
+            e += 1
+
+
 def build_mixed_cdf_group_areaperils(mixed_cdf_groups, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
-                                     blended_areaperil_placement_schemes, dynamic_footprint):
+                                     blended_areaperil_placement_schemes):
     """Expand each mixed cdf group into its group areaperils and sort them into item map order.
 
     A group reads one group areaperil per distinct areaperil of its blended areaperil; group
     areaperil ``mixed_cdf_group_areaperil_ja_offsets[mixed_cdf_group_idx] + j`` is the group's j-th.
     The item map visits them grouped by areaperil, then by vulnerability, then by group.
+
+    The groups' intensity adjustment and protection are 0 without a dynamic footprint, so the
+    size-1 groups are found the same way with and without one.
 
     Args:
         mixed_cdf_groups (np.ndarray[mixed_cdf_group_dtype]): mixed cdf groups, in key order.
@@ -289,7 +380,6 @@ def build_mixed_cdf_group_areaperils(mixed_cdf_groups, blended_areaperil_ja_offs
         blended_areaperil_ja_areaperil_ids (np.ndarray[areaperil_int]): footprint areaperil ids.
         blended_areaperil_placement_schemes (np.ndarray[int64]): per blended areaperil, its
             placement scheme, -1 for an areaperil's own size-1 one.
-        dynamic_footprint (bool): whether groups are keyed on intensity adjustment and protection.
 
     Returns:
         tuple: ``mixed_cdf_group_areaperil_ja_offsets`` (N_mixed_cdf_groups + 1),
@@ -305,30 +395,30 @@ def build_mixed_cdf_group_areaperils(mixed_cdf_groups, blended_areaperil_ja_offs
     np.cumsum(mixed_cdf_group_k, out=mixed_cdf_group_areaperil_ja_offsets[1:])
     n_mixed_cdf_group_areaperils = int(mixed_cdf_group_areaperil_ja_offsets[-1])
 
-    entry_group = np.repeat(np.arange(n_mixed_cdf_groups, dtype=oasis_int), mixed_cdf_group_k)
-    # j of each group areaperil: its position within its group's run
-    entry_j = np.arange(n_mixed_cdf_group_areaperils, dtype=np.int64) - mixed_cdf_group_areaperil_ja_offsets[entry_group]
-    entry_areaperil_id = blended_areaperil_ja_areaperil_ids[blended_areaperil_ja_offsets[blended_idx[entry_group]] + entry_j]
-    entry_vuln_id = mixed_cdf_groups['vulnerability_id'][entry_group]
-
     # the size-1 group of each group areaperil's areaperil: same vulnerability and intensity
     # adjustment, no protection. build_item_mixed_cdf_groups made one for every areaperil read.
+    # Groups are in key order, so a blended areaperil's groups are one run, sorted by the rest of the key.
+    # an areaperil's size-1 blended areaperil, per blend table position (-1 for none): looked up
+    # once per position rather than once per group reading it, i.e. once per vulnerability
     sorted_cell_ids, cell_blend_idxs = _cell_blends(blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
                                                     blended_areaperil_placement_schemes)
-    group_keys = _group_keys(blended_idx, mixed_cdf_groups['vulnerability_id'], mixed_cdf_groups['intensity_adjustment'],
-                             mixed_cdf_groups['return_period'], dynamic_footprint)
-    cell_keys = group_keys[entry_group].copy()
-    cell_keys[:, 0] = cell_blend_idxs[np.searchsorted(sorted_cell_ids, entry_areaperil_id)]
-    if dynamic_footprint:
-        cell_keys[:, 3] = 0
-    if n_mixed_cdf_group_areaperils:
-        # group_keys are unique and sorted, so each cell key's position among them is its group
-        unique_keys, inverse = _unique_rows(np.concatenate([group_keys, cell_keys]))
-        if unique_keys.shape[0] != n_mixed_cdf_groups:
-            raise OasisException("gulmc structure: a blended areaperil reads an areaperil with no mixed cdf group of its own")
-        mixed_cdf_group_areaperil_ja_cell_groups = inverse.reshape(-1)[n_mixed_cdf_groups:].astype(np.int32)
+    if sorted_cell_ids.shape[0]:
+        pos = np.minimum(np.searchsorted(sorted_cell_ids, blended_areaperil_ja_areaperil_ids), sorted_cell_ids.shape[0] - 1)
+        ja_cell_blend_idxs = np.where(sorted_cell_ids[pos] == blended_areaperil_ja_areaperil_ids, cell_blend_idxs[pos], -1)
+        del pos
     else:
-        mixed_cdf_group_areaperil_ja_cell_groups = np.zeros(0, dtype=np.int32)
+        ja_cell_blend_idxs = np.full(blended_areaperil_ja_areaperil_ids.shape[0], -1, dtype=np.int64)
+    blend_group_starts = np.searchsorted(mixed_cdf_groups['blended_areaperil_idx'],
+                                         np.arange(blended_areaperil_ja_offsets.shape[0], dtype=np.int64))
+    entry_group = np.empty(n_mixed_cdf_group_areaperils, dtype=oasis_int)
+    entry_areaperil_id = np.empty(n_mixed_cdf_group_areaperils, dtype=areaperil_int)
+    entry_vuln_id = np.empty(n_mixed_cdf_group_areaperils, dtype=mixed_cdf_groups.dtype['vulnerability_id'])
+    mixed_cdf_group_areaperil_ja_cell_groups = np.empty(n_mixed_cdf_group_areaperils, dtype=np.int32)
+    _fill_group_areaperils(mixed_cdf_groups, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids,
+                           ja_cell_blend_idxs, blend_group_starts,
+                           entry_group, entry_areaperil_id, entry_vuln_id, mixed_cdf_group_areaperil_ja_cell_groups)
+    if (mixed_cdf_group_areaperil_ja_cell_groups < 0).any():
+        raise OasisException("gulmc structure: a blended areaperil reads an areaperil with no mixed cdf group of its own")
 
     order = np.lexsort((entry_group, entry_vuln_id, entry_areaperil_id))
     return (mixed_cdf_group_areaperil_ja_offsets,
