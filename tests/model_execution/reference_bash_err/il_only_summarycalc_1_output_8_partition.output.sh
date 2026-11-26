@@ -68,5 +68,7 @@ exec_wait(){
 # --- Do insured loss kats ---
 
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

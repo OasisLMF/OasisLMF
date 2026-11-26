@@ -100,5 +100,7 @@ exec_wait $pid1 $pid2
 # --- Do ground up loss kats ---
 
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

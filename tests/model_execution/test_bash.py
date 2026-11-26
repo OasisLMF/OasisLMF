@@ -13,6 +13,8 @@ from unittest import TestCase
 
 import pytest
 
+from oasislmf.execution.bash import (get_reinsurance_inuring_priorities,
+                                     get_rl_output_levels)
 from oasislmf.model_execution.bash import (add_server_call, bash_params, bash_wrapper, print_command, progress_server_message,
                                            create_bash_analysis,
                                            create_bash_outputs, genbash)
@@ -340,6 +342,64 @@ class Genbash_LoadBalancer_and_gulpy(GenbashBase):
         # so key on the actual invocation with its --random-generator flag).
         self.assertIn("gulpy --random-generator", script)
         self.assertNotIn("gulmc --random-generator", script)
+
+
+@discover_and_add_tests
+class Genbash_rl(GenbashBase):
+    """rl outputs with three reinsurance iterations, so rlcombine combines three inuring priorities.
+    The base fixtures run without reinsurance iterations, so they generate no rl commands."""
+    KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "input_json_settings_rl")
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        if UPDATE_BASH_TESTS:
+            cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "output_bash_rl")
+            os.makedirs(cls.KPARSE_OUTPUT_FOLDER, exist_ok=True)
+        else:
+            cls.KPARSE_OUTPUT_FOLDER = tempfile.mkdtemp(prefix='output_bash_rl_')
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "reference_bash_rl")
+        cls.ri_iterations = 3
+
+    def test_get_rl_output_levels(self):
+        """The requested rl inuring priorities, passed through rlcombine, then the combined output."""
+        self.assertEqual(get_rl_output_levels({}, 3), [{'text': '', 'level': 4}])
+        self.assertEqual(get_rl_output_levels({'rl_inuring_priorities': [2, 1]}, 3),
+                         [{'text': 'IP1_', 'level': 1}, {'text': 'IP2_', 'level': 2}, {'text': '', 'level': 4}])
+
+    def test_get_reinsurance_inuring_priorities_drops_invalid_levels(self):
+        """Levels outside 1..num_reinsurance_iterations and duplicates are dropped, and the final level is always last."""
+        self.assertEqual(get_reinsurance_inuring_priorities({'ri_inuring_priorities': [5, 1, 1, 0]}, 3),
+                         [{'text': 'IP1_', 'level': 1}, {'text': 'IP3_', 'level': 3}])
+        self.assertEqual(get_rl_output_levels({'rl_inuring_priorities': [5]}, 3), [{'text': '', 'level': 4}])
+
+
+class Genbash_ri_full_correlation(TestCase):
+    """Fully correlated ri outputs are only produced for the final inuring priority."""
+
+    def test_full_correlation_ri_final_inuring_priority_only(self):
+        analysis_settings = {
+            'gul_output': False,
+            'il_output': False,
+            'ri_output': True,
+            'full_correlation': True,
+            'ri_inuring_priorities': [1, 2],
+            'ri_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}],
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script_path = os.path.join(tmp_dir, 'run_ri_fc.sh')
+            genbash(1, analysis_settings, filename=script_path, num_reinsurance_iterations=2, gulmc=False)
+            with open(script_path) as f:
+                full_correlation_lines = [line for line in f if 'full_correlation' in line]
+
+        # the intermediate inuring priority is not computed for the fully correlated output
+        self.assertFalse([line for line in full_correlation_lines if 'ri_IP1_' in line])
+
+        # the final inuring priority is collected and copied to ri_S1 in the fully correlated output dir
+        self.assertIn('katpy -s -f bin -i work/full_correlation/kat/ri_IP2_S1_elt_sample_P1 -o output/full_correlation/ri_IP2_S1_selt.csv',
+                      ''.join(full_correlation_lines))
+        self.assertIn('cp "$f" "output/full_correlation/ri_${f#output/full_correlation/ri_IP2_}"',
+                      ''.join(full_correlation_lines))
 
 
 # Special case: Custom gulcalc tests

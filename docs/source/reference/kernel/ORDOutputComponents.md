@@ -53,8 +53,10 @@ period AAL for the ground-up perspective:
 }
 ```
 
-The same `ord_output` block applies under `il_summaries` / `ri_summaries` for the insured
-and reinsurance perspectives. Global options include `parquet_format` (write parquet
+The same `ord_output` block applies under `il_summaries` / `ri_summaries` / `rl_summaries`
+for the insured, reinsurance net and reinsurer's loss perspectives. `ri_inuring_priorities`
+and `rl_inuring_priorities` add outputs for intermediate inuring priorities (see
+{doc}`../../explanation/financial-module`). Global options include `parquet_format` (write parquet
 instead of CSV) and `return_period_file` (use `input/returnperiods.bin` for the EP curve
 return periods).
 
