@@ -253,21 +253,28 @@ def merge_elt_data(memmaps):
         element, min_heap, size = heap_pop(min_heap, size)
         file_idx = element[-2]
         row_num = element[-1]
-        smallest_row = memmaps[file_idx][row_num]
+        mmap = memmaps[file_idx]
 
-        # Add to buffer and yield when full
-        buffer[bidx] = smallest_row
-        bidx += 1
-        if bidx >= buffer_size:
-            yield buffer[:bidx]
-            bidx = 0
+        while True:
+            # Add to buffer and yield when full
+            buffer[bidx] = mmap[row_num]
+            bidx += 1
+            if bidx >= buffer_size:
+                yield buffer[:bidx]
+                bidx = 0
 
-        # Push the next row from the same file into the heap if there are any more rows
-        if row_num + 1 < len(memmaps[file_idx]):
-            next_row = memmaps[file_idx][row_num + 1]
-            min_heap, size = heap_push(min_heap, size, np.array(
-                [next_row["EventId"], file_idx, row_num + 1], dtype=np.int32
-            ))
+            row_num += 1
+            if row_num >= len(mmap):
+                break
+
+            # Keep taking rows from the same file while they sort before the top of the heap,
+            # then push the first row that sorts after it. Keys are compared as np.int32
+            event_id = np.int32(mmap[row_num]["EventId"])
+            if size > 0 and (min_heap[0, 0], min_heap[0, 1]) < (event_id, file_idx):
+                min_heap, size = heap_push(min_heap, size, np.array(
+                    [event_id, file_idx, row_num], dtype=np.int32
+                ))
+                break
     yield buffer[:bidx]
 
 
@@ -301,21 +308,29 @@ def merge_plt_data(memmaps):
         element, min_heap, size = heap_pop(min_heap, size)
         file_idx = element[-2]
         row_num = element[-1]
-        smallest_row = memmaps[file_idx][row_num]
+        mmap = memmaps[file_idx]
 
-        # Add to buffer and yield when full
-        buffer[bidx] = smallest_row
-        bidx += 1
-        if bidx >= buffer_size:
-            yield buffer[:bidx]
-            bidx = 0
+        while True:
+            # Add to buffer and yield when full
+            buffer[bidx] = mmap[row_num]
+            bidx += 1
+            if bidx >= buffer_size:
+                yield buffer[:bidx]
+                bidx = 0
 
-        # Push the next row from the same file into the heap if there are any more rows
-        if row_num + 1 < len(memmaps[file_idx]):
-            next_row = memmaps[file_idx][row_num + 1]
-            min_heap, size = heap_push(min_heap, size, np.array(
-                [next_row["EventId"], next_row["Period"], file_idx, row_num + 1], dtype=np.int32
-            ))
+            row_num += 1
+            if row_num >= len(mmap):
+                break
+
+            # Keep taking rows from the same file while they sort before the top of the heap,
+            # then push the first row that sorts after it. Keys are compared as np.int32
+            event_id = np.int32(mmap[row_num]["EventId"])
+            period = np.int32(mmap[row_num]["Period"])
+            if size > 0 and (min_heap[0, 0], min_heap[0, 1], min_heap[0, 2]) < (event_id, period, file_idx):
+                min_heap, size = heap_push(min_heap, size, np.array(
+                    [event_id, period, file_idx, row_num], dtype=np.int32
+                ))
+                break
     yield buffer[:bidx]
 
 
