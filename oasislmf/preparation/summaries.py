@@ -1147,6 +1147,12 @@ def get_exposure_summary(
     it has none. The summary is aggregated one status at a time from a boolean (peril, coverage,
     location) grid of which combinations hold that status, rather than from rows for every combination.
 
+    A keys row without a peril (the lookup's perils covered line, whose message can list several
+    perils) gives its status to every peril the location has no other row for under that coverage
+    type, rather than making a peril of its own. In the totals, a (location, coverage type) counts as
+    not modelled when a peril failed the lookup, even if another peril is modelled, but a peril outside
+    the model's scope (`notmodelled`) only counts when no peril of it is modelled.
+
     Args:
         exposure_df (pandas.DataFrame): source exposure dataframe
         keys_df (pandas.DataFrame or list): dataFrame holding keys data (success and errors), with
@@ -1162,6 +1168,12 @@ def get_exposure_summary(
     # write_exposure_summary passes frames it has already selected the columns of
     keys_parts = [part if list(part.columns) == EXPOSURE_SUMMARY_KEYS_COLS
                   else select_keys_columns(part, EXPOSURE_SUMMARY_KEYS_COLS) for part in keys_parts]
+    no_peril_parts = []
+    for i, part in enumerate(keys_parts):
+        no_peril = part['peril_id'].isna().to_numpy()
+        if no_peril.any():
+            no_peril_parts.append(part[no_peril])
+            keys_parts[i] = part[~no_peril]
 
     rows, field_names, coverage_type_ids, tiv = get_exposure_summary_rows(
         exposure_df, exposure_profile, additional_fields)
@@ -1175,7 +1187,7 @@ def get_exposure_summary(
 
     # code the keys; the perils of keys outside the exposure are still summarised
     peril_codes, perils = _factorize_parts([part['peril_id'] for part in keys_parts])
-    status_codes, statuses = _factorize_parts([part['status'] for part in keys_parts])
+    status_codes, statuses = _factorize_parts([part['status'] for part in keys_parts + no_peril_parts])
     no_return = OASIS_KEYS_STATUS['noreturn']['id']
     if no_return not in statuses:
         statuses.append(no_return)
@@ -1183,10 +1195,17 @@ def get_exposure_summary(
     missing_status = [i for i, status in enumerate(statuses) if pd.api.types.is_scalar(status) and pd.isna(status)]
     status_codes[np.isin(status_codes, missing_status)] = no_return_code
 
-    keys_loc = pd.Index(loc_ids).get_indexer(pd.concat([part['loc_id'] for part in keys_parts], ignore_index=True))
-    keys_cov = pd.Index(coverage_type_ids).get_indexer(
-        pd.concat([part['coverage_type_id'] for part in keys_parts], ignore_index=True))
-    del keys_parts
+    def loc_cov_indexers(parts):
+        if not parts:
+            return np.empty(0, dtype=np.intp), np.empty(0, dtype=np.intp)
+        return (pd.Index(loc_ids).get_indexer(pd.concat([part['loc_id'] for part in parts], ignore_index=True)),
+                pd.Index(coverage_type_ids).get_indexer(pd.concat([part['coverage_type_id'] for part in parts], ignore_index=True)))
+
+    keys_loc, keys_cov = loc_cov_indexers(keys_parts)
+    no_peril_loc, no_peril_cov = loc_cov_indexers(no_peril_parts)
+    no_peril_status = status_codes[len(keys_loc):]
+    status_codes = status_codes[:len(keys_loc)]
+    del keys_parts, no_peril_parts
     in_exposure = (keys_loc >= 0) & (keys_cov >= 0)
 
     n_locs, n_covs, n_perils = len(loc_ids), len(coverage_type_ids), len(perils)
@@ -1200,12 +1219,27 @@ def get_exposure_summary(
     returned = np.zeros(grid_shape, dtype=bool)
     returned.reshape(-1)[cell] = True
 
+    no_peril_in_exposure = (no_peril_loc >= 0) & (no_peril_cov >= 0)
+    if n_perils and no_peril_in_exposure.any():
+        # each row without a peril, repeated for every peril the location has no row for
+        kept = np.flatnonzero(no_peril_in_exposure)
+        no_peril_cell = np.ravel_multi_index((np.tile(np.arange(n_perils), len(kept)),
+                                              np.repeat(no_peril_cov[kept], n_perils),
+                                              np.repeat(no_peril_loc[kept], n_perils)), grid_shape)
+        unreturned = ~returned.reshape(-1)[no_peril_cell]
+        cell = np.concatenate([cell, no_peril_cell[unreturned]])
+        cell_status = np.concatenate([cell_status, np.repeat(no_peril_status[kept], n_perils)[unreturned]])
+        returned.reshape(-1)[cell] = True
+    del no_peril_loc, no_peril_cov, no_peril_status, no_peril_in_exposure
+
     loc_tiv = np.ascontiguousarray(loc_tiv.T)  # (coverage, location)
     field_rows = {name: _FieldRows(rows[name], loc_codes, tiv, n_buildings, n_risks) for name in field_names}
     peril_stats = _SummaryStats(coverage_type_ids)
     field_stats = {name: _SummaryStats(coverage_type_ids) for name in field_names}
     in_scope = {'modelled': np.zeros((n_covs, n_locs), dtype=bool),
-                'not-modelled': np.zeros((n_covs, n_locs), dtype=bool)}
+                'not-modelled': np.zeros((n_covs, n_locs), dtype=bool),
+                'outside model': np.zeros((n_covs, n_locs), dtype=bool)}
+    outside_model = OASIS_KEYS_STATUS['notmodelled']['id']
 
     for status_code in sorted(set(np.unique(cell_status).tolist()) | {no_return_code}):
         # the (peril, coverage, location) combinations with this status
@@ -1216,7 +1250,12 @@ def get_exposure_summary(
 
         perils_with_status = has_status.sum(axis=0, dtype=np.int64)  # (coverage, location)
         has_any_peril = perils_with_status > 0
-        scope = 'modelled' if statuses[status_code] in OASIS_KEYS_STATUS_MODELLED else 'not-modelled'
+        if statuses[status_code] in OASIS_KEYS_STATUS_MODELLED:
+            scope = 'modelled'
+        elif statuses[status_code] == outside_model:
+            scope = 'outside model'
+        else:
+            scope = 'not-modelled'
         in_scope[scope] |= has_any_peril
 
         # by peril, from the first exposure row of each location
@@ -1237,6 +1276,7 @@ def get_exposure_summary(
                     field.counts(n_perils_of_row[cov] > 0))
             field_stats[name].add_overall_by_value((status_code,), field.counts(has_any_peril[:, field.loc].any(axis=0)))
         del has_status, perils_with_status, has_any_peril
+    in_scope['not-modelled'] |= in_scope.pop('outside model') & ~in_scope['modelled']
 
     # over all statuses, every location has a status for every coverage type and peril
     has_rows = n_perils > 0 and n_covs > 0

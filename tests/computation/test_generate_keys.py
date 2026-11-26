@@ -49,7 +49,8 @@ class TestGenKeys(ComputationChecker):
         self.write_json(self.tmp_files.get('lookup_complex_config_json'), MIN_RUN_SETTINGS)
 
     def test_keys__check_return(self):
-        expected_return = (self.min_args_output_set['keys_data_path'], 4, self.min_args_output_set['keys_errors_path'], 0)
+        # WW1 location, WEC not modelled, 2 coverages
+        expected_return = (self.min_args_output_set['keys_data_path'], 4, self.min_args_output_set['keys_errors_path'], 2)
         keys_return = self.manager.generate_keys(**self.min_args_output_set)
         keys_csv_data = self.read_file(self.min_args_output_set['keys_data_path'])
         error_csv_data = self.read_file(self.min_args_output_set['keys_errors_path'])

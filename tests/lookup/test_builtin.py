@@ -413,71 +413,124 @@ def test_prepare_upper_strip_lets_merge_match_mixed_case(tmp_path):
     assert keys.loc[3, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
 
 
-def test_split_loc_perils_covered_marks_not_modelled():
-    """A location whose perils are outside the model's scope is flagged 'not modelled'
-    (not 'not at risk' — we don't know whether an unmodelled peril is a risk or not). The
-    status must be the string id, not the whole OASIS_KEYS_STATUS dict, and it must be
-    excluded from the 'modelled' set used by the exposure summary report."""
-    fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered=["QEQ"])
+@pytest.mark.parametrize("kwargs, status, counted_as_modelled", [
+    ({}, "notmodelled", False),  # we don't know whether an unmodelled peril is a risk, so the summary must not count it
+    ({"not_covered_status": "notatrisk"}, "notatrisk", True),  # the behaviour before 'notmodelled'
+])
+def test_split_loc_perils_covered_flags_perils_outside_the_model_with_not_covered_status(kwargs, status, counted_as_modelled):
+    fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered=["QEQ"], **kwargs)
+
+    result = fct(pd.DataFrame({"loc_id": [1, 2], "LocPerilsCovered": ["QEQ", "WTC"]}))
+
+    assert result[["loc_id", "peril_id", "status"]].fillna("").values.tolist() == [[1, "QEQ", ""], [2, "", status]]
+    assert (status in OASIS_KEYS_STATUS_MODELLED) == counted_as_modelled
+
+
+def test_split_loc_perils_covered_rejects_unknown_not_covered_status():
+    with pytest.raises(OasisException):
+        Lookup(config={}).build_split_loc_perils_covered(not_covered_status="not_a_real_status")
+
+
+def test_split_loc_perils_covered_accepts_a_single_peril_as_a_string():
+    """A lookup config can give model_perils_covered as one code rather than a list."""
+    locations = pd.DataFrame({"loc_id": [1, 2], "LocPerilsCovered": ["WTC", "QEQ"]})
+
+    from_string = Lookup(config={}).build_split_loc_perils_covered("WTC")(locations)
+    from_list = Lookup(config={}).build_split_loc_perils_covered(["WTC"])(locations)
+
+    pd.testing.assert_frame_equal(from_string, from_list)
+    assert from_list[["loc_id", "peril_id"]].values.tolist() == [[1, "WTC"], [2, np.nan]]
+
+
+@pytest.mark.parametrize("perils_covered, model_perils_covered, expected", [
+    (["OO1;ORF;OSF"], None, [[1, "ORF", "OO1"], [1, "OSF", "OO1"]]),     # a group listed with the perils it contains
+    (["ORF;OO1"], None, [[1, "ORF", "ORF"], [1, "OSF", "OO1"]]),         # the peril listed before its group
+    (["WTC;XX1;AA1"], ["XHL"], [[1, "XHL", "XX1"]]),                     # two groups containing XHL
+    (["XX1;AA1", "AA1;XX1"], ["XHL"], [[1, "XHL", "XX1"], [2, "XHL", "AA1"]]),  # each location keeps its own first group
+], ids=["group with its perils", "peril before its group", "two groups", "per location"])
+def test_split_loc_perils_covered_gives_each_peril_once_with_the_first_listed_group(perils_covered, model_perils_covered, expected):
+    fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered)
+
+    result = fct(pd.DataFrame({"loc_id": range(1, len(perils_covered) + 1), "LocPerilsCovered": perils_covered}))
+
+    result = result[result["peril_id"].notna()]  # leave out the keys error rows
+    assert sorted(result[["loc_id", "peril_id", "peril_group_id"]].values.tolist()) == expected
+
+
+def test_split_loc_perils_covered_keeps_location_rows_that_share_a_loc_id():
+    """Rows sharing a loc_id but differing elsewhere keep their own perils; identical rows give them once,
+    whatever the index."""
+    fct = Lookup(config={}).build_split_loc_perils_covered(["ORF", "OSF", "WTC"])
     locations = pd.DataFrame({
-        "loc_id": [1, 2],
-        "LocPerilsCovered": ["QEQ", "WTC"],   # loc 2's peril is outside the model
-    })
+        "loc_id": [1, 1, 2, 2],
+        "BuildingTIV": [10., 20., 30., 30.],
+        "LocPerilsCovered": ["OO1;ORF", "WTC", "ORF", "ORF"],
+    }, index=[7, 3, 5, 9])
 
     result = fct(locations)
 
-    not_modelled = result[result["loc_id"] == 2]
-    assert len(not_modelled) == 1
-    status = not_modelled["status"].iloc[0]
-    assert status == OASIS_KEYS_STATUS["notmodelled"]["id"]
-    assert isinstance(status, str)
-    assert not not_modelled["status"].isin(OASIS_KEYS_STATUS_MODELLED).any()
+    assert result[["loc_id", "BuildingTIV", "peril_id"]].values.tolist() == [
+        [1, 10., "ORF"], [2, 30., "ORF"], [1, 10., "OSF"], [1, 20., "WTC"]]  # sorted on peril_id by the model filter
+    assert result.index.tolist() == list(range(4))
+    assert list(result.columns) == ["loc_id", "BuildingTIV", "LocPerilsCovered", "peril_group_id", "peril_id"]
+    assert list(locations.columns) == ["loc_id", "BuildingTIV", "LocPerilsCovered"]
 
 
-def test_split_loc_perils_covered_not_covered_status_restores_previous_behaviour():
-    """not_covered_status lets a model developer opt back into the pre-'notmodelled' behaviour
-    of flagging uncovered perils as 'notatrisk'."""
-    fct = Lookup(config={}).build_split_loc_perils_covered(model_perils_covered=["QEQ"], not_covered_status="notatrisk")
-    locations = pd.DataFrame({
-        "loc_id": [1, 2],
-        "LocPerilsCovered": ["QEQ", "WTC"],
-    })
+@pytest.mark.parametrize("loc_ids, perils_covered, expected", [
+    ([1], ["WW1"], {1: "WEC;WSS not modelled"}),                  # modelled in part: the rest is listed
+    ([1, 2], ["QQ1;OO1", "WTC"], {1: "ORF;OSF;QEQ;QFF;QLF;QLS;QSL;QTS not modelled"}),  # nothing modelled, groups expanded
+    ([1, 1], ["WTC", "QEQ"], {1: "QEQ not modelled"}),            # a row sharing a modelled location's loc_id
+    ([1, 1, 1], ["WTC;QEQ", "OO1", "QEQ"], {1: "ORF;OSF;QEQ not modelled"}),  # rows of one location give one line
+    ([1, 1, 2, 2], ["QEQ", "QEQ", "WTC", "WTC"], {1: "QEQ not modelled"}),    # identical rows give it once
+    ([1], ["ZZZ"], {1: "ZZZ not modelled"}),                      # no known peril: the codes as listed
+    ([1, 2, 3, 4], ["WTC", "", None, "  "], {2: "no perils covered", 3: "no perils covered", 4: "no perils covered"}),
+    ([1, 1, 2, 2], ["", "WTC", "", "QEQ"], {2: "QEQ not modelled"}),  # a blank row adds nothing to its loc_id's other rows
+], ids=["partial", "none", "shared loc_id", "union", "duplicates", "unknown codes", "blank", "blank sharing a loc_id"])
+def test_split_loc_perils_covered_lists_the_perils_not_modelled_once_per_location(loc_ids, perils_covered, expected):
+    fct = Lookup(config={}).build_split_loc_perils_covered(["WTC"])
 
-    result = fct(locations)
+    result = fct(pd.DataFrame({"loc_id": loc_ids, "LocPerilsCovered": perils_covered}))
 
-    not_covered = result[result["loc_id"] == 2]
-    assert len(not_covered) == 1
-    assert not_covered["status"].iloc[0] == OASIS_KEYS_STATUS["notatrisk"]["id"]
-
-
-def test_split_loc_perils_covered_group_listed_with_its_perils_gives_each_peril_once():
-    """OO1 is the group {ORF, OSF}: listing it with ORF and OSF must not give those perils twice."""
-    fct = Lookup(config={}).build_split_loc_perils_covered()
-    locations = pd.DataFrame({
-        "loc_id": [1, 2],
-        "LocPerilsCovered": ["OO1;ORF;OSF", "ORF;OSF"],
-    })
-
-    result = fct(locations)
-
-    perils = result.groupby("loc_id")["peril_id"].apply(sorted)
-    assert perils[1] == perils[2] == ["ORF", "OSF"]
-    assert "peril_group_id" not in locations
+    not_modelled = result[result["status"] == OASIS_KEYS_STATUS["notmodelled"]["id"]]
+    assert not_modelled["peril_id"].isna().all()
+    assert dict(zip(not_modelled["loc_id"], not_modelled["message"])) == expected
+    assert len(not_modelled) == len(expected)
 
 
-@pytest.mark.parametrize("perils_covered, expected_group", [("OO1;ORF", "OO1"), ("ORF;OO1", "ORF")])
-def test_split_loc_perils_covered_peril_in_several_groups_keeps_the_first_listed(perils_covered, expected_group):
-    """A peril reached through several listed groups keeps the first listed group as peril_group_id."""
-    fct = Lookup(config={}).build_split_loc_perils_covered()
+@pytest.mark.parametrize("dtype", [object, "string", "category"])  # ods_tools reads a blank cell as '' in a string column
+def test_lookup_returns_every_location_in_keys_or_keys_errors(dtype):
+    """Input file generation refuses a run where a loc_id is in neither keys nor keys-errors.
+    The error line is repeated for each coverage, next to the keys of the perils modelled."""
+    config = {
+        "step_definition": {
+            "split": {"type": "split_loc_perils_covered", "columns": ["LocPerilsCovered"],
+                      "parameters": {"model_perils_covered": ["WTC", "WSS"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [
+                {"new_cols": {"coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}},
+                {"new_cols": {"coverage_type": 3, "area_peril_id": 1, "vulnerability_id": 2}}]}},
+        },
+        "strategy": ["split", "pivot"],
+    }
+    perils_covered = ["WTC", "WW1", "QQ1", "ZZZ", "", None, "  ", "WTC", "", "QEQ", ""]
+    loc_ids = [1, 2, 3, 4, 5, 6, 7, 8, 8, 9, 9]  # 8 and 9: a blank row sharing a loc_id
 
-    result = fct(pd.DataFrame({"loc_id": [1], "LocPerilsCovered": [perils_covered]}))
+    keys = Lookup(config=config).process_locations(
+        pd.DataFrame({"loc_id": loc_ids, "LocPerilsCovered": pd.Series(perils_covered, dtype=dtype)}))
 
-    orf = result[result["peril_id"] == "ORF"]
-    assert len(orf) == 1
-    assert orf["peril_group_id"].iloc[0] == expected_group
+    assert set(keys["loc_id"]) == set(loc_ids)
+    success = keys["status"] == OASIS_KEYS_STATUS["success"]["id"]
+    assert sorted(keys.loc[success & (keys["loc_id"] == 2), ["peril_id", "coverage_type"]].values.tolist()) == [
+        ["WSS", 1], ["WSS", 3], ["WTC", 1], ["WTC", 3]]
+    for coverage_type in (1, 3):
+        errors = keys[~success & (keys["coverage_type"] == coverage_type)]
+        assert dict(zip(errors["loc_id"], errors["message"])) == {
+            2: "WEC not modelled", 3: "QEQ;QFF;QLF;QLS;QSL;QTS not modelled", 4: "ZZZ not modelled",
+            5: "no perils covered", 6: "no perils covered", 7: "no perils covered", 9: "QEQ not modelled"}
+        assert len(errors) == 7
 
 
-def test_peril_covered_deterministic_lookup_group_listed_with_its_perils_gives_each_peril_once():
+def test_peril_covered_deterministic_lookup_gives_each_peril_once():
+    """A group listed with the perils it contains (OO1;ORF;OSF) gives them once, like ORF;OSF."""
     lookup = PerilCoveredDeterministicLookup(config={
         "model_perils_covered": ["OO1"],
         "supported_oed_coverage_types": [1, 3],
@@ -494,9 +547,21 @@ def test_peril_covered_deterministic_lookup_group_listed_with_its_perils_gives_e
     assert "peril_group_id" not in locations
 
 
-def test_split_loc_perils_covered_rejects_unknown_not_covered_status():
-    with pytest.raises(OasisException):
-        Lookup(config={}).build_split_loc_perils_covered(not_covered_status="not_a_real_status")
+def test_peril_covered_deterministic_lookup_keeps_location_rows_that_share_a_loc_id():
+    lookup = PerilCoveredDeterministicLookup(config={
+        "model_perils_covered": ["WTC"],
+        "supported_oed_coverage_types": [1],
+    })
+    locations = pd.DataFrame({
+        "loc_id": [1, 1, 2, 2],
+        "BuildingTIV": [10., 20., 30., 30.],
+        "LocPerilsCovered": ["WTC", "WTC", "WW1;WTC", "WW1;WTC"],
+    })
+
+    keys_df = lookup.process_locations(locations)
+
+    # loc 1: two distinct rows, one key each; loc 2: identical rows, WW1 = {WTC, WEC, WSS} given once
+    assert keys_df[["loc_id", "peril_id"]].values.tolist() == [[1, "WTC"], [1, "WTC"], [2, "WEC"], [2, "WSS"], [2, "WTC"]]
 
 
 def test_build_set_status_sets_status_and_message_from_columns():

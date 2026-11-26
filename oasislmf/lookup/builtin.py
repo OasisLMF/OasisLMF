@@ -482,6 +482,84 @@ def masked_take(array, position, rows, n):
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
 
 
+def expand_perils_covered(locations, perils_covered_column, peril_groups_df):
+    """The perils each location row covers, with the peril group they came from.
+
+    A peril reached through several listed codes (a group listed with perils it contains, e.g.
+    OO1;ORF;OSF, or two groups that contain it) is kept once, with the first listed code that
+    contains it. Identical location rows give their perils once. Only the perils covered column
+    is expanded, so the memory used does not grow with the number of location columns.
+    peril_groups_df maps peril_group_id to peril_id, see get_peril_groups_df.
+
+    Returns:
+        pd.DataFrame: row (position, not label, of the location row), peril_group_id, peril_id
+    """
+    rows = np.flatnonzero(~locations.duplicated().to_numpy())
+    codes = pd.Series(locations[perils_covered_column].iloc[rows].astype(str).str.split(';').to_numpy(), index=rows).explode()
+    perils = pd.DataFrame({'row': codes.index.to_numpy(),
+                           'pos': np.arange(len(codes)),
+                           'peril_group_id': codes.astype(peril_groups_df['peril_group_id'].dtype).array}).merge(peril_groups_df)
+    # pandas < 2.2 does not keep the left row order in an inner merge (GH 54611), so restore the listed
+    # order before keeping the first code per peril; pos increases across rows, so it alone is enough
+    perils = perils.take(np.argsort(perils['pos'].to_numpy(), kind='stable')).drop(columns='pos')
+    return perils.drop_duplicates(subset=['row', 'peril_id'], ignore_index=True)
+
+
+def not_modelled_perils(locations, perils_covered_column, peril_groups_df, model_perils_covered):
+    """The keys error message of each location with perils the model does not cover, one line per loc_id.
+
+    The message lists those perils, ';'-joined: 'WEC;WSS not modelled'. A row whose codes name no
+    known peril gives its codes as listed ('ZZZ not modelled'), and a blank row (None, NaN, '')
+    gives 'no perils covered', so every location ends in keys or keys-errors. Rows sharing a loc_id
+    give one line, the sorted union of their perils; a blank row adds nothing to the other rows of
+    its loc_id. model_perils_covered None means the model covers every peril. Each distinct perils
+    covered value is expanded once, so the cost hardly grows with the rows.
+
+    Returns:
+        pd.DataFrame: row (position of the loc_id's first location row) and message, in row order
+    """
+    codes, values = pd.factorize(locations[perils_covered_column], use_na_sentinel=False)
+    blank = np.array([pd.isna(value) or str(value).strip() == '' for value in values], dtype=bool)
+    values = np.array(['' if is_blank else str(value) for value, is_blank in zip(values, blank)], dtype=object)
+    perils = expand_perils_covered(pd.DataFrame({'codes': values}), 'codes', peril_groups_df)
+
+    # per distinct value: the perils not modelled, '' when there are none to list
+    known = np.zeros(len(values), dtype=bool)
+    known[perils['row'].to_numpy()] = True
+    text = np.where(known | blank, '', values).astype(object)
+    has_key = known  # the value gives at least one keys row
+    if model_perils_covered is not None:
+        modelled = perils['peril_id'].isin(model_perils_covered).to_numpy()
+        has_key = np.zeros(len(values), dtype=bool)
+        has_key[perils['row'].to_numpy()[modelled]] = True
+        unmodelled = perils[~modelled].sort_values(['row', 'peril_id'], kind='stable')
+        joined = unmodelled.groupby('row', sort=False)['peril_id'].agg(';'.join)
+        text[joined.index.to_numpy()] = joined.to_numpy()
+
+    loc_ids = locations['loc_id'].array
+    row_text = text[codes]
+    rows = np.flatnonzero(row_text != '')
+    lines = pd.DataFrame({'row': rows, 'loc_id': loc_ids.take(rows), 'perils': row_text[rows]})
+    lines = lines.drop_duplicates(subset=['loc_id', 'perils'])
+    shared = lines['loc_id'].duplicated(keep=False).to_numpy()
+    if shared.any():
+        # rows of one loc_id listing different perils: a single line with all of them
+        merged = (lines[shared].assign(perils=lines['perils'][shared].str.split(';')).explode('perils')
+                  .drop_duplicates(subset=['loc_id', 'perils']).sort_values(['loc_id', 'perils'], kind='stable')
+                  .groupby('loc_id', sort=False).agg(row=('row', 'min'), perils=('perils', ';'.join)).reset_index())
+        lines = pd.concat([lines[~shared], merged])
+    lines['message'] = lines['perils'] + ' not modelled'
+
+    blank_rows = np.flatnonzero(blank[codes])
+    if len(blank_rows):
+        # a loc_id whose rows give neither a keys row nor perils to list covers no peril at all
+        reported = np.flatnonzero(has_key[codes] | (row_text != ''))
+        empty = pd.DataFrame({'row': blank_rows, 'loc_id': loc_ids.take(blank_rows)})
+        empty = empty[~empty['loc_id'].isin(loc_ids.take(reported))].drop_duplicates(subset=['loc_id'])
+        lines = pd.concat([lines, empty.assign(message='no perils covered')])
+    return lines.sort_values('row', kind='stable', ignore_index=True)[['row', 'message']]
+
+
 class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
     multiproc_enabled = False
 
@@ -491,11 +569,9 @@ class PerilCoveredDeterministicLookup(AbstractBasicKeyLookup):
                                          .merge(peril_groups_df)['peril_id'])
         peril_covered_column = 'LocPerilsCovered' if 'LocPerilsCovered' in locations.columns else 'PolPerilsCovered'
 
-        # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
-        # de-duplicate after expanding the groups, ignoring which group a peril came from
-        keys_df = (locations.assign(peril_group_id=locations[peril_covered_column].astype(str).str.split(';'))
-                   .explode('peril_group_id').merge(peril_groups_df))
-        keys_df = keys_df.drop_duplicates(subset=keys_df.columns.drop('peril_group_id'))[['loc_id', 'peril_id']]
+        perils = expand_perils_covered(locations, peril_covered_column, peril_groups_df)
+        keys_df = pd.DataFrame({'loc_id': locations['loc_id'].array.take(perils['row'].to_numpy()),
+                                'peril_id': perils['peril_id'].array})
 
         coverage_df = pd.DataFrame({'coverage_type': self.config['supported_oed_coverage_types']}, dtype='Int32')
         keys_df = keys_df.merge(coverage_df, how="cross").sort_values(['loc_id', 'peril_id', 'coverage_type'], kind='stable')
@@ -923,15 +999,17 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         group (e.g. ``OO1;ORF``), the row kept has as ``peril_group_id`` the first listed group
         that contains it.
 
-        Useful inspirational code:
-        https://stackoverflow.com/questions/17116814/pandas-how-do-i-split-text-in-a-column-into-multiple-rows
+        Each location covering a peril the model does not also gets one ``not_covered_status`` row,
+        whose message lists those perils (``WEC;WSS not modelled``), even when its other perils are
+        modelled. A location listing no known peril gets one with its codes as listed
+        (``ZZZ not modelled``), and a blank one (None, NaN or '') gets ``no perils covered``.
 
         Args:
-            model_perils_covered (list, None): perils covered by the model. Locations whose
-                LocPerilsCovered/PolPerilsCovered has no peril in this list are marked with
-                ``not_covered_status``.
+            model_perils_covered (list, str, None): perils covered by the model. Locations whose
+                LocPerilsCovered/PolPerilsCovered has perils outside this list get a row marked
+                with ``not_covered_status`` listing them.
             not_covered_status (str): status key (see ``oasislmf.utils.status.OASIS_KEYS_STATUS``)
-                to assign to locations with no peril covered by the model. Defaults to
+                to assign to the row listing the perils not covered by the model. Defaults to
                 ``'notmodelled'``. Set to ``'notatrisk'`` to restore the pre-4.x behaviour.
         """
         if not_covered_status not in OASIS_KEYS_STATUS:
@@ -951,22 +1029,21 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             else:
                 raise OasisException('missing PerilsCovered column in location')
 
-            # a group listed with perils it contains (e.g. OO1;ORF;OSF) yields those perils twice, so
-            # de-duplicate after expanding the groups, ignoring which group a peril came from
-            peril_locations = (locations.assign(peril_group_id=locations[perils_covered_column].astype(str).str.split(';'))
-                               .explode('peril_group_id').merge(peril_groups_df))
-            peril_locations = peril_locations.drop_duplicates(subset=peril_locations.columns.drop('peril_group_id'))
+            model = pd.Series(model_perils_covered) if model_perils_covered else None
+            perils = expand_perils_covered(locations, perils_covered_column, peril_groups_df)
+            if model is not None:
+                # filter before copying the location rows; the output is ordered by peril_id
+                perils = perils[perils['peril_id'].isin(model)]
+                perils = perils.take(np.argsort(perils['peril_id'].to_numpy(), kind='stable'))
+            peril_locations = locations.iloc[perils['row'].to_numpy()].reset_index(drop=True)
+            peril_locations['peril_group_id'] = perils['peril_group_id'].array
+            peril_locations['peril_id'] = perils['peril_id'].array
 
-            if model_perils_covered:
-                df_model_perils_covered = pd.Series(model_perils_covered)
-                df_model_perils_covered.name = 'model_perils_covered'
-                peril_locations = peril_locations.merge(df_model_perils_covered,
-                                                        left_on='peril_id', right_on='model_perils_covered',
-                                                        sort=True)
-            not_covered_location = locations[~locations['loc_id'].isin(peril_locations['loc_id'])].copy()
-            if not not_covered_location.empty:
+            not_modelled = not_modelled_perils(locations, perils_covered_column, peril_groups_df, model)
+            if len(not_modelled):
+                not_covered_location = locations.iloc[not_modelled['row'].to_numpy()].reset_index(drop=True)
                 not_covered_location['status'] = OASIS_KEYS_STATUS[not_covered_status]['id']
-                not_covered_location['message'] = not_covered_location[perils_covered_column].astype(str) + " have no perils modelled"
+                not_covered_location['message'] = not_modelled['message'].to_numpy()
                 peril_locations = pd.concat([peril_locations, not_covered_location], ignore_index=True)
             return peril_locations
         return fct
