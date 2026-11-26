@@ -373,8 +373,9 @@ def not_modelled_perils(locations, perils_covered_column, peril_groups_df, model
     Returns:
         pd.DataFrame: row (position of the loc_id's first location row) and perils, in row order
     """
-    codes, values = pd.factorize(locations[perils_covered_column].astype(str), use_na_sentinel=False)
-    values = np.array([str(value) for value in values], dtype=object)  # a blank value reads 'nan', on every pandas
+    codes, values = pd.factorize(locations[perils_covered_column], use_na_sentinel=False)
+    # a blank value (None or NaN) reads 'nan' whatever the pandas version; astype(str) gives 'None' for None before pandas 3
+    values = np.array(['nan' if pd.isna(value) else str(value) for value in values], dtype=object)
     perils = expand_perils_covered(pd.DataFrame({'codes': values}), 'codes', peril_groups_df)
 
     known = np.zeros(len(values), dtype=bool)
