@@ -49,7 +49,7 @@ def get_next_event_index(read_buffer, last_event_index, last_event_id, max_curso
         last index parsed, last event idea parsed (0 means the chunk sub[:last_item_index] is a full event
     """
     cursor = last_event_index
-    while cursor < max_cursor - 4:
+    while cursor + 2 <= max_cursor:
         cur_event_id = read_buffer[cursor]
         if last_event_id != cur_event_id:
             if last_event_id == 0:
@@ -58,13 +58,23 @@ def get_next_event_index(read_buffer, last_event_index, last_event_id, max_curso
                 return cursor, last_event_id, 1
 
         cursor += 2
-        while cursor < max_cursor - 2:
+        while cursor + 2 <= max_cursor:
             sidx = read_buffer[cursor]
             cursor += 2
             if sidx == 0:
                 last_event_index = cursor
                 break
     return last_event_index, last_event_id, 0
+
+
+def grow_read_buffer(read_buffer):
+    """Return a read buffer twice the size holding the same data, with its int32 view.
+
+    Used when a single item record does not fit the buffer, so the next read has room.
+    """
+    grown = memoryview(bytearray(2 * len(read_buffer)))
+    grown[:len(read_buffer)] = read_buffer
+    return grown, np.ndarray(len(grown) // number_size, buffer=grown, dtype=np.int32)
 
 
 def produce(even_queue, event, stopper):
@@ -101,7 +111,9 @@ def producer(in_stream, pipeline, read_size, stopper):
         if not len_read:
             in_stream.close()
             event_buffer.write(read_buffer[:left_over])
-            if read_buffer[left_over - 8:left_over - 4] != b'\x00\x00\x00\x00':
+            with event_buffer.getbuffer() as written:
+                last_sidx = bytes(written[-8:-4]) if len(written) >= 8 else None
+            if last_sidx is not None and last_sidx != b'\x00\x00\x00\x00':
                 event_buffer.write(last_event_padding)
             event_buffer.seek(0)
             produce(pipeline, event_buffer, stopper)
@@ -128,6 +140,8 @@ def producer(in_stream, pipeline, read_size, stopper):
                 left_over = valid_buf - number_size * event_index
                 read_buffer[:left_over] = read_buffer[number_size * event_index: valid_buf]
                 last_event_index = 0
+                if left_over == len(read_buffer):
+                    read_buffer, buf_as_int32 = grow_read_buffer(read_buffer)
                 break
             buffer_management_time += time.time() - tm
 
