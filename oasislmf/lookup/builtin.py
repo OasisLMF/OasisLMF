@@ -297,6 +297,11 @@ class _MergeTable:
     every row of the table again for every chunk. Instead, the index is built once per set of
     join columns, each chunk looks up the rows its keys can match, and only those rows are
     merged, with the same pandas merge as before so matching and dtypes are unchanged.
+
+    When the join keys are unique in the table, the index's hash table is built once and each
+    chunk's lookup only costs as much as its own keys. Otherwise pandas has no hash table for
+    the lookup and scans every row of the index for each chunk, which still avoids the merge
+    with the whole table.
     """
 
     def __init__(self, df):
@@ -305,7 +310,12 @@ class _MergeTable:
         self._pid = os.getpid()
 
     def key_index(self, file_keys):
-        """MultiIndex of the table's file_keys columns, with its lookup hash table built."""
+        """MultiIndex of the table's file_keys columns, ready for rows_matching.
+
+        Whether the keys are unique is worked out here, and for unique keys the hash table
+        rows_matching looks them up in is built, so both are computed once (in the parent
+        process when the table is shared) rather than for the first chunk of each worker.
+        """
         index = self._indexes.get(file_keys)
         if index is None:
             if os.getpid() != self._pid:
@@ -316,9 +326,13 @@ class _MergeTable:
                     len(self.df), list(file_keys), os.getpid(), list(file_keys))
             start = time.perf_counter()
             index = pd.MultiIndex.from_frame(self.df[list(file_keys)])
-            index.get_indexer_non_unique(index[:1])  # builds the hash table now, not on the first chunk
+            if index.is_unique:
+                index.get_indexer(index[:1])  # builds the hash table now, not on the first chunk
+            else:
+                index.get_indexer_non_unique(index[:1])  # builds the index's engine now, not on the first chunk
             self._indexes[file_keys] = index
-            logger.info("merge step: indexed %d rows on %s in %.1fs, process memory %s", len(index), list(file_keys),
+            logger.info("merge step: indexed %d rows on %s (%s keys) in %.1fs, process memory %s", len(index),
+                        list(file_keys), "unique" if index.is_unique else "non-unique",
                         time.perf_counter() - start, _memory_usage())
         return index
 
@@ -329,8 +343,14 @@ class _MergeTable:
         would not match may be included, but every row it would match is.
         """
         try:
-            positions, _ = self.key_index(file_keys).get_indexer_non_unique(
-                pd.MultiIndex.from_frame(location_keys.drop_duplicates()))
+            index = self.key_index(file_keys)
+            target = pd.MultiIndex.from_frame(location_keys.drop_duplicates())
+            if index.is_unique:
+                # hash table lookup of the chunk's keys only (-1 for a key not in the table)
+                positions = index.get_indexer(target)
+            else:
+                # no hash table for non-unique keys: pandas scans every row of the index
+                positions, _ = index.get_indexer_non_unique(target)
         except (TypeError, ValueError) as error:  # keys that can't be looked up: merge with the whole table
             logger.debug("merge step: merging with the whole table, key lookup failed: %s", error)
             return self.df

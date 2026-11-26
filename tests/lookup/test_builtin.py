@@ -444,6 +444,35 @@ def test_build_merge_matches_whole_table_merge(merge_table_csv, peril_dtype):
     assert merge(locations)["vulnerability_id"].tolist() == [11, 12, 21, 13, 22, OASIS_UNKNOWN_ID]
 
 
+@pytest.mark.parametrize("peril_dtype", ["str", "category"])
+def test_build_merge_unique_keys_matches_whole_table_merge(tmp_path, monkeypatch, peril_dtype):
+    """With unique join keys the rows are looked up in the index's hash table (get_indexer) instead
+    of scanning it (get_indexer_non_unique), and the result is still the whole-table merge result,
+    including for a NaN key and a chunk that matches nothing."""
+    path = tmp_path / "unique.csv"
+    pd.DataFrame({
+        "Peril_ID": ["WTC", "WTC", "ORF", "ORF"],
+        "coverage_type": [1, 3, 1, 1],
+        "OccupancyCode": [1050, 1050, 1100, None],
+        "vulnerability_id": [11, 13, 21, 22],
+    }).to_csv(path, index=False)
+    locations = pd.DataFrame({
+        "loc_id": [1, 2, 3, 4, 5],
+        "peril_id": ["WTC", "ORF", "WTC", "ORF", "XXX"],
+        "coverage_type": [1, 1, 3, 1, 1],
+        "occupancycode": [1050, 1100, 1050, None, 1050],
+    }, index=[40, 10, 30, 20, 50]).astype({"peril_id": peril_dtype})
+
+    def no_scan(*args, **kwargs):
+        raise AssertionError("unique keys must not be looked up with get_indexer_non_unique")
+    merge = Lookup(config={}).build_merge(file_path=str(path), id_columns=["vulnerability_id"])
+    monkeypatch.setattr(pd.MultiIndex, "get_indexer_non_unique", no_scan)
+
+    for chunk in (locations, locations.iloc[4:], locations.iloc[:0]):
+        pd.testing.assert_frame_equal(merge(chunk), _whole_table_merge(path, chunk, ["vulnerability_id"]))
+    assert merge(locations)["vulnerability_id"].tolist() == [11, 21, 13, 22, OASIS_UNKNOWN_ID]
+
+
 def test_build_merge_join_columns_with_matching_rows(merge_table_csv):
     """With join_columns, only those columns are looked up; a shared id column takes the file's value."""
     locations = pd.DataFrame({"peril_id": ["WTC", "ORF"], "coverage_type": [3, 1], "occupancycode": [1050, 1100],
