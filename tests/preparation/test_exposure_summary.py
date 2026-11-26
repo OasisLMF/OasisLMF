@@ -9,8 +9,8 @@ The reference is built from the two implementations that came before:
   that frame as of cefcce6d, filtering it to one field value, status and coverage type at a time.
 
 Two rules were added since: a keys row without a peril gives its status to the perils the location
-has no row for under that coverage type, and a (location, coverage type) with a modelled peril is
-not also counted as not modelled in the totals.
+has no row for under that coverage type, and in the totals a `notmodelled` peril (outside the
+model's scope) only counts as not modelled when no peril of the (location, coverage type) is modelled.
 
 The current implementation builds neither the frame nor the per-group filters, so the portfolios
 here are built to hit the cases where the frame's first-row deduplication decides the numbers:
@@ -184,7 +184,7 @@ def reference_exposure_totals(df):
 
     modelled_pairs = df.loc[df.status.isin(OASIS_KEYS_STATUS_MODELLED), dedupe_cols].drop_duplicates()
     outside = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].merge(modelled_pairs, how='left', on=dedupe_cols, indicator=True)
-    outside = outside[outside['_merge'] == 'left_only']
+    outside = outside[(outside['status'] != OASIS_KEYS_STATUS['notmodelled']['id']) | (outside['_merge'] == 'left_only')]
     outside_scope_tiv = outside.drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     outside_scope_num = len(outside['loc_id'].unique())
     outside_scope_num_buildings = int(outside.drop_duplicates(subset='loc_id')['number_of_buildings'].sum())
@@ -497,24 +497,26 @@ def test_matches_reference_with_keys_rows_without_a_peril(seed, shared_loc_ids):
     assert not any(pd.isna(peril) for peril in summary['peril_id'])
 
 
-def test_partly_modelled_location_is_not_counted_as_not_modelled():
-    """The lookup writes WW1 under a WTC model as a WTC key plus a 'WEC;WSS not modelled' line without a peril."""
-    exposure_df = pd.DataFrame({'loc_id': [1, 2], 'BuildingTIV': [100., 10.]})
+def test_not_modelled_total_flags_lookup_failures_not_perils_outside_the_model():
+    """1: WW1 under a WTC model, a WTC key plus a 'WEC;WSS not modelled' line without a peril.
+    2: no peril of the location modelled. 3: WTC modelled but WSS failed the lookup."""
+    exposure_df = pd.DataFrame({'loc_id': [1, 2, 3], 'BuildingTIV': [100., 10., 1.]})
     keys_df = pd.DataFrame({
-        'loc_id': [1, 1, 2],
-        'peril_id': ['WTC', np.nan, np.nan],
-        'coverage_type_id': [1, 1, 1],
-        'status': ['success', 'notmodelled', 'notmodelled'],  # 2: no peril of the location is modelled
+        'loc_id': [1, 1, 2, 3, 3],
+        'peril_id': ['WTC', np.nan, np.nan, 'WTC', 'WSS'],
+        'coverage_type_id': [1, 1, 1, 1, 1],
+        'status': ['success', 'notmodelled', 'notmodelled', 'success', 'fail'],
     })
 
     summary = get_exposure_summary(exposure_df, keys_df)
 
-    assert summary['total']['modelled']['tiv'] == 100.
-    assert summary['total']['not-modelled']['tiv'] == 10.
-    assert summary['total']['portfolio']['tiv'] == 110.
-    assert list(summary['peril_id']) == ['WTC']
-    assert summary['peril_id']['WTC']['success']['tiv'] == 100.
+    assert summary['total']['modelled']['tiv'] == 101.
+    assert summary['total']['not-modelled']['tiv'] == 11.
+    assert summary['total']['portfolio']['tiv'] == 111.
+    assert list(summary['peril_id']) == ['WTC', 'WSS']
     assert summary['peril_id']['WTC']['notmodelled']['tiv'] == 10.
+    assert summary['peril_id']['WSS']['notmodelled']['tiv'] == 110.  # 1 and 2 have no WSS row of their own
+    assert summary['peril_id']['WSS']['fail']['tiv'] == 1.
 
 
 def test_tiv_is_attributed_by_coverage_type_id():

@@ -1103,8 +1103,9 @@ def get_exposure_summary(
 
     A keys row without a peril (the lookup's perils covered line, whose message can list several
     perils) gives its status to every peril the location has no other row for under that coverage
-    type, rather than making a peril of its own. In the totals, a (location, coverage type) with at
-    least one modelled peril counts as modelled only, not also as not modelled.
+    type, rather than making a peril of its own. In the totals, a (location, coverage type) counts as
+    not modelled when a peril failed the lookup, even if another peril is modelled, but a peril outside
+    the model's scope (`notmodelled`) only counts when no peril of it is modelled.
 
     Args:
         exposure_df (pandas.DataFrame): source exposure dataframe
@@ -1190,7 +1191,9 @@ def get_exposure_summary(
     peril_stats = _SummaryStats(coverage_type_ids)
     field_stats = {name: _SummaryStats(coverage_type_ids) for name in field_names}
     in_scope = {'modelled': np.zeros((n_covs, n_locs), dtype=bool),
-                'not-modelled': np.zeros((n_covs, n_locs), dtype=bool)}
+                'not-modelled': np.zeros((n_covs, n_locs), dtype=bool),
+                'outside model': np.zeros((n_covs, n_locs), dtype=bool)}
+    outside_model = OASIS_KEYS_STATUS['notmodelled']['id']
 
     for status_code in sorted(set(np.unique(cell_status).tolist()) | {no_return_code}):
         # the (peril, coverage, location) combinations with this status
@@ -1201,7 +1204,12 @@ def get_exposure_summary(
 
         perils_with_status = has_status.sum(axis=0, dtype=np.int64)  # (coverage, location)
         has_any_peril = perils_with_status > 0
-        scope = 'modelled' if statuses[status_code] in OASIS_KEYS_STATUS_MODELLED else 'not-modelled'
+        if statuses[status_code] in OASIS_KEYS_STATUS_MODELLED:
+            scope = 'modelled'
+        elif statuses[status_code] == outside_model:
+            scope = 'outside model'
+        else:
+            scope = 'not-modelled'
         in_scope[scope] |= has_any_peril
 
         # by peril, from the first exposure row of each location
@@ -1222,7 +1230,7 @@ def get_exposure_summary(
                     field.counts(n_perils_of_row[cov] > 0))
             field_stats[name].add_overall_by_value((status_code,), field.counts(has_any_peril[:, field.loc].any(axis=0)))
         del has_status, perils_with_status, has_any_peril
-    in_scope['not-modelled'] &= ~in_scope['modelled']
+    in_scope['not-modelled'] |= in_scope.pop('outside model') & ~in_scope['modelled']
 
     # over all statuses, every location has a status for every coverage type and peril
     has_rows = n_perils > 0 and n_covs > 0
