@@ -2866,6 +2866,9 @@ def draw_keyed_samples(sample_keys, seeds, rndms_base, full_buildings, sample_si
     keys = np.unique(sample_keys[sample_keys >= 0])
     key_values = np.empty(keys.shape[0], dtype=np.float64)
     perms = np.empty(max(sample_size, 1), dtype=np.float64)
+    # the identity for _lh_philox_partial_block, which keeps it so
+    identity_perms = np.arange(1, max(sample_size, 1) + 1).astype(np.float64)
+    swapped = np.empty(max(sample_size, 1), dtype=np.int64)
     block = np.empty(max(sample_size, 1), dtype=np.float64)
     samples = np.empty(max(sample_size, 1), dtype=np.int64)
     run_start = 0
@@ -2890,7 +2893,7 @@ def draw_keyed_samples(sample_keys, seeds, rndms_base, full_buildings, sample_si
                 for i in range(m):
                     key_values[run_start + i] = block[samples[i]]
             else:
-                _lh_philox_partial_block(k0, k1, building_i, sample_size, samples, m, perms, block)
+                _lh_philox_partial_block(k0, k1, building_i, sample_size, samples, m, identity_perms, swapped, block)
                 for i in range(m):
                     key_values[run_start + i] = block[i]
         run_start = run_end

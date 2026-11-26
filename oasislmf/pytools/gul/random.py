@@ -446,7 +446,7 @@ def _lh_philox_block(k0, k1, building, n, perms, out):
 
 
 @njit(cache=True, fastmath=True)
-def _lh_philox_partial_block(k0, k1, building, n, samples, m, perms, out):
+def _lh_philox_partial_block(k0, k1, building, n, samples, m, perms, swapped, out):
     """Write the values of ``m`` samples of a (key, building) Latin Hypercube block of ``n``.
 
     For a building of which only some samples are used. The shuffle of ``_lh_philox_block`` is
@@ -458,6 +458,9 @@ def _lh_philox_partial_block(k0, k1, building, n, samples, m, perms, out):
     Which stratum a sample gets depends on the set of samples asked for, so every user of a
     (key, building) block in an event must ask for the same set.
 
+    The cost is O(m), not O(n): ``perms`` holds the identity 1..n on entry, and the swaps are
+    undone before returning, so it holds it again for the next call.
+
     Args:
         k0 (uint32): low word of the Philox key (the seed).
         k1 (uint32): high word of the Philox key.
@@ -465,14 +468,13 @@ def _lh_philox_partial_block(k0, k1, building, n, samples, m, perms, out):
         n (int): number of samples in the block (``S``).
         samples (array[int]): the 0-based samples wanted, ``m`` of them, distinct.
         m (int): number of samples wanted, at most ``n``.
-        perms (array[float64]): scratch buffer of length ``n``, overwritten.
+        perms (array[float64]): length ``n``, holding ``k + 1`` at ``k``; left so.
+        swapped (array[int64]): scratch of at least ``m``, the position each swap exchanged with.
         out (array[float64]): its first ``m`` entries are written, ``out[i]`` for ``samples[i]``.
     """
     zero = np.uint32(0)
     bldg = np.uint32(building)
     inv_n = np.float64(1.0) / np.float64(n)
-    for k in range(n):
-        perms[k] = np.float64(k + 1)
 
     # the first m swaps of _lh_philox_block's shuffle, same words in the same order (the last
     # position needs no swap, hence n - 1 at most)
@@ -488,6 +490,7 @@ def _lh_philox_partial_block(k0, k1, building, n, samples, m, perms, out):
                 break
             w = w0 if lane == 0 else (w1 if lane == 1 else (w2 if lane == 2 else w3))
             jj = int(np.float64(w) * PHILOX_INV32 * np.float64(idx + 1))
+            swapped[swap] = jj
             t = perms[idx]
             perms[idx] = perms[jj]
             perms[jj] = t
@@ -500,6 +503,14 @@ def _lh_philox_partial_block(k0, k1, building, n, samples, m, perms, out):
         lane = sample & 3
         w = w0 if lane == 0 else (w1 if lane == 1 else (w2 if lane == 2 else w3))
         out[i] = (perms[n - m + i] - np.float64(w) * PHILOX_INV32) * inv_n
+
+    # undo the swaps, last first, back to the identity
+    for swap in range(n_swaps - 1, -1, -1):
+        idx = n - 1 - swap
+        jj = swapped[swap]
+        t = perms[idx]
+        perms[idx] = perms[jj]
+        perms[jj] = t
 
 
 @njit(cache=True, fastmath=True)
