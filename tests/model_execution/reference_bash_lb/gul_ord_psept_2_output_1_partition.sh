@@ -80,5 +80,7 @@ lecpy  -Kgul_S1_summaryleccalc -W -w -o output/gul_S1_psept.csv & lpid1=$!
 lecpy -r -Kgul_S2_summaryleccalc -W -w -o output/gul_S2_psept.csv & lpid2=$!
 exec_wait $lpid1 $lpid2
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f fifo/*

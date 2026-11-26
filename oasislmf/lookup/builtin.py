@@ -30,12 +30,18 @@ try:  # needed for rtree
     except ImportError:
         BallTree = None
 except ImportError:
-    Point = gdp = None
+    Point = gpd = BallTree = None
 
 try:  # needed for geotiff
-    from osgeo import gdal
+    import rasterio
+    from rasterio.windows import Window
 except ImportError:
-    gdal = None
+    rasterio = Window = None
+
+try:  # needed for transform_coordinates
+    import pyproj
+except ImportError:
+    pyproj = None
 
 try:  # needed for h3 lookup
     import h3
@@ -47,6 +53,7 @@ except ImportError:
 
 import copy
 import gc
+import json
 import logging
 import math
 import os
@@ -57,13 +64,15 @@ from contextlib import contextmanager
 import psutil
 
 from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
+from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.peril import get_peril_groups_df
 from oasislmf.utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
 
 logger = logging.getLogger(__name__)
 
-OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
+GEOG_LOOKUP_DEFAULT_SLOTS = 30  # GeogScheme{N}/GeogName{N} pairs a geog_lookup step scans by default
+OPT_INSTALL_MESSAGE = 'install oasislmf with the spatial packages by running \'pip install "oasislmf[spatial]"\''
 
 
 def get_nearest(src_points, candidates, k_neighbors=1):
@@ -334,27 +343,116 @@ class _MergeTable:
         return self.df.iloc[positions]
 
 
-# GeoTransform indexes, https://gdal.org/en/stable/tutorials/geotransforms_tut.html
-X_COORDINATE = 0  # x-coordinate of the upper-left corner of the upper-left pixel.
-W_E_PIXEL_RESOLUTION = 1  # w-e pixel resolution / pixel width.
-ROW_ROTATION = 2  # row rotation (typically zero).
-Y_COORDINATE = 3  # y-coordinate of the upper-left corner of the upper-left pixel.
-COLUMN_ROTATION = 4  # column rotation (typically zero).
-N_S_PIXEL_RESOLUTION = 5  # n-s pixel resolution / pixel height (negative value for a north-up image).
+# upper bound on the memory one read of a geotiff lookup may use, counting the values, their masks and any dtype
+# conversion copy, so a large raster never has to be held in memory in full
+GEOTIFF_READ_BUDGET_BYTES = 256 * 1024 ** 2
 
 
-@nb.njit(cache=True)
-def jit_gda_loc_to_val(ds_array, inv_gt, x_array, y_array, useful_array_idx, defaults, res):
-    for loc_i in range(res.shape[0]):
-        px = int(inv_gt[X_COORDINATE] + x_array[loc_i] * inv_gt[W_E_PIXEL_RESOLUTION] + y_array[loc_i] * inv_gt[ROW_ROTATION] + 0.5)
-        py = int(inv_gt[Y_COORDINATE] + x_array[loc_i] * inv_gt[COLUMN_ROTATION] + y_array[loc_i] * inv_gt[N_S_PIXEL_RESOLUTION] + 0.5)
-        if 0 <= px < ds_array.shape[1] and 0 <= py < ds_array.shape[0]:
-            for col_i in range(useful_array_idx.shape[0]):
-                res[loc_i, col_i] = ds_array[py, px, useful_array_idx[col_i]]
-        else:
-            for col_i in range(useful_array_idx.shape[0]):
-                res[loc_i, col_i] = defaults[col_i]
-    return res
+def geotiff_value_dtype(band_dtypes, defaults):
+    """Dtype holding every requested band's values and every default exactly.
+
+    The bands' common dtype is widened only for a default it cannot hold, such as -1 for a uint8 band (int16) or
+    NaN for an integer band (a float dtype), so defaults that fit leave the output dtype as it was.
+
+    Args:
+        band_dtypes (list): dtypes of the requested bands
+        defaults (dict): default value of each requested band, by output column name
+
+    Returns:
+        np.dtype: dtype for the lookup's output columns
+
+    Raises:
+        OasisException: if a default is not a number numpy can store (e.g. a string, None or a huge int)
+    """
+    dtype = np.result_type(*band_dtypes)
+    for col_name, default in defaults.items():
+        default_dtype = np.min_scalar_type(default)
+        if default_dtype.kind not in 'biuf':
+            raise OasisException(f"geotiff band {col_name} has default {default!r}, which is not a number numpy can store")
+        with np.errstate(invalid='ignore', over='ignore'):
+            cast = np.array(default, dtype=default_dtype).astype(dtype)
+        if not (cast == default or (np.isnan(cast) and np.isnan(default))):
+            dtype = np.result_type(dtype, default_dtype)
+    return dtype
+
+
+def geotiff_read_plan(row, col, block_shape, bytes_per_pixel, height, width, budget):
+    """Group located pixels into reads of the raster blocks that hold them.
+
+    Compressed rasters are decompressed a whole block at a time, so reading only the blocks holding locations
+    avoids decompressing the space between them. Adjacent blocks in a block row are merged into one read, up to
+    the budget, to keep the number of reads low where locations are dense. A block that alone exceeds the budget
+    (e.g. a file stored as a single strip) is split into smaller tiles.
+
+    Args:
+        row (np.ndarray): pixel row of each location, all inside the raster
+        col (np.ndarray): pixel column of each location, all inside the raster
+        block_shape (tuple): (height, width) of the raster's blocks
+        bytes_per_pixel (int): memory a read uses per pixel, over all requested bands
+        height (int): number of rows in the raster
+        width (int): number of columns in the raster
+        budget (int): upper bound on the memory of a single read, in bytes
+
+    Returns:
+        tuple: (order, reads) where order sorts the locations by block and reads is a list of
+            (start, end, window): the rasterio Window to read for the sorted locations order[start:end].
+    """
+    tile_h, tile_w = block_shape
+    if tile_h * tile_w * bytes_per_pixel > budget:
+        tile_h = max(1, budget // (tile_w * bytes_per_pixel))
+        if tile_h * tile_w * bytes_per_pixel > budget:
+            tile_w = max(1, budget // bytes_per_pixel)
+    max_tiles = max(1, budget // (tile_h * tile_w * bytes_per_pixel))
+
+    tile_row, tile_col = row // tile_h, col // tile_w
+    order = np.lexsort((tile_col, tile_row))
+    if not order.size:
+        return order, []
+    tile_row, tile_col = tile_row[order], tile_col[order]
+
+    # first location of each distinct tile, then of each run of adjacent tiles in a tile row, split to fit the budget
+    tile_start = np.flatnonzero(np.r_[True, (tile_row[1:] != tile_row[:-1]) | (tile_col[1:] != tile_col[:-1])])
+    tiles_row, tiles_col = tile_row[tile_start], tile_col[tile_start]
+    new_run = np.r_[True, (tiles_row[1:] != tiles_row[:-1]) | (tiles_col[1:] != tiles_col[:-1] + 1)]
+    run_first_col = tiles_col[np.flatnonzero(new_run)][np.cumsum(new_run) - 1]
+    run_chunk = (tiles_col - run_first_col) // max_tiles
+    read_first_tile = np.flatnonzero(new_run | np.r_[True, run_chunk[1:] != run_chunk[:-1]])
+    read_last_tile = np.r_[read_first_tile[1:], tiles_row.size] - 1
+
+    starts = tile_start[read_first_tile]
+    ends = np.r_[starts[1:], order.size]
+    reads = []
+    for start, end, first, last in zip(starts, ends, read_first_tile, read_last_tile):
+        row_off, col_off = int(tiles_row[first]) * tile_h, int(tiles_col[first]) * tile_w
+        row_end = min(row_off + tile_h, height)
+        col_end = min((int(tiles_col[last]) + 1) * tile_w, width)
+        reads.append((int(start), int(end), Window(col_off, row_off, col_end - col_off, row_end - row_off)))
+    return order, reads
+
+
+def geotiff_pixel_index(inv_transform, lon, lat, height, width):
+    """Find the raster pixel containing each location.
+
+    Args:
+        inv_transform (affine.Affine): inverse of the raster's transform, mapping (x, y) coordinates to (col, row)
+        lon (np.ndarray): location longitudes (x coordinates)
+        lat (np.ndarray): location latitudes (y coordinates)
+        height (int): number of rows in the raster
+        width (int): number of columns in the raster
+
+    Returns:
+        tuple: (row, col, inside) where row and col are int64 pixel indexes, only meaningful where the boolean
+            array inside is True; locations outside the raster or with missing coordinates are not inside.
+    """
+    # pixel (i, j) covers [j, j + 1) x [i, i + 1) in pixel space, so the pixel holding a point is the floor
+    # of its pixel coordinates; NaN coordinates produce NaN here, which every comparison below rejects
+    with np.errstate(invalid='ignore'):
+        col = np.floor(inv_transform.a * lon + inv_transform.b * lat + inv_transform.c)
+        row = np.floor(inv_transform.d * lon + inv_transform.e * lat + inv_transform.f)
+        inside = (col >= 0) & (col < width) & (row >= 0) & (row < height)
+    row = np.where(inside, row, 0).astype(np.int64)
+    col = np.where(inside, col, 0).astype(np.int64)
+    return row, col, inside
 
 
 @nb.njit(cache=True)
@@ -447,6 +545,157 @@ def get_step(grid):
     return length * width
 
 
+SORTED_LOOKUP_META = 'sorted_lookup.json'
+
+
+def write_sorted_lookup(table, out_dir, key_column, value_columns=None, file_type=None):
+    """Write a table as the sorted arrays read by the builtin lookup's ``sorted_lookup`` step.
+
+    Run once when building the model's keys data, not at lookup time.
+
+    Args:
+        table (pd.DataFrame, str): the table, or the path of a csv or parquet file holding it.
+        out_dir (str): directory to write ``<column>.npy`` arrays and ``sorted_lookup.json`` into.
+        key_column (str): integer column to look up on; its values must be unique and not null.
+        value_columns (list, None): columns to return (default: every other column).
+        file_type (str, None): ``'csv'`` or ``'parquet'`` when ``table`` is a path (default: from
+            its extension).
+    """
+    if not isinstance(table, pd.DataFrame):
+        file_type = file_type or ('parquet' if str(table).endswith(('.parquet', '.pq')) else 'csv')
+        columns = None if value_columns is None else [key_column, *value_columns]
+        if file_type == 'parquet':
+            table = pd.read_parquet(table, columns=columns)
+        else:
+            table = pd.read_csv(table, usecols=columns)
+    if key_column not in table.columns:
+        raise OasisException(f"write_sorted_lookup: key column '{key_column}' not in {sorted(table.columns)}")
+    if value_columns is None:
+        value_columns = [col for col in table.columns if col != key_column]
+    missing = [col for col in value_columns if col not in table.columns]
+    if missing or not value_columns:
+        raise OasisException(f"write_sorted_lookup: value columns {missing or value_columns} not usable; "
+                             f"table columns are {sorted(table.columns)}")
+    if key_column in value_columns:
+        raise OasisException("write_sorted_lookup: the key column cannot also be a value column")
+
+    key_series = table[key_column]
+    if key_series.isna().any() or not pd.api.types.is_integer_dtype(key_series.dtype):
+        raise OasisException(f"write_sorted_lookup: key column '{key_column}' must be integers with no nulls, "
+                             f"got dtype {key_series.dtype}")
+    keys = plain_numpy(key_series)
+    order = np.argsort(keys, kind='stable')
+    keys = keys[order]
+    duplicated = keys[1:] == keys[:-1]
+    if duplicated.any():
+        raise OasisException(f"write_sorted_lookup: key column '{key_column}' has {int(duplicated.sum())} duplicated "
+                             f"value(s), e.g. {np.unique(keys[1:][duplicated])[:3].tolist()}")
+
+    os.makedirs(out_dir, exist_ok=True)
+    np.save(os.path.join(out_dir, f'{key_column}.npy'), keys)
+    meta_values = {}
+    for column in value_columns:
+        series = table[column]
+        if pd.api.types.is_integer_dtype(series.dtype) or pd.api.types.is_float_dtype(series.dtype) \
+                or pd.api.types.is_bool_dtype(series.dtype):
+            if series.isna().any():
+                raise OasisException(f"write_sorted_lookup: value column '{column}' has nulls")
+            array = plain_numpy(series)
+        else:
+            raise OasisException(f"write_sorted_lookup: value column '{column}' must be numeric, got {series.dtype}")
+        np.save(os.path.join(out_dir, f'{column}.npy'), array[order])
+        meta_values[column] = str(array.dtype)
+    with open(os.path.join(out_dir, SORTED_LOOKUP_META), 'w') as meta_file:
+        json.dump({'key_column': key_column, 'rows': int(len(keys)), 'key_dtype': str(keys.dtype),
+                   'value_columns': meta_values}, meta_file, indent=2)
+    return out_dir
+
+
+def plain_numpy(series):
+    """A null-free numeric or boolean column as a plain numpy array (nullable pandas dtypes included)."""
+    numpy_dtype = getattr(series.dtype, 'numpy_dtype', None)
+    return series.to_numpy(dtype=numpy_dtype) if numpy_dtype is not None else series.to_numpy()
+
+
+def load_sorted_lookup(directory, value_columns=None):
+    """Open the arrays written by :func:`write_sorted_lookup`, memory-mapped.
+
+    Returns:
+        (keys, {value_column: array}, key_column)
+    """
+    meta_path = os.path.join(directory, SORTED_LOOKUP_META)
+    if not os.path.isfile(meta_path):
+        raise OasisException(f"sorted_lookup: '{meta_path}' not found. Build the directory with "
+                             "oasislmf.lookup.builtin.write_sorted_lookup")
+    with open(meta_path) as meta_file:
+        meta = json.load(meta_file)
+    key_column = meta['key_column']
+    if value_columns is None:
+        value_columns = list(meta['value_columns'])
+    elif isinstance(value_columns, str):
+        value_columns = [value_columns]
+    unknown = [col for col in value_columns if col not in meta['value_columns']]
+    if unknown:
+        raise OasisException(f"sorted_lookup: value columns {unknown} not in '{directory}' "
+                             f"({sorted(meta['value_columns'])})")
+
+    def open_array(column):
+        array = np.load(os.path.join(directory, f'{column}.npy'), mmap_mode='r')
+        if array.ndim != 1 or len(array) != meta['rows']:
+            raise OasisException(f"sorted_lookup: '{column}.npy' in '{directory}' has shape {array.shape}, "
+                                 f"expected ({meta['rows']},) per {SORTED_LOOKUP_META}")
+        return array
+
+    keys = open_array(key_column)
+    if not np.issubdtype(keys.dtype, np.integer):
+        raise OasisException(f"sorted_lookup: keys in '{directory}' must be integers, got {keys.dtype}")
+    return keys, {col: open_array(col) for col in value_columns}, key_column
+
+
+def integer_keys(series, key_dtype):
+    """Return (keys, valid) for a location key column: ``valid`` is False where the value is null,
+    not an integer, or outside the range of ``key_dtype``. Invalid positions hold 0.
+    """
+    n = len(series)
+    info = np.iinfo(key_dtype)
+    if pd.api.types.is_integer_dtype(series.dtype):
+        valid = series.notna().to_numpy()
+        numpy_dtype = getattr(series.dtype, 'numpy_dtype', None)
+        raw = series.to_numpy(dtype=numpy_dtype, na_value=0) if numpy_dtype is not None else series.to_numpy()
+        if not np.issubdtype(raw.dtype, np.signedinteger):  # uint64 may exceed int64
+            valid = valid & (raw <= info.max)
+        else:
+            valid = valid & (raw >= info.min) & (raw <= info.max)
+        keys = np.zeros(n, dtype=key_dtype)
+        keys[valid] = raw[valid]
+        return keys, valid
+    # float, object or text keys: float64 is exact for integers up to 2**53
+    numeric = pd.to_numeric(series, errors='coerce').to_numpy(dtype='float64', na_value=np.nan)
+    valid = ~np.isnan(numeric)
+    valid[valid] = (numeric[valid] == np.floor(numeric[valid])) & (numeric[valid] >= info.min) & (numeric[valid] <= info.max)
+    keys = np.zeros(n, dtype=key_dtype)
+    keys[valid] = numeric[valid]
+    return keys, valid
+
+
+def masked_take(array, position, rows, n):
+    """Values of ``array`` at ``position`` placed at ``rows`` of a length ``n`` column; other rows are null.
+    Integer and boolean values come back as pandas nullable arrays, floats with NaN.
+    """
+    taken = np.asarray(array[position])
+    if np.issubdtype(array.dtype, np.integer) or np.issubdtype(array.dtype, np.bool_):
+        data = np.zeros(n, dtype=array.dtype)
+        data[rows] = taken
+        mask = np.ones(n, dtype=bool)
+        mask[rows] = False
+        if np.issubdtype(array.dtype, np.bool_):
+            return pd.arrays.BooleanArray(data, mask)
+        return pd.arrays.IntegerArray(data, mask)
+    data = np.full(n, np.nan, dtype=array.dtype)
+    data[rows] = taken
+    return data
+
+
 key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
 
 
@@ -529,6 +778,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     - **columns**: the columns required to apply the step. These matter because any column
       (except ``loc_id``) from the original Locations DataFrame that is not used by any step is
       dropped to reduce memory consumption.
+    - **optional_columns**: columns the step uses if the location file has them. They are kept
+      like ``columns`` but a missing one doesn't fail the step (e.g. ``latitude``/``longitude``,
+      which are optional in OED). The step must cope with them being absent.
     - **parameters**: the parameters passed to the function factory.
 
     Once all the functions have been defined, the order in which they are applied is set in the
@@ -625,7 +877,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         # drop all unused columns and remove duplicate rows, find and rename useful columns
         lower_case_column_map = {column.lower(): column for column in locations.columns}
-        useful_cols = set(['loc_id'] + sum((step_config.get("columns", []) for step_config in self.config['step_definition'].values()), []))
+        useful_cols = self.useful_columns()
 
         useful_cols_map = {lower_case_column_map[useful_col.lower()]: useful_col
                            for useful_col in useful_cols
@@ -662,17 +914,70 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         id_cols = ['coverage_type', 'area_peril_id', 'vulnerability_id']
         if 'amplification_id' in locations.columns:
             id_cols += ['amplification_id']
+        # a location with no section fails like one with no areaperil; a step that already joined
+        # sections into text ('3001;3002') is left as it is
+        if 'section_id' in locations.columns and pd.api.types.is_numeric_dtype(locations['section_id']):
+            id_cols += ['section_id']
         self.set_id_columns(locations, id_cols)
         # check all success location have all ids set correctly
         success_locations = locations.loc[locations['status'] == OASIS_KEYS_STATUS['success']['id']]
         for id_col in id_cols:
             unknown_ids = success_locations[id_col] == OASIS_UNKNOWN_ID
             fail_locations = success_locations.loc[unknown_ids].index
-            locations.loc[fail_locations, ['status', 'message']] = OASIS_KEYS_STATUS['fail'][
-                'id'], f'{id_col} has an unknown id'
+            # keep a step's explanation (e.g. why transform_coordinates gave no coordinates)
+            detail = success_locations.loc[unknown_ids, 'message']
+            locations.loc[fail_locations, 'status'] = OASIS_KEYS_STATUS['fail']['id']
+            locations.loc[fail_locations, 'message'] = (f'{id_col} has an unknown id'
+                                                        + detail.where(detail == '', ': ' + detail))
             success_locations = success_locations.loc[~unknown_ids]
 
         return locations
+
+    def useful_columns(self):
+        """The location columns kept for the steps, each under the one spelling the steps use.
+
+        A column is kept under a single name, so two steps naming it with different capitalisation
+        (in ``columns`` or ``optional_columns``) can't both find it: raise rather than let one of
+        them fail with a KeyError. The ``geog_lookup`` slots are matched ignoring case, so they take
+        whatever spelling a step lists and never clash.
+        """
+        spellings = {'loc_id': {'loc_id': ['(always kept)']}}  # lower -> spelling -> steps naming it
+        for step_name, step_config in self.config['step_definition'].items():
+            for col in list(step_config.get("columns", [])) + self.step_optional_columns(step_config, geog_slots=False):
+                spellings.setdefault(col.lower(), {}).setdefault(col, []).append(step_name)
+        clashes = {lower: steps for lower, steps in spellings.items() if len(steps) > 1}
+        if clashes:
+            details = "; ".join(
+                ", ".join(f"'{spelling}' in {sorted(set(names))}" for spelling, names in steps.items())
+                for steps in clashes.values())
+            raise OasisException(
+                f"Lookup config names the same location column with different capitalisation: {details}. "
+                f"Use one spelling in every step's 'columns' and 'optional_columns'")
+        useful_cols = {next(iter(steps)) for steps in spellings.values()}
+        for step_config in self.config['step_definition'].values():
+            for col in self.step_optional_columns(step_config):
+                if col.lower() not in spellings:
+                    useful_cols.add(col)
+                    spellings[col.lower()] = {col: []}
+        return useful_cols
+
+    @staticmethod
+    def step_optional_columns(step_config, geog_slots=True):
+        """Columns a step uses if the location file has them, without requiring them.
+
+        These are kept through the column filter in ``process_locations`` but, unlike ``columns``,
+        a missing one doesn't fail the step. They are the step's ``optional_columns`` plus, for a
+        ``geog_lookup`` step, the ``GeogScheme{N}``/``GeogName{N}`` slots it scans.
+        """
+        optional_columns = step_config.get("optional_columns", [])
+        if isinstance(optional_columns, str):
+            optional_columns = [optional_columns]
+        optional_columns = list(optional_columns)
+        if geog_slots and step_config.get("type") == "geog_lookup":
+            slots = step_config.get("parameters", {}).get("slots", GEOG_LOOKUP_DEFAULT_SLOTS)
+            for n in range(1, slots + 1):
+                optional_columns += [f"geogscheme{n}", f"geogname{n}"]
+        return optional_columns
 
     def to_abs_filepath(self, filepath):
         """Replace placeholder r'%%(.+?)%%' (ex: %%KEYS_DATA_PATH%%) with the path set in self.config
@@ -920,19 +1225,64 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
         return fct
 
+    PREPARE_OPTIONS = ('default', 'strip', 'upper', 'lower', 'max', 'min', 'type', 'rename', 'drop')
+
     @staticmethod
     def build_prepare(**kwargs):
-        """Prepare the dataframe by setting default, min and max values and type.
+        """Prepare the dataframe column by column.
 
-        Supports several simple DataFrame preparations:
+        Each key is a column name and each value a dict of preparations, applied in this order:
 
         - **default**: create the column if missing and replace the nan value with the default value
+        - **strip**: (``true``) remove leading and trailing whitespace from text values
+        - **upper**: (``true``) upper-case text values
+        - **lower**: (``true``) lower-case text values (cannot be combined with ``upper``)
         - **max**: truncate the values in a column to the specified max
         - **min**: truncate the values in a column to the specified min
         - **type**: convert the type of the column to the specified numpy dtype. Note that we use
           the string representation of numpy dtype available at
           https://numpy.org/doc/stable/reference/arrays.dtypes.html#arrays-dtypes-constructing
+        - **rename**: rename the column to this name. An existing column with that name is replaced.
+        - **drop**: (``true``) remove the column. A missing column is ignored.
+
+        ``strip``, ``upper`` and ``lower`` only change string values; null and non-text values
+        (e.g. a numeric postcode) are left as they are. Use them to normalise a column before a
+        ``merge`` on it, as ``merge`` matches values exactly.
+
+        Columns are processed in the order they are listed, so a later entry sees the result of an
+        earlier ``rename``.
         """
+        for column_name, preparations in kwargs.items():
+            if not isinstance(preparations, dict):
+                raise OasisException(
+                    f"prepare step: the preparations for column '{column_name}' must be a dict, got {preparations!r}")
+            unknown = set(preparations) - set(Lookup.PREPARE_OPTIONS)
+            if unknown:
+                raise OasisException(
+                    f"prepare step: unknown option(s) {sorted(unknown)} for column '{column_name}'. "
+                    f"Valid options are {list(Lookup.PREPARE_OPTIONS)}")
+            if preparations.get('upper') and preparations.get('lower'):
+                raise OasisException(
+                    f"prepare step: column '{column_name}' cannot have both 'upper' and 'lower'")
+            if 'rename' in preparations and not (isinstance(preparations['rename'], str) and preparations['rename']):
+                raise OasisException(
+                    f"prepare step: 'rename' for column '{column_name}' must be a non-empty column name")
+
+        def text_op(series, op):
+            if isinstance(series.dtype, pd.CategoricalDtype):
+                # OED string columns are categories: transform each category once, not each row.
+                categories = series.cat.categories
+                new_categories = text_op(pd.Series(categories, dtype=categories.dtype), op)
+                if new_categories.is_unique:
+                    return series.cat.rename_categories(pd.Index(new_categories))
+                # e.g. 'ab' and 'AB ' both become 'AB': merge them into one category
+                return series.map(dict(zip(categories, new_categories))).astype('category')
+            if isinstance(series.dtype, pd.StringDtype):
+                return getattr(series.str, op)()
+            if pd.api.types.is_object_dtype(series.dtype):
+                return series.map(lambda value: getattr(value, op)() if isinstance(value, str) else value)
+            return series  # numeric, bool, datetime...: nothing to normalise
+
         def prepare(locations):
             for column_name, preparations in kwargs.items():
                 if "default" in preparations:
@@ -940,12 +1290,29 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                         locations[column_name] = preparations["default"]
                     else:
                         fill_empty(locations, column_name, preparations["default"])
+                if preparations.get('drop'):
+                    locations = locations.drop(columns=column_name, errors='ignore')
+                    continue
+                if column_name not in locations.columns and set(preparations) - {'default'}:
+                    raise OasisException(
+                        f"prepare step: column '{column_name}' is missing. List it in the step's 'columns' "
+                        f"so it is kept, or give it a 'default' to create it")
+                for op in ('strip', 'upper', 'lower'):
+                    if preparations.get(op):
+                        locations[column_name] = text_op(locations[column_name], op)
                 if 'max' in preparations:
                     locations.loc[locations[column_name] > preparations['max'], column_name] = preparations['max']
                 if 'min' in preparations:
                     locations.loc[locations[column_name] < preparations['min'], column_name] = preparations['min']
                 if 'type' in preparations:
                     locations[column_name] = locations[column_name].astype(preparations['type'])
+                new_name = preparations.get('rename')
+                if new_name is not None and new_name != column_name:
+                    if column_name not in locations.columns:
+                        raise OasisException(
+                            f"prepare step: cannot rename missing column '{column_name}' to '{new_name}'")
+                    locations = (locations.drop(columns=new_name, errors='ignore')
+                                 .rename(columns={column_name: new_name}))
             return locations
         return prepare
 
@@ -994,6 +1361,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         nearest_neighbor_min_distance: deprecated alias for nearest_neighbor_max_distance. May be
             removed in a future version.
+
+        A location falling in several overlapping geometries gets one row per geometry. For
+        section_id that is the expected form: the keys rows of an item that differ only in
+        section_id are combined when the GUL inputs are built.
 
         Memory: the file is read and indexed once per lookup. When keys are generated with several
         processes, it is read once in the parent process before the workers are forked (see
@@ -1054,16 +1425,15 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             (abs_path, file_type, file_read_params, nearest_neighbor_max_distance)
         """
         if nearest_neighbor_min_distance > 0:
-            warnings.warn("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
-                          "removed in a future version. Please use `nearest_neighbor_max_distance` "
-                          "instead.",
-                          DeprecationWarning)
+            warn_deprecated("Parameter `nearest_neighbor_min_distance` is deprecated and may be "
+                            "removed in a future version. Please use `nearest_neighbor_max_distance` "
+                            "instead.")
             if not nearest_neighbor_max_distance > 0:
                 nearest_neighbor_max_distance = nearest_neighbor_min_distance
 
         if area_peril_read_params:
-            warnings.warn("Parameter `area_peril_read_params` is deprecated and may be removed in a "
-                          "future version. Please use `file_read_params` instead.", DeprecationWarning)
+            warn_deprecated("Parameter `area_peril_read_params` is deprecated and may be removed in a "
+                            "future version. Please use `file_read_params` instead.")
             if not file_read_params:
                 file_read_params = area_peril_read_params
 
@@ -1310,47 +1680,84 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     def build_geotiff(self, file_path, band_info):
         """Build a lookup function that assigns geotiff band values to each lat/lon.
 
+        The raster is not held in memory: each call reads only the requested bands of the raster blocks holding its
+        locations, in reads that fit within GEOTIFF_READ_BUDGET_BYTES (see geotiff_read_plan).
+
+        The raster must use a geographic CRS (or none, in which case it is assumed to be in longitude/latitude).
+
+        Pixels the raster marks as invalid, through a band's nodata value or a GDAL mask band, take the band's
+        default, as do locations outside the raster or with missing coordinates.
+
         Args:
             file_path: path to the geotiff file
             band_info: a dict where keys are assigned column name, and values are dicts with
-                id is the id of the band in the tiff file
-                default is the(value for outside of range location
+                id is the id of the band in the tiff file (starting at 1)
+                default is the value for nodata pixels and for locations outside of the raster or with missing
+                coordinates; a default the band's dtype cannot hold (e.g. -1 for uint8, NaN for an integer band)
+                widens the column's dtype
         Returns:
             function to assign band value to each corresponding lat lon
         """
-        if gdal is None:
+        if rasterio is None:
             raise OasisException(
-                "##### gdal need to be installed to use geotiff !!!#####\n"
-                "on ubuntu, first install gdal then run pip based on the installed version\n"
-                "-> apt-get update && apt-get install -y gdal-bin\n"
-                "-> gdalinfo --version\n"
-                "-> pip install gdal==<version>"
+                f"rasterio module is needed for geotiff (it replaces gdal, which geotiff no longer uses), {OPT_INSTALL_MESSAGE}"
             )
 
-        tiff_dataset = gdal.Open(self.to_abs_filepath(file_path), gdal.GA_ReadOnly)
-        inv_gt = gdal.InvGeoTransform(tiff_dataset.GetGeoTransform())
+        abs_file_path = self.to_abs_filepath(file_path)
+        with rasterio.open(abs_file_path) as dataset:
+            band_count = dataset.count
+            band_dtypes = dataset.dtypes
+            inv_transform = ~dataset.transform
+            height, width = dataset.height, dataset.width
+            crs = dataset.crs
+            block_shapes = dataset.block_shapes
 
-        defaults = np.empty(len(band_info), dtype=tiff_dataset.GetVirtualMemArray().dtype)
-        usefull_array_idx = np.empty(len(band_info), dtype='int')
-        for i, (col_name, info) in enumerate(band_info.items()):
-            if not 1 <= info['id'] <= tiff_dataset.RasterCount:
-                raise OasisException(f"band {col_name}, {info} has id outside of [1-{tiff_dataset.RasterCount}]")
-            idx = info['id'] - 1
-            usefull_array_idx[i] = idx
-            defaults[i] = info['default']
+        # locations are matched by longitude/latitude, which only line up with the pixels of a geographic raster
+        if crs and not crs.is_geographic:
+            raise OasisException(
+                f"geotiff {file_path} uses the projected CRS {crs.to_string()}, but locations are matched by "
+                "longitude/latitude: reproject the raster to a geographic CRS such as EPSG:4326"
+            )
+
+        band_ids = []
+        for col_name, info in band_info.items():
+            if not 1 <= info['id'] <= band_count:
+                raise OasisException(f"band {col_name}, {info} has id outside of [1-{band_count}]")
+            band_ids.append(info['id'])
+        dtype = geotiff_value_dtype([band_dtypes[band_id - 1] for band_id in band_ids],
+                                    {col_name: info['default'] for col_name, info in band_info.items()})
+        defaults = np.array([info['default'] for info in band_info.values()], dtype=dtype)
+        # bands of a GeoTIFF normally share a block shape; reads follow the first requested band's
+        block_shape = block_shapes[band_ids[0] - 1]
+        # per pixel and band: the value in dtype, the value as read before conversion to dtype, and the mask both
+        # as GDAL's uint8 and as numpy's bool
+        native_itemsize = max(np.dtype(band_dtypes[band_id - 1]).itemsize for band_id in band_ids)
+        bytes_per_pixel = len(band_ids) * (dtype.itemsize + native_itemsize + 2)
 
         def geotiff_lookup(locations):
-            tiff_array = tiff_dataset.GetVirtualMemArray()
-            if len(tiff_array.shape) == 2:
-                tiff_array = tiff_array.reshape((tiff_array.shape[0], tiff_array.shape[1], 1))
-            res = np.empty((len(locations), len(band_info)), dtype=tiff_array.dtype)
-            jit_gda_loc_to_val(tiff_array,
-                               inv_gt,
-                               locations['longitude'].to_numpy(),
-                               locations['latitude'].to_numpy(),
-                               usefull_array_idx,
-                               defaults,
-                               res)
+            row, col, inside = geotiff_pixel_index(inv_transform,
+                                                   locations['longitude'].to_numpy(dtype='float64', na_value=np.nan),
+                                                   locations['latitude'].to_numpy(dtype='float64', na_value=np.nan),
+                                                   height, width)
+            res = np.empty((len(locations), len(band_ids)), dtype=dtype)
+            res[:] = defaults
+
+            loc_idx = np.flatnonzero(inside)
+            if loc_idx.size:
+                order, reads = geotiff_read_plan(row[loc_idx], col[loc_idx], block_shape, bytes_per_pixel,
+                                                 height, width, GEOTIFF_READ_BUDGET_BYTES)
+                loc_idx = loc_idx[order]
+                row, col = row[loc_idx], col[loc_idx]
+                with rasterio.open(abs_file_path) as dataset:
+                    for start, end, window in reads:
+                        read_row = row[start:end] - window.row_off
+                        read_col = col[start:end] - window.col_off
+                        # (band, row, col), masked where the band's nodata value or mask band marks a pixel invalid
+                        data = dataset.read(band_ids, window=window, out_dtype=dtype, masked=True)
+                        values = data.data[:, read_row, read_col].T
+                        invalid = np.ma.getmaskarray(data)[:, read_row, read_col].T
+                        res[loc_idx[start:end]] = np.where(invalid, defaults, values)
+
             for col_i, col_name in enumerate(band_info.keys()):
                 locations[col_name] = res[:, col_i]
             return locations
@@ -1407,7 +1814,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         if h3 is None:
             raise OasisException(
-                "h3 module is required for h3 lookups; install it with 'pip install h3>=4'"
+                f"h3 module is required for h3 lookups, {OPT_INSTALL_MESSAGE}"
             )
 
         read_func = getattr(pd, f"read_{file_type}", None)
@@ -1585,7 +1992,133 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     _memory_usage())
         return _MergeTable(df_to_merge)
 
-    def build_geog_lookup(self, geog_scheme, output_column, slots=30,
+    def build_sorted_lookup(self, file_path, value_columns=None, id_columns=()):
+        """Look up one integer key column in a large table stored as sorted, memory-mapped arrays.
+
+        For a table too large for ``merge`` (e.g. hundreds of millions of grid cell -> area peril
+        rows), which reads the whole file into every lookup process. ``file_path`` is a directory
+        written by :func:`write_sorted_lookup`: one ``.npy`` array of unique keys in ascending order,
+        one ``.npy`` array per value column, and a ``sorted_lookup.json`` describing them. The arrays
+        are opened with ``np.load(..., mmap_mode='r')``, so the OS page cache holds one copy shared
+        by every process, and each chunk of locations is matched with ``np.searchsorted``.
+
+        The key column named in ``sorted_lookup.json`` must be in the locations (list it in the
+        step's ``columns``). Locations whose key is null, not an integer, or not in the table get
+        null values, and -1 in ``id_columns``.
+
+        Args:
+            file_path (str): directory written by ``write_sorted_lookup``; supports placeholders.
+            value_columns (list, None): value columns to add to the locations (default: all).
+            id_columns (list): columns to transform to an id column (Int64 with nulls replaced by -1).
+        """
+        directory = self.to_abs_filepath(file_path)
+        keys, values, key_column = load_sorted_lookup(directory, value_columns)
+        if isinstance(id_columns, str):
+            id_columns = [id_columns]
+        unknown_ids = [col for col in id_columns if col not in values]
+        if unknown_ids:
+            raise OasisException(
+                f"sorted_lookup step: id_columns {unknown_ids} are not value columns of '{file_path}' "
+                f"({sorted(values)})")
+
+        def sorted_lookup(locations):
+            if key_column not in locations.columns:
+                raise OasisException(
+                    f"sorted_lookup step: key column '{key_column}' of '{file_path}' is not in the locations. "
+                    f"Location columns available to this step: {sorted(locations.columns)}")
+            query, valid = integer_keys(locations[key_column], keys.dtype)
+            position = np.searchsorted(keys, query[valid])
+            in_range = position < len(keys)
+            found_in_valid = np.zeros(len(position), dtype=bool)
+            found_in_valid[in_range] = keys[position[in_range]] == query[valid][in_range]
+            rows = np.flatnonzero(valid)[found_in_valid]
+            position = position[found_in_valid]
+            logger.debug("sorted_lookup(%s): matched %d/%d locations", file_path, len(rows), len(locations))
+            for column, array in values.items():
+                locations[column] = masked_take(array, position, rows, len(locations))
+            return self.set_id_columns(locations, id_columns)
+        return sorted_lookup
+
+    @staticmethod
+    def build_transform_coordinates(target_crs, source_crs='EPSG:4326', x_column='x', y_column='y',
+                                    latitude_column='latitude', longitude_column='longitude', area_of_use_only=True):
+        """Project the locations' latitude/longitude into another coordinate reference system.
+
+        Writes the projected coordinates to ``x_column`` and ``y_column`` (easting and northing for
+        most projected CRSs), so a following step can index a grid defined in that CRS, e.g. one
+        ``interval_to_index`` step per axis. Uses ``pyproj`` with ``always_xy``, so ``x`` is the
+        longitude-like axis whatever the CRS's own axis order.
+
+        Locations with a null latitude or longitude, or that can't be projected, get NaN in both
+        columns. pyproj projects points far outside a CRS's area of use without complaint, so by
+        default locations outside the target CRS's area of use (as published with the CRS, e.g.
+        Great Britain for EPSG:27700) also get NaN.
+
+        Args:
+            target_crs (str, int): CRS to project to, in any form ``pyproj.CRS`` accepts
+                (``"EPSG:27700"``, ``27700``, a PROJ string or WKT).
+            source_crs (str, int): CRS of the latitude/longitude columns (default WGS 84).
+            x_column (str): output column for the x coordinate.
+            y_column (str): output column for the y coordinate.
+            latitude_column (str): input latitude column.
+            longitude_column (str): input longitude column.
+            area_of_use_only (bool): give NaN to locations outside the target CRS's area of use.
+                Only applies when ``source_crs`` is geographic and the target CRS has an area of use.
+        """
+        if pyproj is None:
+            raise OasisException(f"pyproj module is needed for transform_coordinates, {OPT_INSTALL_MESSAGE}")
+        try:
+            source, target = pyproj.CRS.from_user_input(source_crs), pyproj.CRS.from_user_input(target_crs)
+        except pyproj.exceptions.CRSError as error:
+            raise OasisException(f"transform_coordinates step: invalid CRS: {error}") from error
+        bounds = None
+        if area_of_use_only:
+            if not source.is_geographic:
+                logger.info(f"transform_coordinates step: area_of_use_only ignored, source CRS {source_crs} is not geographic")
+            elif target.area_of_use is None:
+                logger.info(f"transform_coordinates step: area_of_use_only ignored, target CRS {target_crs} has no area of use")
+            else:
+                bounds = target.area_of_use.bounds  # (west, south, east, north) in degrees
+        transformers = {}  # one per process: a pyproj Transformer is not safe to share across a fork
+
+        def transform_coordinates(locations):
+            for column in (latitude_column, longitude_column):
+                if column not in locations.columns:
+                    raise OasisException(
+                        f"transform_coordinates step: column '{column}' is not in the locations. "
+                        f"Location columns available to this step: {sorted(locations.columns)}")
+            transformer = transformers.get(os.getpid())
+            if transformer is None:
+                transformer = transformers[os.getpid()] = pyproj.Transformer.from_crs(source, target, always_xy=True)
+            lon = pd.to_numeric(locations[longitude_column], errors='coerce').to_numpy(dtype='float64', na_value=np.nan)
+            lat = pd.to_numeric(locations[latitude_column], errors='coerce').to_numpy(dtype='float64', na_value=np.nan)
+            x, y = transformer.transform(lon, lat, errcheck=False)
+            x, y = np.asarray(x, dtype='float64'), np.asarray(y, dtype='float64')
+            missing = np.isnan(lon) | np.isnan(lat)
+            not_projected = ~missing & ~(np.isfinite(x) & np.isfinite(y))
+            out_of_area = np.zeros(len(locations), dtype=bool)
+            if bounds is not None:
+                west, south, east, north = bounds
+                # an area crossing the antimeridian has west > east
+                in_lon = (lon >= west) & (lon <= east) if west <= east else (lon >= west) | (lon <= east)
+                out_of_area = ~missing & ~not_projected & ~(in_lon & (lat >= south) & (lat <= north))
+            failed = missing | not_projected | out_of_area
+            x[failed] = np.nan
+            y[failed] = np.nan
+            locations[x_column] = x
+            locations[y_column] = y
+            if 'message' in locations.columns and failed.any():
+                # explain why x/y are null; the status is set later, when the id they lead to is missing
+                for mask, reason in ((missing, f"missing {latitude_column} or {longitude_column}"),
+                                     (not_projected, f"could not be projected to {target_crs}"),
+                                     (out_of_area, f"outside the area of use of {target_crs}")):
+                    mask = mask & (locations['message'] == '').to_numpy()
+                    if mask.any():
+                        locations.loc[mask, 'message'] = f"transform_coordinates failure: {reason}"
+            return locations
+        return transform_coordinates
+
+    def build_geog_lookup(self, geog_scheme, output_column, slots=GEOG_LOOKUP_DEFAULT_SLOTS,
                           case_insensitive=True, on_missing='null'):
         """Resolve an OED scheme-tagged value into a single column so it can be joined on.
 
@@ -1599,9 +2132,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         The lowest-numbered matching slot wins. Rows with no matching scheme get a null in
         ``output_column`` (``on_missing='null'``) or raise (``on_missing='error'``).
 
-        Note: the ``GeogScheme{N}``/``GeogName{N}`` columns to consult must be listed in this
-        step's ``columns``, otherwise they are dropped before the step runs (see
-        ``process_locations``).
+        The ``GeogScheme{N}``/``GeogName{N}`` columns for ``N`` in ``1..slots`` are kept
+        automatically and are optional, so they don't need to be listed in the step's
+        ``columns``. Listing one there makes it required.
 
         Args:
             geog_scheme (str): the OED GeogScheme value to resolve (e.g. ``"W3W"``).

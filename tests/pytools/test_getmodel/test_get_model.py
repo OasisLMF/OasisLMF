@@ -686,7 +686,9 @@ class TestGetVulns(TestCase):
                 vulnerability_to_parquet(run_dir)
 
     def tearDown(self):
-        shutil.rmtree(self.temp_dir)
+        # numba leaks the arguments of a jitted function when an exception propagates into it from a jitted callee
+        # (numba/numba#10803), so the error tests leave vulnerability.bin mapped and Windows can't delete it (#2238)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
 
 class GetModelTests(TestCase):

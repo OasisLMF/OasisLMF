@@ -1,0 +1,313 @@
+"""Reader for the rl summary streams of several inuring priorities, used by rlcombine.
+
+SummaryCombineReader reads whatever data each input has, without blocking on any single input, and
+yields each event of an input as soon as that input has sent it in full, closed by its ``E:S0``
+sentinel record. Combining the inputs is left to the caller (see manager.py).
+"""
+import io
+import logging
+import selectors
+
+import numba as nb
+import numpy as np
+
+from oasislmf.pytools.common.data import def_to_type_and_size
+from oasislmf.pytools.common.event_stream import (ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, PIPE_CAPACITY, SUMMARY_STREAM_ID,
+                                                  get_and_check_header_in, mv_read)
+from oasislmf.utils.exceptions import OasisException, OasisStreamException
+
+logger = logging.getLogger(__name__)
+
+event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
+summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
+summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
+sidx_dtype, sidx_dtype_size = def_to_type_and_size('sidx')
+loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
+
+HEADER_SIZE = 8 + summaryset_id_dtype_size  # stream type, len_sample and summary_set_id
+RECORD_HEADER_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size
+PAIR_SIZE = sidx_dtype_size + loss_dtype_size
+SENTINEL_SUMMARY_ID = 0
+# rl streams do not have CHANCE_OF_LOSS_IDX / NUMBER_OF_AFFECTED_RISK_IDX
+# the TIV_IDX is in record header, STD_DEV_IDX is never written by summarypy
+SPECIAL_IDX_PER_PAIR = (MAX_LOSS_IDX, MEAN_IDX)
+
+read_state_dtype = np.dtype([
+    ('event_id', event_id_dtype),      # event currently being read on this input (0 = between events)
+    ('summary_id', summary_id_dtype),  # record whose pairs are being read (0 = expect a record header)
+    ('n_records', np.int64),           # records of the current event stored so far
+    ('n_pairs', np.int64),             # (sidx, loss) pairs of the current event stored so far
+])
+
+
+class EventBuffer:
+    """Records of the event being read on one input, in CSR form.
+
+    Record i is summary_ids[i] with expval[i], and its pairs are
+    sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]].
+
+    Sized for the largest possible event: one record per summary_id, each with every sample
+    plus the special sidx. read_buffer checks a stream stays within these bounds.
+    """
+
+    def __init__(self, max_summary_id, len_sample):
+        """Allocate the arrays for the largest possible event.
+
+        Args:
+            max_summary_id (int): largest summary_id in the summary set
+            len_sample (int): number of samples
+        """
+        max_pairs = max_summary_id * (len_sample + len(SPECIAL_IDX_PER_PAIR))
+        self.summary_ids = np.empty(max_summary_id, dtype=summary_id_dtype)
+        self.expval = np.empty(max_summary_id, dtype=loss_dtype)
+        self.offsets = np.empty(max_summary_id + 1, dtype=np.int64)
+        self.sidx = np.empty(max_pairs, dtype=sidx_dtype)
+        self.loss = np.empty(max_pairs, dtype=loss_dtype)
+
+
+@nb.njit(cache=True)
+def read_buffer(byte_mv, cursor, valid_buff, state, len_sample, summary_ids, expval, offsets, sidx, loss):
+    """Read the valid part of byte_mv for one input and store the records of the current event.
+
+    The arrays are sized for the largest possible event (see EventBuffer). numba does not check
+    array bounds, so a stream that breaks those bounds is reported as an error before any write.
+
+    Args:
+        byte_mv (ndarray): numpy byte view of the input buffer
+        cursor (int): position in byte_mv to read from
+        valid_buff (int): number of valid bytes in byte_mv
+        state (ndarray[read_state_dtype]): read state of the input, updated in place
+        len_sample (int): number of samples
+        summary_ids (ndarray[summary_id_dtype]): EventBuffer.summary_ids, filled in place
+        expval (ndarray[loss_dtype]): EventBuffer.expval, filled in place
+        offsets (ndarray[int64]): EventBuffer.offsets, filled in place
+        sidx (ndarray[sidx_dtype]): EventBuffer.sidx, filled in place
+        loss (ndarray[loss_dtype]): EventBuffer.loss, filled in place
+
+    Returns:
+        cursor (int): position in byte_mv reached
+        event_id (event_id_dtype): event being read, or the event just completed
+        summary_id (summary_id_dtype): non zero if a record is only partly read
+        yield_event (int): 1 right after the ``E:S0`` sentinel, so the event is complete without reading ahead
+
+    Raises:
+        ValueError: if the stream breaks the summary stream format or the EventBuffer bounds
+    """
+    while True:
+        if state['summary_id']:  # inside a record: read (sidx, loss) pairs
+            if valid_buff - cursor < PAIR_SIZE:
+                return cursor, state['event_id'], state['summary_id'], 0
+            pair_sidx, cursor = mv_read(byte_mv, cursor, sidx_dtype, sidx_dtype_size)
+            pair_loss, cursor = mv_read(byte_mv, cursor, loss_dtype, loss_dtype_size)
+            if pair_sidx == 0:
+                state['summary_id'] = 0
+                continue
+            if pair_sidx < 0 and pair_sidx not in SPECIAL_IDX_PER_PAIR:
+                raise ValueError('rlcombine: unexpected sidx found')
+            if pair_sidx > len_sample:
+                raise ValueError('rlcombine: sample sidx above len_sample')
+            if state['n_pairs'] - offsets[state['n_records'] - 1] == len_sample + len(SPECIAL_IDX_PER_PAIR):
+                raise ValueError('rlcombine: more (sidx, loss) pairs in a record than allowed')
+            sidx[state['n_pairs']] = pair_sidx
+            loss[state['n_pairs']] = pair_loss
+            state['n_pairs'] += 1
+
+        else:  # expect a record header (a sentinel needs its (0, 0) pair too)
+            if valid_buff - cursor < RECORD_HEADER_SIZE + PAIR_SIZE:
+                return cursor, state['event_id'], 0, 0
+            record_event_id, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
+            summary_id, cursor = mv_read(byte_mv, cursor, summary_id_dtype, summary_id_dtype_size)
+            record_expval, cursor = mv_read(byte_mv, cursor, loss_dtype, loss_dtype_size)
+
+            if state['event_id'] == 0:
+                state['event_id'] = record_event_id
+            elif record_event_id != state['event_id']:
+                raise ValueError('rlcombine: event not closed by an S0 sentinel record')
+
+            if summary_id == SENTINEL_SUMMARY_ID:
+                pair_sidx, cursor = mv_read(byte_mv, cursor, sidx_dtype, sidx_dtype_size)
+                cursor += loss_dtype_size
+                if pair_sidx != 0:
+                    raise ValueError('rlcombine: S0 sentinel record must only hold the (0, 0) terminator')
+                offsets[state['n_records']] = state['n_pairs']
+                event_id = state['event_id']
+                state['event_id'] = 0
+                return cursor, event_id, 0, 1
+
+            if summary_id < 1 or summary_id > summary_ids.shape[0]:
+                raise ValueError('rlcombine: summary_id found outside 1 .. max_summary_id')
+            if state['n_records'] == summary_ids.shape[0]:
+                raise ValueError('rlcombine: more records in an event than max_summary_id')
+            summary_ids[state['n_records']] = summary_id
+            expval[state['n_records']] = record_expval
+            offsets[state['n_records']] = state['n_pairs']
+            state['n_records'] += 1
+            state['summary_id'] = summary_id
+
+
+class SummaryCombineReader:
+    """Read the summary streams of several inuring priorities and yield each event per input.
+
+    The inputs are fed by one fmpy chain, so they depend on each other: if one input is not read,
+    its summarypy blocks, then the fmpy feeding it, and the later inuring priorities stop sending.
+    The reader therefore never blocks on a single input. It waits until any input has data, reads
+    only what is available and keeps it in that input's buffer, for the headers as for the events.
+
+    Each input's stream is expected to close every event with an E:S0 sentinel record.
+    """
+
+    def __init__(self, streams_in):
+        """Register the inputs in a selector.
+
+        Args:
+            streams_in (List[BinaryIO]): input streams, unbuffered (``buffering=0``) so the selector sees
+                every byte that is not read yet
+        """
+        self.streams_in = streams_in
+        try:
+            self.selector = self.register_streams_in(selectors.DefaultSelector())
+        except PermissionError:  # regular files can't be registered with epoll
+            self.selector = self.register_streams_in(selectors.SelectSelector())
+        self.pending = [bytearray() for _ in streams_in]  # bytes read but not parsed yet, per input
+        self.headers = [None] * len(streams_in)
+        self.len_sample = None
+        self.state = None
+        self.buffers = None
+
+    def register_streams_in(self, selector):
+        """Register every input in selector, with its index as data, and return it (closed on failure)."""
+        try:
+            for file_idx, stream_in in enumerate(self.streams_in):
+                selector.register(stream_in, selectors.EVENT_READ, file_idx)
+        except BaseException:
+            selector.close()
+            raise
+        return selector
+
+    def close(self):
+        """Close the selector."""
+        self.selector.close()
+
+    def read_available(self):
+        """Wait until any input has data or ends, and read what each ready input has.
+
+        Returns:
+            List[int]: inputs that reached the end of their stream
+        """
+        ended = []
+        for key, _ in self.selector.select():
+            data = key.fileobj.read(PIPE_CAPACITY)
+            if data:
+                self.pending[key.data] += data
+            else:
+                self.selector.unregister(key.fileobj)
+                ended.append(key.data)
+        return ended
+
+    def read_headers(self):
+        """Read the header of every input, keeping the data that follows in its buffer.
+
+        Returns:
+            len_sample (int): number of samples
+            summary_set_id (summaryset_id_dtype): summary set of the streams
+
+        Raises:
+            OasisException: if a stream ends before its header, is not a summary stream, or the streams have
+                different summary_set_id
+            OSError: if the streams have different stream types or len_sample, see get_and_check_header_in
+        """
+        while any(header is None for header in self.headers):
+            ended = self.read_available()
+            for file_idx, pending in enumerate(self.pending):
+                if self.headers[file_idx] is None and len(pending) >= HEADER_SIZE:
+                    self.headers[file_idx] = io.BytesIO(pending[:HEADER_SIZE])
+                    del pending[:HEADER_SIZE]
+            for file_idx in ended:
+                if self.headers[file_idx] is None:
+                    raise OasisException(f"input {file_idx} ended before its stream header")
+
+        # the headers are complete, read them as the other pytools do
+        stream_source_type, stream_agg_type, len_sample = get_and_check_header_in(self.headers)
+        if stream_source_type != SUMMARY_STREAM_ID or stream_agg_type != ITEM_STREAM:
+            raise OasisException(f"unsupported stream type {stream_source_type}, {stream_agg_type}, expected summary stream")
+
+        summary_set_ids = [np.frombuffer(header.read(summaryset_id_dtype_size), summaryset_id_dtype)[0] for header in self.headers]
+        if len(set(summary_set_ids)) > 1:
+            raise OasisException(f"input streams have different summary_set_id {summary_set_ids}")
+        self.len_sample = len_sample
+        return self.len_sample, summary_set_ids[0]
+
+    def read_events(self, max_summary_id):
+        """Yield every event of every input as soon as that input has sent it in full.
+
+        Must be called after read_headers. The event buffer holds copies of the event's records:
+        ``summary_ids``, ``expval``, ``offsets``, ``sidx`` and ``loss``. Record i is summary_ids[i]
+        with expval[i] and the pairs sidx[offsets[i]:offsets[i + 1]], loss[offsets[i]:offsets[i + 1]].
+
+        Args:
+            max_summary_id (int): largest summary_id in the summary set
+
+        Yields:
+            file_idx (int): index of the input in streams_in
+            event_id (event_id_dtype): event id
+            event_buffer (Dict[str, ndarray]): copies of the event's records, as described above
+
+        Raises:
+            OasisStreamException: if a record breaks the summary stream format, see read_buffer
+            OasisException: if an input ends in the middle of an event
+        """
+        self.state = np.zeros(len(self.streams_in), dtype=read_state_dtype)
+        self.buffers = [EventBuffer(max_summary_id, self.len_sample) for _ in self.streams_in]
+
+        # data that came after the headers
+        for file_idx in range(len(self.streams_in)):
+            yield from self.parse_pending(file_idx)
+
+        while self.selector.get_map():
+            ended = self.read_available()
+            for file_idx in range(len(self.streams_in)):
+                yield from self.parse_pending(file_idx)
+            for file_idx in ended:
+                state = self.state[file_idx]
+                if state['event_id'] != 0 or self.pending[file_idx]:
+                    raise OasisException(f"input {file_idx} ended in the middle of event {state['event_id']}")
+
+    def parse_pending(self, file_idx):
+        """Parse the bytes waiting in the buffer of one input and yield its complete events.
+
+        A record cut at the end of the buffer is kept for the next read.
+
+        Args:
+            file_idx (int): index of the input
+
+        Yields:
+            file_idx (int), event_id (event_id_dtype), event_buffer (Dict[str, ndarray]), see read_events
+        """
+        pending = self.pending[file_idx]
+        if not pending:
+            return
+        byte_mv = np.frombuffer(pending, dtype='b')
+        state = self.state[file_idx]
+        buffer = self.buffers[file_idx]
+        cursor = 0
+        while True:
+            try:
+                cursor, event_id, _, yield_event = read_buffer(byte_mv, cursor, len(pending), state, self.len_sample,
+                                                               buffer.summary_ids, buffer.expval, buffer.offsets,
+                                                               buffer.sidx, buffer.loss)
+            except ValueError as e:
+                raise OasisStreamException(f"Error reading input {file_idx}", e)
+            if not yield_event:
+                break
+            n_records, n_pairs = state['n_records'], state['n_pairs']
+            event_buffer = {
+                'summary_ids': buffer.summary_ids[:n_records].copy(),
+                'expval': buffer.expval[:n_records].copy(),
+                'offsets': buffer.offsets[:n_records + 1].copy(),
+                'sidx': buffer.sidx[:n_pairs].copy(),
+                'loss': buffer.loss[:n_pairs].copy()
+            }
+            yield file_idx, event_id, event_buffer
+            state['n_records'] = 0
+            state['n_pairs'] = 0
+        self.pending[file_idx] = pending[cursor:]  # a new bytearray, as byte_mv still views this one

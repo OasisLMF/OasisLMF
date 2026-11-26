@@ -1,4 +1,5 @@
 
+import io
 import pathlib
 import os
 import logging
@@ -7,11 +8,13 @@ import numpy as np
 
 from unittest.mock import patch, Mock
 
+import pandas as pd
 from hypothesis import given
 from hypothesis import strategies as st
 
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.manager import OasisManager
+from oasislmf.pytools.common.input_files import read_coverage_buildings
 from oasislmf.utils.log import LoggingContext
 from .data.common import (
     EXPECTED_SUMMARY_INFO_CSV, MIN_RUN_SETTINGS, MIN_LOC, MIN_ACC, MIN_INF, MIN_SCP, MIN_KEYS, MIN_KEYS_ERR, IL_RUN_SETTINGS, RI_RUN_SETTINGS,
@@ -178,6 +181,141 @@ class TestGenLosses(ComputationChecker):
 
         assert summary_info_csv == EXPECTED_SUMMARY_INFO_CSV
 
+    def _write_location_of_buildings(self, n_buildings, is_aggregate):
+        loc_df = pd.read_csv(io.StringIO(MIN_LOC))
+        loc_df['NumberOfBuildings'] = n_buildings
+        loc_df['IsAggregate'] = is_aggregate
+        self.write_str(self.tmp_oasis_files.get('oed_location_csv'), loc_df.to_csv(index=False))
+        return float(loc_df['BuildingTIV'].sum())
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__summary_info__tiv_does_not_depend_on_disaggregation(self, mock_run_func):
+        """The summary-info files report the location's TIV however its buildings are represented.
+
+        Under 'samples' one item stands for all the buildings at one building's TIV, so the count
+        has to be carried to wherever the TIV is summed. Both summary paths are covered: a set
+        with no fields ('All-Risks') and a set grouped by an OED field.
+        """
+        location_tiv = self._write_location_of_buildings(n_buildings=3, is_aggregate=1)
+        settings = {**MIN_RUN_SETTINGS, 'gul_summaries': [
+            {**MIN_RUN_SETTINGS['gul_summaries'][0], 'id': 1},
+            {**MIN_RUN_SETTINGS['gul_summaries'][0], 'id': 2, 'oed_fields': ['LocNumber']}]}
+        self.write_json(self.tmp_files.get('analysis_settings_json'), settings)
+
+        for disaggregation in ('none', 'items', 'samples'):
+            with self.subTest(disaggregation=disaggregation), \
+                    self.tmp_dir() as files_dir, self.tmp_dir() as model_run_dir:
+                self.manager.generate_files(**{**self.args_gen_files_gul, 'oasis_files_dir': files_dir,
+                                               'disaggregation': disaggregation})
+                self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
+                                                'model_run_dir': model_run_dir})
+                for summary_set in (1, 2):
+                    info = pd.read_csv(os.path.join(model_run_dir, 'output', f'gul_S{summary_set}_summary-info.csv'))
+                    self.assertAlmostEqual(info['tiv'].sum(), location_tiv, places=2, msg=f'summary set {summary_set}')
+
+    # the engines that cannot read packed inputs, and what refusing them says
+    PACKING_REFUSALS = [
+        ({'gul_random_generator': 0}, 'random generator 0'),
+        ({'gul_random_generator': 1}, 'random generator 1'),
+        ({'model_custom_gulcalc': 'gulmc'}, 'custom_gulcalc_supports_packing'),
+    ]
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__packed_inputs__refused_by_an_engine_that_cannot_read_them(self, mock_run_func):
+        """'samples' inputs need random generator 2 and a ground-up engine that knows packed streams.
+
+        Generation cannot always tell: the custom gulcalc may only be known at the loss step, and
+        the random generator is a loss-step parameter. Either failure would otherwise be silent
+        or mid-run -- a gulcalc reading the per-building TIV understates every loss by the count.
+
+        Summed buildings (IsAggregate=0) are packed inputs too: the TIV is divided all the same.
+        """
+        allowed = [{}, {'model_custom_gulcalc': 'gulmc', 'custom_gulcalc_supports_packing': True}]
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+
+        for is_aggregate in (0, 1):
+            self._write_location_of_buildings(n_buildings=3, is_aggregate=is_aggregate)
+            with self.tmp_dir() as files_dir:
+                self.manager.generate_files(**{**self.args_gen_files_gul, 'oasis_files_dir': files_dir,
+                                               'disaggregation': 'samples'})
+                for params, message in self.PACKING_REFUSALS:
+                    with self.subTest(IsAggregate=is_aggregate, **params), self.tmp_dir() as model_run_dir:
+                        with self.assertRaises(OasisException) as caught:
+                            self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
+                                                            'model_run_dir': model_run_dir, **params})
+                        self.assertIn(message, str(caught.exception))
+                for params in allowed:
+                    with self.subTest(IsAggregate=is_aggregate, **params), self.tmp_dir() as model_run_dir:
+                        mock_run_func.reset_mock()
+                        self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
+                                                        'model_run_dir': model_run_dir, **params})
+                        mock_run_func.assert_called_once()
+
+    @patch('oasislmf.execution.runner.run')
+    def test_losses__unpacked_inputs__run_by_every_engine(self, mock_run_func):
+        """Only packed inputs are refused: a location of many buildings disaggregated into items,
+        or a location of one building, runs on any random generator and any gulcalc."""
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+
+        for n_buildings, disaggregation in ((3, 'items'), (1, 'samples')):
+            self._write_location_of_buildings(n_buildings=n_buildings, is_aggregate=1)
+            with self.tmp_dir() as files_dir:
+                self.manager.generate_files(**{**self.args_gen_files_gul, 'oasis_files_dir': files_dir,
+                                               'disaggregation': disaggregation})
+                for params, _ in self.PACKING_REFUSALS:
+                    with self.subTest(NumberOfBuildings=n_buildings, disaggregation=disaggregation, **params), \
+                            self.tmp_dir() as model_run_dir:
+                        mock_run_func.reset_mock()
+                        self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': files_dir,
+                                                        'model_run_dir': model_run_dir, **params})
+                        mock_run_func.assert_called_once()
+
+    def _runner_choosing_its_own_gulcalc(self, package_dir):
+        """A supplier_model_runner.py that passes its own gulcalc, as the complex models in OasisModels do."""
+        os.makedirs(package_dir)
+        with open(os.path.join(package_dir, 'supplier_model_runner.py'), 'w') as f:
+            f.write("from oasislmf.execution.runner import run as oasislmf_run\n\n\n"
+                    "def run(analysis_settings, custom_gulcalc_cmd=None, **kwargs):\n"
+                    "    oasislmf_run(analysis_settings, custom_gulcalc_cmd='gulmc', **kwargs)\n")
+        return package_dir
+
+    def test_files__a_model_with_its_own_runner__is_generated_unpacked(self):
+        """A supplier_model_runner.py can pick a gulcalc no setting names, so generation cannot
+        tell whether it reads packed streams and generates its buildings as items, unless the model
+        declares that its gulcalc does."""
+        self._write_location_of_buildings(n_buildings=3, is_aggregate=1)
+        with self.tmp_dir() as tmp:
+            package_dir = self._runner_choosing_its_own_gulcalc(os.path.join(tmp, 'runner_with_own_gulcalc'))
+            for params, packed in [({}, True), ({'model_package_dir': package_dir}, False),
+                                   ({'model_package_dir': package_dir, 'custom_gulcalc_supports_packing': True}, True)]:
+                with self.subTest(**params), self.tmp_dir() as files_dir:
+                    self.manager.generate_files(**{**self.args_gen_files_gul, 'oasis_files_dir': files_dir,
+                                                   'disaggregation': 'samples', **params})
+                    n_building = read_coverage_buildings(files_dir)['n_building']
+                    self.assertEqual(n_building.shape[0] > 0 and abs(n_building).max() > 1, packed)
+
+    def test_losses__packed_inputs__refused_by_a_gulcalc_its_runner_chose(self):
+        """Packed inputs generated without the model's runner are refused once the runner has
+        chosen its gulcalc, which no check made before the loss step can see."""
+        self._write_location_of_buildings(n_buildings=3, is_aggregate=1)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        with self.tmp_dir() as tmp, self.tmp_dir() as files_dir, \
+                patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10008"}):
+            package_dir = self._runner_choosing_its_own_gulcalc(os.path.join(tmp, 'runner_with_own_gulcalc'))
+            self.manager.generate_files(**{**self.args_gen_files_gul, 'oasis_files_dir': files_dir,
+                                           'disaggregation': 'samples'})
+            losses_args = {**self.min_args, 'oasis_files_dir': files_dir, 'model_package_dir': package_dir}
+            with self.tmp_dir() as model_run_dir, self.assertRaisesRegex(OasisException, "custom gulcalc 'gulmc'"):
+                self.manager.generate_losses(**{**losses_args, 'model_run_dir': model_run_dir})
+
+            class ScriptWritten(Exception):
+                pass
+
+            with self.tmp_dir() as model_run_dir, self.assertRaises(ScriptWritten), \
+                    patch('oasislmf.execution.runner.genbash', side_effect=ScriptWritten):
+                self.manager.generate_losses(**{**losses_args, 'model_run_dir': model_run_dir,
+                                                'custom_gulcalc_supports_packing': True})
+
     def test_losses__run_il(self):
         self.manager.generate_files(**self.args_gen_files_il)
         run_settings = self.tmp_files.get('analysis_settings_json')
@@ -228,7 +366,7 @@ class TestGenLosses(ComputationChecker):
 
     def test_losses__run_ri_and_rl__all_layers_summarised(self):
         """Gross RL output is produced at every RI layer, so requesting it alongside net RI
-        output writes an fmsummaryxref into all of them - the pre-built summarypy structures
+        output writes an rlsummaryxref into all of them - the pre-built summarypy structures
         must cover the same set."""
         self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MULTI_LAYER_INF)
         self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MULTI_LAYER_SCP)
@@ -253,7 +391,7 @@ class TestGenLosses(ComputationChecker):
         run_input_dir = os.path.join(call_args['model_run_dir'], 'input')
         built = {
             ri_dir for ri_dir in ri_dirs
-            if os.path.isfile(os.path.join(run_input_dir, ri_dir, 'ri', 'summary_info.npy'))
+            if os.path.isfile(os.path.join(run_input_dir, ri_dir, 'rl', 'summary_info.npy'))
         }
         self.assertEqual(built, set(ri_dirs))
 
@@ -384,6 +522,40 @@ class TestGenLosses(ComputationChecker):
             self.manager.generate_losses_dir(**{**self.min_args, 'model_run_dir': model_run_dir})
         self.assertTrue(any('occurrence index not built' in line for line in logs.output))
 
+    @patch('subprocess.Popen')
+    def test_losses__output__remove_working_file_controls_cleanup(self, mock_popen):
+        """The ``remove_working_file`` option of the output step decides whether
+        the outputs script deletes the ``work/`` and fifo dirs once it has finished."""
+        mock_proc = Mock()
+        mock_proc.pid = 12345
+        mock_proc.communicate.return_value = (b'', None)
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        for remove_working_file in (True, False):
+            with self.tmp_dir() as model_run_dir, self.subTest(remove_working_file=remove_working_file):
+                call_args = {
+                    **self.min_args,
+                    'model_run_dir': model_run_dir,
+                    'kernel_fifo_relative': True,
+                    'max_process_id': 1,
+                }
+                self.manager.generate_losses_dir(**call_args)
+                self.manager.generate_losses_output(**call_args, remove_working_file=remove_working_file)
+
+                script = self.read_file(os.path.join(model_run_dir, 'run_outputs.sh')).decode()
+                cleanup_lines = [
+                    'rm -R -f {}'.format(os.path.join(model_run_dir, 'work', '*')),
+                    'rm -R -f {}'.format(os.path.join(model_run_dir, 'fifo', '*')),
+                ]
+                for line in cleanup_lines:
+                    if remove_working_file:
+                        self.assertIn(line, script)
+                    else:
+                        self.assertNotIn(line, script)
+
     def test_losses__chucked_workflow(self):
         num_chunks = 5
         self.manager.generate_files(**self.args_gen_files_ri)
@@ -419,6 +591,34 @@ class TestGenLosses(ComputationChecker):
                 merge_dirs(chunk_work_dir, main_work_dir)
 
             self.manager.generate_losses_output(**call_args)
+
+    @patch('oasislmf.execution.runner.run_outputs')
+    @patch('oasislmf.execution.runner.run_analysis')
+    def test_losses__chunked_workflow__samples_set__in_model_settings(self, mock_run_analysis, mock_run_outputs):
+        # each chunk / output step must use the settings stored by generate_losses_dir,
+        # which hold number_of_samples taken from model_default_samples
+        expected_samples = 250
+        model_settings = {**MIN_MODEL_SETTINGS, 'model_default_samples': expected_samples}
+        no_samples_settings = MIN_RUN_SETTINGS.copy()
+        no_samples_settings.pop('number_of_samples')
+        self.write_json(self.tmp_files.get('model_settings_json'), model_settings)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), no_samples_settings)
+        self.manager.generate_files(**self.args_gen_files_gul)
+
+        with self.tmp_dir() as model_run_dir:
+            call_args = {
+                **self.min_args,
+                'model_settings_json': self.tmp_files.get('model_settings_json').name,
+                'max_process_id': 2,
+                'model_run_dir': model_run_dir,
+            }
+            self.manager.generate_losses_dir(**call_args)
+            with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10022"}):
+                self.manager.generate_losses_partial(**{**call_args, 'process_number': 1, 'analysis_pk': 1})
+            self.manager.generate_losses_output(**call_args)
+
+        self.assertEqual(mock_run_analysis.call_args.kwargs['number_of_samples'], expected_samples)
+        self.assertEqual(mock_run_outputs.call_args.kwargs['analysis_settings']['number_of_samples'], expected_samples)
 
     @patch('oasislmf.execution.runner.run')
     def test_losses__supplier_model_ruuner(self, mock_run_func):
