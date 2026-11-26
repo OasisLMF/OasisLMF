@@ -823,10 +823,14 @@ def test_split_loc_perils_covered_keeps_location_rows_that_share_a_loc_id():
     ([1, 1], ["WTC", "QEQ"], {1: "QEQ not modelled"}),            # a row sharing a modelled location's loc_id
     ([1, 1, 1], ["WTC;QEQ", "OO1", "QEQ"], {1: "ORF;OSF;QEQ not modelled"}),  # rows of one location give one line
     ([1, 1, 2, 2], ["QEQ", "QEQ", "WTC", "WTC"], {1: "QEQ not modelled"}),    # identical rows give it once
-    ([1], ["ZZZ"], {1: "ZZZ not modelled"}),                      # no known peril: the codes as listed
+    ([1], ["ZZZ"], {1: "ZZZ unknown peril code"}),                # no peril or peril group code
+    ([1, 2], ["WTC;EQD", "WW1;ZZZ;EQD"], {1: "EQD unknown peril code",    # reported even next to a modelled peril
+                                          2: "WEC;WSS not modelled; EQD;ZZZ unknown peril code"}),
+    ([1, 1], ["WTC;EQD", "QEQ"], {1: "QEQ not modelled; EQD unknown peril code"}),  # the union of both lists
     ([1, 2, 3, 4], ["WTC", "", None, "  "], {2: "no perils covered", 3: "no perils covered", 4: "no perils covered"}),
     ([1, 1, 2, 2], ["", "WTC", "", "QEQ"], {2: "QEQ not modelled"}),  # a blank row adds nothing to its loc_id's other rows
-], ids=["partial", "none", "shared loc_id", "union", "duplicates", "unknown codes", "blank", "blank sharing a loc_id"])
+], ids=["partial", "none", "shared loc_id", "union", "duplicates", "unknown codes", "unknown next to known",
+        "unknown union", "blank", "blank sharing a loc_id"])
 def test_split_loc_perils_covered_lists_the_perils_not_modelled_once_per_location(loc_ids, perils_covered, expected):
     fct = Lookup(config={}).build_split_loc_perils_covered(["WTC"])
 
@@ -838,8 +842,9 @@ def test_split_loc_perils_covered_lists_the_perils_not_modelled_once_per_locatio
     assert len(not_modelled) == len(expected)
 
 
+@pytest.mark.parametrize("loc_id_dtype", ["int64", "category"])
 @pytest.mark.parametrize("dtype", [object, "string", "category"])  # ods_tools reads a blank cell as '' in a string column
-def test_lookup_returns_every_location_in_keys_or_keys_errors(dtype):
+def test_lookup_returns_every_location_in_keys_or_keys_errors(dtype, loc_id_dtype):
     """Input file generation refuses a run where a loc_id is in neither keys nor keys-errors.
     The error line is repeated for each coverage, next to the keys of the perils modelled."""
     config = {
@@ -852,11 +857,13 @@ def test_lookup_returns_every_location_in_keys_or_keys_errors(dtype):
         },
         "strategy": ["split", "pivot"],
     }
-    perils_covered = ["WTC", "WW1", "QQ1", "ZZZ", "", None, "  ", "WTC", "", "QEQ", ""]
-    loc_ids = [1, 2, 3, 4, 5, 6, 7, 8, 8, 9, 9]  # 8 and 9: a blank row sharing a loc_id
+    perils_covered = ["WTC", "WW1", "QQ1", "ZZZ", "", None, "  ", "WTC", "", "QEQ", "", "WTC;EQD", "QEQ", "WEC", "QEQ"]
+    loc_ids = [1, 2, 3, 4, 5, 6, 7, 8, 8, 9, 9, 10, 10, 11, 11]  # 8 and 9: a blank row sharing a loc_id
 
-    keys = Lookup(config=config).process_locations(
-        pd.DataFrame({"loc_id": loc_ids, "LocPerilsCovered": pd.Series(perils_covered, dtype=dtype)}))
+    keys = Lookup(config=config).process_locations(pd.DataFrame({
+        # a category loc_id with an unused category, which pandas 2 groups by unless told not to
+        "loc_id": pd.Series(loc_ids).astype(pd.CategoricalDtype(range(1, 13)) if loc_id_dtype == "category" else loc_id_dtype),
+        "LocPerilsCovered": pd.Series(perils_covered, dtype=dtype)}))
 
     assert set(keys["loc_id"]) == set(loc_ids)
     success = keys["status"] == OASIS_KEYS_STATUS["success"]["id"]
@@ -865,9 +872,10 @@ def test_lookup_returns_every_location_in_keys_or_keys_errors(dtype):
     for coverage_type in (1, 3):
         errors = keys[~success & (keys["coverage_type"] == coverage_type)]
         assert dict(zip(errors["loc_id"], errors["message"])) == {
-            2: "WEC not modelled", 3: "QEQ;QFF;QLF;QLS;QSL;QTS not modelled", 4: "ZZZ not modelled",
-            5: "no perils covered", 6: "no perils covered", 7: "no perils covered", 9: "QEQ not modelled"}
-        assert len(errors) == 7
+            2: "WEC not modelled", 3: "QEQ;QFF;QLF;QLS;QSL;QTS not modelled", 4: "ZZZ unknown peril code",
+            5: "no perils covered", 6: "no perils covered", 7: "no perils covered", 9: "QEQ not modelled",
+            10: "QEQ not modelled; EQD unknown peril code", 11: "QEQ;WEC not modelled"}
+        assert len(errors) == 9
 
 
 def test_peril_covered_deterministic_lookup_gives_each_peril_once():
@@ -886,6 +894,16 @@ def test_peril_covered_deterministic_lookup_gives_each_peril_once():
     assert not keys_df.duplicated(["loc_id", "peril_id", "coverage_type"]).any()
     assert (keys_df["loc_id"].value_counts() == 4).all()  # 2 perils x 2 coverage types each
     assert "peril_group_id" not in locations
+
+
+def test_peril_covered_deterministic_lookup_accepts_a_single_peril_as_a_string():
+    config = {"supported_oed_coverage_types": [1]}
+    locations = pd.DataFrame({"loc_id": [1, 2], "LocPerilsCovered": ["WTC", "QEQ"]})
+
+    from_string = PerilCoveredDeterministicLookup(config={**config, "model_perils_covered": "WTC"}).process_locations(locations)
+    from_list = PerilCoveredDeterministicLookup(config={**config, "model_perils_covered": ["WTC"]}).process_locations(locations)
+
+    pd.testing.assert_frame_equal(from_string, from_list)
 
 
 def test_peril_covered_deterministic_lookup_keeps_location_rows_that_share_a_loc_id():
