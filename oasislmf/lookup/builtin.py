@@ -331,20 +331,16 @@ key_columns = ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerab
 
 
 def expand_perils_covered(locations, perils_covered_column, peril_groups_df):
-    """The perils each location row covers, once per row, with the peril group they came from.
+    """The perils each location row covers, with the peril group they came from.
 
     A peril reached through several listed codes (a group listed with perils it contains, e.g.
     OO1;ORF;OSF, or two groups that contain it) is kept once, with the first listed code that
     contains it. Identical location rows give their perils once. Only the perils covered column
     is expanded, so the memory used does not grow with the number of location columns.
-
-    Args:
-        locations (pd.DataFrame): the locations
-        perils_covered_column (str): the column with the ';'-separated peril and peril group codes
-        peril_groups_df (pd.DataFrame): peril_group_id to peril_id, see get_peril_groups_df
+    peril_groups_df maps peril_group_id to peril_id, see get_peril_groups_df.
 
     Returns:
-        pd.DataFrame: row (position of the location row), peril_group_id, peril_id
+        pd.DataFrame: row (position, not label, of the location row), peril_group_id, peril_id
     """
     rows = np.flatnonzero(~locations.duplicated().to_numpy())
     codes = pd.Series(locations[perils_covered_column].iloc[rows].astype(str).str.split(';').to_numpy(), index=rows).explode()
@@ -362,15 +358,10 @@ def not_modelled_perils(locations, perils_covered_column, peril_groups_df, model
 
     The message lists those perils, ';'-joined: 'WEC;WSS not modelled'. A row whose codes name no
     known peril gives its codes as listed ('ZZZ not modelled'), and a blank row (None, NaN, '')
-    gives 'no perils covered', so the location is still reported. Rows sharing a loc_id give one
-    line, the sorted union of their perils; a blank row adds nothing to the other rows of its loc_id.
-    Each distinct perils covered value is expanded once, so the cost hardly grows with the rows.
-
-    Args:
-        locations (pd.DataFrame): the locations
-        perils_covered_column (str): the column with the ';'-separated peril and peril group codes
-        peril_groups_df (pd.DataFrame): peril_group_id to peril_id, see get_peril_groups_df
-        model_perils_covered (pd.Series, None): the perils the model covers, None for all of them
+    gives 'no perils covered', so every location ends in keys or keys-errors. Rows sharing a loc_id
+    give one line, the sorted union of their perils; a blank row adds nothing to the other rows of
+    its loc_id. model_perils_covered None means the model covers every peril. Each distinct perils
+    covered value is expanded once, so the cost hardly grows with the rows.
 
     Returns:
         pd.DataFrame: row (position of the loc_id's first location row) and message, in row order
@@ -889,7 +880,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             model = pd.Series(model_perils_covered) if model_perils_covered else None
             perils = expand_perils_covered(locations, perils_covered_column, peril_groups_df)
             if model is not None:
-                # only the rows kept below are copied with every location column; sorted on peril_id as before
+                # filter before copying the location rows; the output is ordered by peril_id
                 perils = perils[perils['peril_id'].isin(model)]
                 perils = perils.take(np.argsort(perils['peril_id'].to_numpy(), kind='stable'))
             peril_locations = locations.iloc[perils['row'].to_numpy()].reset_index(drop=True)
