@@ -1,4 +1,4 @@
-shapely>=1.3.0
+shapely>=2.0
 geopandas
 scikit-learn
 rtree>=0.8.3
