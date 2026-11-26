@@ -640,7 +640,7 @@ The net calculation for iterations with multiple layers is:
 Reinsurance outputs
 """""""""""""""""""
 
-.. versionadded:: NEXT
+.. versionadded:: 2.5.10
 
 A model run can report two reinsurance perspectives, each set in the analysis settings:
 

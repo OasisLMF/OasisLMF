@@ -240,7 +240,7 @@ by the law of total probability, `1 − Π(1 − Cᵢ)` over the items in each s
 
 ## rlcombine
 
-```{versionadded} NEXT
+```{versionadded} 2.5.10
 ```
 
 `rlcombine` combines the reinsurer's loss (`rl`) of every inuring priority into one summary

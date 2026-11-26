@@ -660,7 +660,7 @@ When an inuring priority runs over several layers, for example treaties at both 
 ``ACC`` risk level, ``ri_IP{level}`` is written for its last layer and ``rl_IP{level}`` for each
 of its layers.
 
-.. versionchanged:: NEXT
+.. versionchanged:: 2.5.10
    ``rl`` results are the reinsurer's loss over all inuring priorities, set by ``rl_summaries``,
    and ``rl_IP{level}`` results are written only for the priorities in ``rl_inuring_priorities``.
    ``reins_output_levels_summary.json`` replaces ``ri_inuring_priority_output_levels.json``.

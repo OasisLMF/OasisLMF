@@ -680,7 +680,7 @@ The key column named in ``sorted_lookup.json`` must be in the locations, so list
 create it in an earlier step). Locations whose key is null, not an integer, or not in the table get null values, and
 -1 in ``id_columns``.
 
-.. versionadded:: NEXT
+.. versionadded:: 2.5.10
 
 .. code-block:: JSON
 
@@ -717,7 +717,7 @@ with a null latitude or longitude, or that can't be projected, always get NaN.
 The step writes the reason to the location's ``message`` (e.g. ``transform_coordinates failure: outside the area of
 use of EPSG:27700``), which is reported in the keys errors file if no id can then be found.
 
-.. versionadded:: NEXT
+.. versionadded:: 2.5.10
 
 .. code-block:: JSON
 
