@@ -97,6 +97,8 @@ Structured array of type `items_MC_data_type`, populated per event by `reconstru
 | `return_period` | int32 | Dynamic footprint return period |
 | `source_item_j` | int32 | Coverage dependency: the source item's position within its coverage; < 0 if independent |
 | `packed_buildings` | int32 | The signed building count, carried through from the items table |
+| `sparse` | int8 | 1 when only the item's live samples are computed (see [Item areaperils](#item-areaperils)) |
+| `sample_start` / `sample_end` | int64 | Its run of the event's live sample codes and areaperils, when sparse |
 
 The hazard row and the event's return period are not here: they belong to the
 item's areaperil, of which an item can have several. See [Item areaperils](#item-areaperils).
@@ -147,6 +149,25 @@ Size: one byte per (location, building, sample) of the blended locations, so it 
 S = 1000, 250k single-building blended locations take 250 MB, memory-mapped and shared by the gulmc
 processes.
 
+**Only the live samples are computed.** Under full Monte Carlo most samples of a blended item
+usually land on areaperils with no hazard in the event, and lose nothing. So, per event,
+`prepare_event_samples` lists each such item's live samples, starting from the footprint rather
+than from the samples: the group areaperils with hazard, the placements that read them
+(`blended_areaperil_ja_placements`), then the location's samples standing there (the inverse of
+`location_placements`, built with it). The item is then `sparse` and the event loop computes those
+samples only, a building's at a time; everything else stays at zero. The work follows the live
+samples, not buildings times S. Not made sparse: coverage-dependency sources and dependents (their
+damage bins are read per sample across items), debug runs (they write every sample's random
+values), and items of a single placement, which are live or dead whole.
+
+A building other than the first draws its base random values from a block per (rng group,
+building), shared by the group's items. A sparse item needs only some of a block, so it is drawn by
+`_lh_philox_partial_block`: the first m steps of the block's shuffle give m distinct strata, still a
+valid Latin Hypercube sample. Which stratum a sample gets depends on the set drawn, so the set is the
+union of what the group's items need in the event, and a building that any item computes whole is
+drawn as the full block. A location's results are therefore repeatable for a given event, and the
+first building, the group's shared row, is drawn exactly as before.
+
 Per event, the first item of a group that `compute_event_losses` reaches computes the group's
 **mixed cdf**, kept in the mixed cdf cache (below) for the group's other items. A size-1 group's is
 its areaperil's hazard this event weighting the damage cdf table (`areaperil_cdf_slot`); a blended
@@ -174,6 +195,9 @@ location spans must be in sections.csv, which is the lookup's job, as for any lo
 | `blended_areaperil_placement_ja_offsets` / `_ja_cum_weights` / `_ja_areaperil_j` | blended areaperil | placements: running weight, and which areaperil j covers each (-1 none). The uniform is scaled by `max(1, total weight)`, which is 1 for float weights and the total for counts |
 | `location_placements` | (location, building, sample) | placement index, shared by the location's items; the placement count means unplaced |
 | `placement_item_ind` / `placement_item_starts` | item with more than one placement | where its first building's samples start in `location_placements` |
+| `placement_item_locations` / `placement_item_code_starts` | item with more than one placement | its location, and the code ``(building - 1) * S + sample`` of its first building's first sample within it |
+| `placement_location_ja_offsets` / `_ja_placements` / `_ja_code_offsets` / `_ja_codes` | location, then placement | the inverse of `location_placements`: the placements the location's samples stand on, and the codes on each, ascending |
+| `blended_areaperil_ja_placement_offsets` / `blended_areaperil_ja_placements` | blended areaperil and areaperil j | the placements that read it, the inverse of `blended_areaperil_placement_ja_areaperil_j` |
 | `item_mixed_cdf_groups` | item | its mixed cdf group |
 | `mixed_cdf_group_items_ja_offsets` / `mixed_cdf_group_items_ja_item_idxs` | mixed cdf group | its items, in item order |
 | `mixed_cdf_group_areaperil_ja_offsets` | mixed cdf group | its run of group areaperils |

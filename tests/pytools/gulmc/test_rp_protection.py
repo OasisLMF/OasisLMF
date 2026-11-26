@@ -118,6 +118,12 @@ def _make_items_array(intensity_adjustment=0, return_period=0):
     return items
 
 
+# no item computes only its live samples (see prepare_event_samples): its samples, areaperils and draws
+_NO_SPARSE_SAMPLES = (np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int32),
+                      np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.float64),
+                      np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.float64))
+
+
 def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment=0,
                                     sample_size=0, n_haz_records=1, dependent=False):
     """
@@ -312,6 +318,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         building_losses, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_base, haz_rndms_base,
         vuln_seeds, haz_seeds, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
+        *_NO_SPARSE_SAMPLES,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
         source_eff_damage_cdf_len_stack,
     )
@@ -642,6 +649,7 @@ def test_rp_protection_only_affects_protected_items():
         building_losses, loss_correlation_by_item, hermite_coeffs,
         vuln_rndms_base, haz_rndms_base,
         vuln_seeds, haz_seeds, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
+        *_NO_SPARSE_SAMPLES,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
         source_eff_damage_cdf_len_stack,
     )

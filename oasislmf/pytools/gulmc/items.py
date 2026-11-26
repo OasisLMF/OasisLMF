@@ -83,19 +83,32 @@ def build_item_placements(items, item_location_keys, item_building_ids,
         sample_size (int): number of samples S.
 
     Returns:
-        tuple: ``placement_item_idxs`` (int32, ascending): the items that read a placement;
-        ``placement_item_starts`` (int64): for each, where its first building's samples start in
-        ``location_placements``, building b and sample s being at ``start + (b - 1) * S + (s - 1)``;
-        and ``location_placements``: per (location, building, sample) the placement index, equal
-        to the number of placements when float weights leave the building unplaced. Its dtype is
-        the narrowest unsigned type that holds that index.
+        dict: the arrays below, by name. A location's code is ``(b - 1) * S + (s - 1)`` for its
+        building b and sample s (both 1-based).
+
+        - ``placement_item_idxs`` (int32, ascending): the items that read a placement.
+        - ``placement_item_starts`` (int64): for each, where its first building's samples start in
+          ``location_placements``, building b and sample s being at ``start + (b - 1) * S + (s - 1)``.
+        - ``location_placements``: per (location, building, sample) the placement index, equal to
+          the number of placements when float weights leave the building unplaced. Its dtype is
+          the narrowest unsigned type that holds that index.
+        - ``placement_item_locations`` (int32) and ``placement_item_code_starts`` (int64): for each
+          item that reads a placement, its location and the code of its first building's first
+          sample within that location.
+        - The inverse of ``location_placements``, which lists the samples that land on a given
+          placement: ``placement_location_ja_offsets`` (int64, per location plus one) delimits
+          each location's run of ``placement_location_ja_placements``, the placements its
+          samples land on (ascending, of ``location_placements``'s dtype; unplaced samples are
+          left out); ``placement_location_ja_code_offsets`` (int64, one past the last) delimits
+          each listed placement's run of ``placement_location_ja_codes``, the location codes on
+          it, ascending, in the narrowest unsigned type that holds them.
     """
     blended_idx = items['blended_areaperil_idx']
     n_placements = (blended_areaperil_placement_ja_offsets[blended_idx + 1]
                     - blended_areaperil_placement_ja_offsets[blended_idx]).astype(np.int64)
     placement_item_idxs = np.flatnonzero(n_placements > 1).astype(np.int32)
     if placement_item_idxs.shape[0] == 0:
-        return placement_item_idxs, np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.uint8)
+        return empty_placements()
 
     item_blended_idx = blended_idx[placement_item_idxs]
     first_building = item_building_ids[placement_item_idxs].astype(np.int64)
@@ -133,7 +146,157 @@ def build_item_placements(items, item_location_keys, item_building_ids,
     _fill_location_placements(location_keys, location_n_buildings, location_starts, location_blended_idx,
                               blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
                               sample_size, location_placements)
-    return placement_item_idxs, placement_item_starts, location_placements
+
+    # the inverse: per location, which codes land on each placement
+    location_n_placements = (blended_areaperil_placement_ja_offsets[location_blended_idx + 1]
+                             - blended_areaperil_placement_ja_offsets[location_blended_idx]).astype(np.int64)
+    counts = np.empty(max_index + 1, dtype=np.int64)
+    location_n_distinct = np.empty(n_locations, dtype=np.int64)
+    n_placed = _count_location_placements(location_starts, location_n_placements, location_placements, counts,
+                                          location_n_distinct)
+    ja_offsets = np.zeros(n_locations + 1, dtype=np.int64)
+    np.cumsum(location_n_distinct, out=ja_offsets[1:])
+    max_code = int(location_n_buildings.max()) * sample_size - 1
+    code_dtype = np.uint16 if max_code <= np.iinfo(np.uint16).max else (
+        np.uint32 if max_code <= np.iinfo(np.uint32).max else np.int64)
+    ja_placements = np.empty(ja_offsets[-1], dtype=placement_dtype)
+    ja_code_offsets = np.empty(ja_offsets[-1] + 1, dtype=np.int64)
+    ja_codes = np.empty(n_placed, dtype=code_dtype)
+    _fill_location_placement_codes(location_starts, location_n_placements, location_placements, counts,
+                                   ja_placements, ja_code_offsets, ja_codes)
+    logger.info(f"placements: {n_locations} locations, {location_placements.shape[0]} samples on "
+                f"{ja_placements.shape[0]} (location, placement) pairs")
+
+    return {
+        'placement_item_idxs': placement_item_idxs,
+        'placement_item_starts': placement_item_starts,
+        'location_placements': location_placements,
+        'placement_item_locations': item_location.astype(np.int32),
+        'placement_item_code_starts': (first_building - 1) * sample_size,
+        'placement_location_ja_offsets': ja_offsets,
+        'placement_location_ja_placements': ja_placements,
+        'placement_location_ja_code_offsets': ja_code_offsets,
+        'placement_location_ja_codes': ja_codes,
+    }
+
+
+def build_areaperil_placements(blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets,
+                               blended_areaperil_placement_ja_areaperil_j):
+    """The inverse of ``blended_areaperil_placement_ja_areaperil_j``: per blended areaperil and
+    areaperil_j, the placements that read it. Several placements can read one areaperil.
+
+    Returns:
+        tuple: ``blended_areaperil_ja_placement_offsets`` (oasis_int), indexed like
+        ``blended_areaperil_ja`` (position ``blended_areaperil_ja_offsets[b] + areaperil_j``) plus
+        one, delimiting ``blended_areaperil_ja_placements`` (int32), each one's placements as
+        indexes within its blended areaperil, ascending. Uncovered placements are not listed.
+    """
+    n_positions = int(blended_areaperil_ja_offsets[-1])
+    counts = np.zeros(n_positions + 1, dtype=np.int64)
+    _count_areaperil_placements(blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets,
+                                blended_areaperil_placement_ja_areaperil_j, counts)
+    offsets = np.zeros(n_positions + 1, dtype=oasis_int)
+    np.cumsum(counts[:n_positions], out=offsets[1:])
+    placements = np.empty(int(offsets[-1]), dtype=np.int32)
+    _fill_areaperil_placements(blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets,
+                               blended_areaperil_placement_ja_areaperil_j, offsets, counts, placements)
+    return offsets, placements
+
+
+@nb.njit(cache=True)
+def _count_areaperil_placements(ja_offsets, placement_ja_offsets, placement_ja_areaperil_j, counts):
+    for blend in range(placement_ja_offsets.shape[0] - 1):
+        for pos in range(placement_ja_offsets[blend], placement_ja_offsets[blend + 1]):
+            areaperil_j = placement_ja_areaperil_j[pos]
+            if areaperil_j >= 0:
+                counts[ja_offsets[blend] + areaperil_j] += 1
+
+
+@nb.njit(cache=True)
+def _fill_areaperil_placements(ja_offsets, placement_ja_offsets, placement_ja_areaperil_j, offsets, cursor, placements):
+    """``cursor`` is overwritten, as each position's write cursor."""
+    for a in range(offsets.shape[0] - 1):
+        cursor[a] = offsets[a]
+    for blend in range(placement_ja_offsets.shape[0] - 1):
+        start = placement_ja_offsets[blend]
+        for pos in range(start, placement_ja_offsets[blend + 1]):
+            areaperil_j = placement_ja_areaperil_j[pos]
+            if areaperil_j >= 0:
+                a = ja_offsets[blend] + areaperil_j
+                placements[cursor[a]] = pos - start
+                cursor[a] += 1
+
+
+def empty_placements():
+    """``build_item_placements``'s arrays when no item reads a placement."""
+    return {
+        'placement_item_idxs': np.zeros(0, dtype=np.int32),
+        'placement_item_starts': np.zeros(0, dtype=np.int64),
+        'location_placements': np.zeros(0, dtype=np.uint8),
+        'placement_item_locations': np.zeros(0, dtype=np.int32),
+        'placement_item_code_starts': np.zeros(0, dtype=np.int64),
+        'placement_location_ja_offsets': np.zeros(1, dtype=np.int64),
+        'placement_location_ja_placements': np.zeros(0, dtype=np.uint8),
+        'placement_location_ja_code_offsets': np.zeros(1, dtype=np.int64),
+        'placement_location_ja_codes': np.zeros(0, dtype=np.uint16),
+    }
+
+
+@nb.njit(cache=True)
+def _count_location_placements(location_starts, location_n_placements, location_placements, counts, location_n_distinct):
+    """First pass of the inversion: per location, how many distinct placements its samples land on.
+
+    ``counts`` is scratch of at least the largest placement count plus one. Returns the number of
+    placed samples, the unplaced ones (index equal to the placement count) being left out.
+    """
+    n_placed = 0
+    for loc in range(location_n_placements.shape[0]):
+        n_placements = location_n_placements[loc]
+        for p in range(n_placements + 1):
+            counts[p] = 0
+        for i in range(location_starts[loc], location_starts[loc + 1]):
+            counts[location_placements[i]] += 1
+        n_distinct = 0
+        for p in range(n_placements):
+            if counts[p] > 0:
+                n_distinct += 1
+                n_placed += counts[p]
+        location_n_distinct[loc] = n_distinct
+    return n_placed
+
+
+@nb.njit(cache=True)
+def _fill_location_placement_codes(location_starts, location_n_placements, location_placements, counts,
+                                   ja_placements, ja_code_offsets, ja_codes):
+    """Second pass of the inversion: a counting sort of each location's samples by placement.
+
+    Codes are written in ascending order within a placement, as the samples are visited in code
+    order.
+    """
+    d = 0
+    pos = 0
+    for loc in range(location_n_placements.shape[0]):
+        n_placements = location_n_placements[loc]
+        for p in range(n_placements + 1):
+            counts[p] = 0
+        start = location_starts[loc]
+        for i in range(start, location_starts[loc + 1]):
+            counts[location_placements[i]] += 1
+        # counts become each placement's write cursor
+        for p in range(n_placements):
+            if counts[p] > 0:
+                ja_placements[d] = p
+                ja_code_offsets[d] = pos
+                n = counts[p]
+                counts[p] = pos
+                pos += n
+                d += 1
+        for i in range(start, location_starts[loc + 1]):
+            p = location_placements[i]
+            if p < n_placements:
+                ja_codes[counts[p]] = i - start
+                counts[p] += 1
+    ja_code_offsets[d] = pos
 
 
 @nb.njit(cache=True)

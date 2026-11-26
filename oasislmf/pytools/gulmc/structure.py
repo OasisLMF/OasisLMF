@@ -41,7 +41,8 @@ from oasislmf.pytools.gulmc.common import (
     NormInversionParameters, coverage_type,
 )
 from oasislmf.pytools.gulmc.items import (
-    read_items, build_item_mixed_cdf_groups, build_mixed_cdf_group_areaperils, build_item_placements, generate_item_map,
+    read_items, build_item_mixed_cdf_groups, build_mixed_cdf_group_areaperils, build_item_placements, empty_placements,
+    build_areaperil_placements, generate_item_map,
     build_vuln_member_blocks, get_dynamic_footprint_adjustments, get_peril_id, item_is_aggregate_vuln, item_is_computed,
 )
 from oasislmf.utils.path import setcwd
@@ -78,9 +79,17 @@ ARRAY_FILES = [
     'blended_areaperil_placement_ja_offsets',
     'blended_areaperil_placement_ja_cum_weights',
     'blended_areaperil_placement_ja_areaperil_j',
+    'blended_areaperil_ja_placement_offsets',
+    'blended_areaperil_ja_placements',
     'placement_item_ind',
     'placement_item_starts',
     'location_placements',
+    'placement_item_locations',
+    'placement_item_code_starts',
+    'placement_location_ja_offsets',
+    'placement_location_ja_placements',
+    'placement_location_ja_code_offsets',
+    'placement_location_ja_codes',
     'vuln_member_ja_offsets',
     'vuln_member_ja_rows',
     'vuln_member_ja_weights',
@@ -450,23 +459,27 @@ def build_placements(input_path, items, blended_areaperil_placement_ja_offsets, 
     """Draw the placements, when the model has a blended areaperil of more than one placement.
 
     Returns:
-        tuple: ``placement_item_ind`` (an id_index from item_idx to its rank among the items that
-        read a placement), ``placement_item_starts`` and ``location_placements`` (see
-        ``build_item_placements``), and the sample size they were drawn for, or
-        ``NO_PLACEMENT_SAMPLE_SIZE`` when no item needs one. A portfolio without blending gets
-        empty arrays: its items never look a placement up.
+        dict: the placement arrays of ``build_item_placements`` by name, with
+        ``placement_item_idxs`` replaced by ``placement_item_ind``, an id_index from item_idx to
+        its rank among the items that read a placement; and ``placement_sample_size``, the sample
+        size they were drawn for, or ``NO_PLACEMENT_SAMPLE_SIZE`` when no item needs one. A
+        portfolio without blending gets empty arrays: its items never look a placement up.
     """
     if np.diff(blended_areaperil_placement_ja_offsets).max(initial=1) <= 1:
-        return (id_index_build(np.zeros(0, dtype=np.int32)), np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.uint8),
-                NO_PLACEMENT_SAMPLE_SIZE)
-    if sample_size is None:
-        raise OasisException("blended areaperils: the sample size is needed to draw placements when the gulmc structure is built")
-    item_location_keys, item_building_ids = item_location_placement_keys(input_path, items)
-    placement_item_idxs, placement_item_starts, location_placements = build_item_placements(
-        items, item_location_keys, item_building_ids,
-        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
-        blended_areaperil_placement_schemes, sample_size)
-    return id_index_build(placement_item_idxs), placement_item_starts, location_placements, int(sample_size)
+        placements = empty_placements()
+        placement_sample_size = NO_PLACEMENT_SAMPLE_SIZE
+    else:
+        if sample_size is None:
+            raise OasisException("blended areaperils: the sample size is needed to draw placements when the gulmc structure is built")
+        item_location_keys, item_building_ids = item_location_placement_keys(input_path, items)
+        placements = build_item_placements(
+            items, item_location_keys, item_building_ids,
+            blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
+            blended_areaperil_placement_schemes, sample_size)
+        placement_sample_size = int(sample_size)
+    placements['placement_item_ind'] = id_index_build(placements.pop('placement_item_idxs'))
+    placements['placement_sample_size'] = placement_sample_size
+    return placements
 
 
 def _structure_path(run_dir):
@@ -672,9 +685,11 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
      entry_mixed_cdf_group_idxs, entry_mixed_cdf_group_areaperil_idxs) = build_mixed_cdf_group_areaperils(
         mixed_cdf_groups, blended_areaperil_ja_offsets, blended_areaperil_ja_areaperil_ids, blended_areaperil_placement_schemes)
     n_mixed_cdf_group_areaperils = int(mixed_cdf_group_areaperil_ja_offsets[-1])
-    placement_item_ind, placement_item_starts, location_placements, placement_sample_size = build_placements(
+    placements = build_placements(
         input_path, items, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
         blended_areaperil_placement_schemes, sample_size)
+    blended_areaperil_ja_placement_offsets, blended_areaperil_ja_placements = build_areaperil_placements(
+        blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_areaperil_j)
     # an item counts once in its coverage however many areaperils it reads
     np.add.at(coverages['max_items'], items['coverage_id'], 1)
 
@@ -798,9 +813,9 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'blended_areaperil_placement_ja_offsets': blended_areaperil_placement_ja_offsets,
         'blended_areaperil_placement_ja_cum_weights': blended_areaperil_placement_ja_cum_weights,
         'blended_areaperil_placement_ja_areaperil_j': blended_areaperil_placement_ja_areaperil_j,
-        'placement_item_ind': placement_item_ind,
-        'placement_item_starts': placement_item_starts,
-        'location_placements': location_placements,
+        'blended_areaperil_ja_placement_offsets': blended_areaperil_ja_placement_offsets,
+        'blended_areaperil_ja_placements': blended_areaperil_ja_placements,
+        **placements,
         'vuln_member_ja_offsets': vuln_member_ja_offsets,
         'vuln_member_ja_rows': vuln_member_ja_rows,
         'vuln_member_ja_weights': vuln_member_ja_weights,
@@ -824,7 +839,6 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         # scalars
         'n_unique_groups': n_unique_groups,
         'n_unique_haz_groups': n_unique_haz_groups,
-        'placement_sample_size': placement_sample_size,
     }
 
 

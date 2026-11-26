@@ -37,6 +37,12 @@ items_MC_data_type = nb.from_dtype(np.dtype([item_id[NAME_DTYPE_SLICE],
                                              # damage draws, so 0 when correlation is off -- the
                                              # writer needs the effective value, not the file's
                                              ('damage_correlation_value', oasis_float),
+                                             # 1 when only the item's live samples are computed,
+                                             # listed in [sample_start, sample_end) of the event's
+                                             # sample codes (see prepare_event_samples)
+                                             ('sparse', np.int8),
+                                             ('sample_start', np.int64),
+                                             ('sample_end', np.int64),
                                              ]))
 
 VulnCdfLookup = nb.from_dtype(np.dtype([('start', oasis_int),

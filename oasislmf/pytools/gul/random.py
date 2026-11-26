@@ -446,6 +446,63 @@ def _lh_philox_block(k0, k1, building, n, perms, out):
 
 
 @njit(cache=True, fastmath=True)
+def _lh_philox_partial_block(k0, k1, building, n, samples, m, perms, out):
+    """Write the values of ``m`` samples of a (key, building) Latin Hypercube block of ``n``.
+
+    For a building of which only some samples are used. The shuffle of ``_lh_philox_block`` is
+    run for its first ``m`` swaps only: they settle positions ``n - m .. n - 1``, a uniformly
+    random ordered choice of ``m`` distinct strata, given in that order to ``samples[:m]``. Each
+    sample keeps its own jitter word. So the values form part of a valid Latin Hypercube, and
+    with ``m == n`` and ``samples`` = 0..n-1 they are ``_lh_philox_block``'s.
+
+    Which stratum a sample gets depends on the set of samples asked for, so every user of a
+    (key, building) block in an event must ask for the same set.
+
+    Args:
+        k0 (uint32): low word of the Philox key (the seed).
+        k1 (uint32): high word of the Philox key.
+        building (int): 0-based building coordinate, written to counter word ``c2``.
+        n (int): number of samples in the block (``S``).
+        samples (array[int]): the 0-based samples wanted, ``m`` of them, distinct.
+        m (int): number of samples wanted, at most ``n``.
+        perms (array[float64]): scratch buffer of length ``n``, overwritten.
+        out (array[float64]): its first ``m`` entries are written, ``out[i]`` for ``samples[i]``.
+    """
+    zero = np.uint32(0)
+    bldg = np.uint32(building)
+    inv_n = np.float64(1.0) / np.float64(n)
+    for k in range(n):
+        perms[k] = np.float64(k + 1)
+
+    # the first m swaps of _lh_philox_block's shuffle, same words in the same order (the last
+    # position needs no swap, hence n - 1 at most)
+    n_swaps = min(m, n - 1)
+    idx = n - 1
+    swap = 0
+    ctr = np.uint32(0)
+    while swap < n_swaps:
+        w0, w1, w2, w3 = _philox4x32_7(ctr, PHILOX_STREAM_SHUFFLE, bldg, zero, k0, k1)
+        ctr = np.uint32(ctr + 1)
+        for lane in range(4):
+            if swap == n_swaps:
+                break
+            w = w0 if lane == 0 else (w1 if lane == 1 else (w2 if lane == 2 else w3))
+            jj = int(np.float64(w) * PHILOX_INV32 * np.float64(idx + 1))
+            t = perms[idx]
+            perms[idx] = perms[jj]
+            perms[jj] = t
+            idx -= 1
+            swap += 1
+
+    for i in range(m):
+        sample = samples[i]
+        w0, w1, w2, w3 = _philox4x32_7(np.uint32(sample >> 2), PHILOX_STREAM_JITTER, bldg, zero, k0, k1)
+        lane = sample & 3
+        w = w0 if lane == 0 else (w1 if lane == 1 else (w2 if lane == 2 else w3))
+        out[i] = (perms[n - m + i] - np.float64(w) * PHILOX_INV32) * inv_n
+
+
+@njit(cache=True, fastmath=True)
 def random_LatinHypercube_Philox7(seeds, n, skip_seeds=0):
     """Generate random numbers using Latin Hypercube on the counter-based Philox4x32-7.
 
