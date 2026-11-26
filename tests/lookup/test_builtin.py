@@ -600,6 +600,31 @@ def test_lookup_keys_errors_list_the_perils_not_modelled():
         [1, "notmodelled", "WEC;WSS not modelled"], [3, "notmodelled", "WEC;WSS not modelled"]]
 
 
+@pytest.mark.parametrize("dtype", [object, "string", "category"])  # ods_tools reads a blank cell as '' in a string column
+def test_lookup_returns_every_location_in_keys_or_keys_errors(dtype):
+    """Input file generation refuses a run where a loc_id is in neither keys nor keys-errors."""
+    config = {
+        "step_definition": {
+            "split": {"type": "split_loc_perils_covered", "columns": ["LocPerilsCovered"],
+                      "parameters": {"model_perils_covered": ["WTC", "WSS"]}},
+            "pivot": {"type": "simple_pivot", "parameters": {"pivots": [
+                {"new_cols": {"coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]}},
+        },
+        "strategy": ["split", "pivot"],
+    }
+    perils_covered = ["WTC", "WW1", "QQ1", "ZZZ", "", None, "  ", "WTC", "", "QEQ", ""]
+    loc_ids = [1, 2, 3, 4, 5, 6, 7, 8, 8, 9, 9]  # 8 and 9: a blank row sharing a loc_id
+
+    keys = Lookup(config=config).process_locations(
+        pd.DataFrame({"loc_id": loc_ids, "LocPerilsCovered": pd.Series(perils_covered, dtype=dtype)}))
+
+    assert set(keys["loc_id"]) == set(loc_ids)
+    errors = keys[keys["status"] != OASIS_KEYS_STATUS["success"]["id"]]
+    assert dict(zip(errors["loc_id"], errors["message"])) == {
+        2: "WEC not modelled", 3: "QEQ;QFF;QLF;QLS;QSL;QTS not modelled", 4: "ZZZ not modelled",
+        5: "no perils covered", 6: "no perils covered", 7: "no perils covered", 9: "QEQ not modelled"}
+
+
 def test_split_loc_perils_covered_rejects_unknown_not_covered_status():
     with pytest.raises(OasisException):
         Lookup(config={}).build_split_loc_perils_covered(not_covered_status="not_a_real_status")
