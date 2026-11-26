@@ -8,6 +8,10 @@ The reference is built from the two implementations that came before:
 - `reference_exposure_summary_fields` and `reference_exposure_totals` are the row-wise summary of
   that frame as of cefcce6d, filtering it to one field value, status and coverage type at a time.
 
+Two rules were added since: a keys row without a peril gives its status to the perils the location
+has no row for under that coverage type, and a (location, coverage type) with a modelled peril is
+not also counted as not modelled in the totals.
+
 The current implementation builds neither the frame nor the per-group filters, so the portfolios
 here are built to hit the cases where the frame's first-row deduplication decides the numbers:
 loc_ids shared by several exposure rows, keys rows repeated or carrying several statuses, keys
@@ -78,6 +82,10 @@ def reference_summary_frame(exposure_df, keys_df, exposure_profile, additional_f
     # fix 0 number_of_buildings and risks
     df_summary = df_summary.replace({'number_of_buildings': 0, 'number_of_risks': 0}, 1)
 
+    no_peril = keys_df['peril_id'].isna()
+    keys_without_peril = keys_df[no_peril].drop(columns='peril_id')
+    keys_df = keys_df[~no_peril]
+
     # get all perils
     peril_list = keys_df['peril_id'].drop_duplicates().to_list()
 
@@ -94,7 +102,13 @@ def reference_summary_frame(exposure_df, keys_df, exposure_profile, additional_f
         df_summary_peril.append(tmp_df)
     df_summary_peril = pd.concat(df_summary_peril)
 
-    df_summary_peril = df_summary_peril.merge(keys_df, how='left', on=['loc_id', 'coverage_type_id', 'peril_id'])
+    df_summary_peril = df_summary_peril.merge(keys_df, how='left', on=['loc_id', 'coverage_type_id', 'peril_id'],
+                                              indicator=True)
+    unreturned = df_summary_peril['_merge'] == 'left_only'
+    df_summary_peril = pd.concat([
+        df_summary_peril[~unreturned],
+        df_summary_peril[unreturned].drop(columns='status').merge(keys_without_peril, how='left', on=['loc_id', 'coverage_type_id']),
+    ]).drop(columns='_merge')
     no_return = OASIS_KEYS_STATUS['noreturn']['id']
     df_summary_peril['status'] = df_summary_peril['status'].fillna(no_return)
 
@@ -168,12 +182,13 @@ def reference_exposure_totals(df):
     within_scope_num_risks = int(
         df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_risks'].sum())
 
-    outside_scope_tiv = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
-    outside_scope_num = len(df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
-    outside_scope_num_buildings = int(
-        df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_buildings'].sum())
-    outside_scope_num_risks = int(
-        df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset='loc_id')['number_of_risks'].sum())
+    modelled_pairs = df.loc[df.status.isin(OASIS_KEYS_STATUS_MODELLED), dedupe_cols].drop_duplicates()
+    outside = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].merge(modelled_pairs, how='left', on=dedupe_cols, indicator=True)
+    outside = outside[outside['_merge'] == 'left_only']
+    outside_scope_tiv = outside.drop_duplicates(subset=dedupe_cols)['tiv'].sum()
+    outside_scope_num = len(outside['loc_id'].unique())
+    outside_scope_num_buildings = int(outside.drop_duplicates(subset='loc_id')['number_of_buildings'].sum())
+    outside_scope_num_risks = int(outside.drop_duplicates(subset='loc_id')['number_of_risks'].sum())
 
     portfolio_tiv = df.drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     portfolio_num = len(df['loc_id'].unique())
@@ -464,6 +479,42 @@ def test_every_cell_modelled_leaves_nothing_not_modelled():
     assert totals['not-modelled']['number_of_locations'] == 0
     assert totals['not-modelled']['tiv'] == 0
     assert totals['modelled']['tiv'] == pytest.approx(totals['portfolio']['tiv'])
+
+
+@pytest.mark.parametrize('seed', range(2))
+@pytest.mark.parametrize('shared_loc_ids', [False, True])
+def test_matches_reference_with_keys_rows_without_a_peril(seed, shared_loc_ids):
+    """Some (location, coverage type) pairs get a row without a peril, as the lookup's perils covered line."""
+    exposure_df, keys_df = make_portfolio(30 + seed, shared_loc_ids=shared_loc_ids)
+    rng = np.random.default_rng(seed)
+    pairs = keys_df[['loc_id', 'coverage_type_id']].drop_duplicates()
+    no_peril = pairs.sample(frac=0.3, random_state=seed).assign(peril_id=np.nan)
+    no_peril['status'] = rng.choice(STATUSES, len(no_peril))
+    keys_df = pd.concat([keys_df, no_peril], ignore_index=True)
+
+    summary = assert_matches_reference(exposure_df, keys_df, FIELDS)
+
+    assert not any(pd.isna(peril) for peril in summary['peril_id'])
+
+
+def test_partly_modelled_location_is_not_counted_as_not_modelled():
+    """The lookup writes WW1 under a WTC model as a WTC key plus a 'WEC;WSS not modelled' line without a peril."""
+    exposure_df = pd.DataFrame({'loc_id': [1, 2], 'BuildingTIV': [100., 10.]})
+    keys_df = pd.DataFrame({
+        'loc_id': [1, 1, 2],
+        'peril_id': ['WTC', np.nan, np.nan],
+        'coverage_type_id': [1, 1, 1],
+        'status': ['success', 'notmodelled', 'notmodelled'],  # 2: no peril of the location is modelled
+    })
+
+    summary = get_exposure_summary(exposure_df, keys_df)
+
+    assert summary['total']['modelled']['tiv'] == 100.
+    assert summary['total']['not-modelled']['tiv'] == 10.
+    assert summary['total']['portfolio']['tiv'] == 110.
+    assert list(summary['peril_id']) == ['WTC']
+    assert summary['peril_id']['WTC']['success']['tiv'] == 100.
+    assert summary['peril_id']['WTC']['notmodelled']['tiv'] == 10.
 
 
 def test_tiv_is_attributed_by_coverage_type_id():
