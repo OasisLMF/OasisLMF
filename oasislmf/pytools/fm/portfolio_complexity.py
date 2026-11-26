@@ -11,6 +11,7 @@ from collections import Counter
 import numpy as np
 
 from oasislmf.pytools.common.data import (
+    unique_sorted,
     fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype,
     fm_programme_dtype, fm_xref_dtype, items_dtype, load_as_array,
     load_as_ndarray, oasis_float,
@@ -58,7 +59,7 @@ def _fm_section(programme, policytc, profile, stepped, xref):
             lvl = int(lvl)
             mask = programme['level_id'] == lvl
             rows = programme[mask]
-            n_parent_nodes = int(np.unique(rows['to_agg_id']).size)
+            n_parent_nodes = int(unique_sorted(rows['to_agg_id']).size)
             n_edges = int(mask.sum())
             nodes_per_level[lvl] = n_parent_nodes
             avg_children_per_level[lvl] = (
@@ -87,7 +88,7 @@ def _fm_section(programme, policytc, profile, stepped, xref):
 
     # Profile complexity
     if len(profile) > 0:
-        num_unique_profiles = int(np.unique(profile['profile_id']).size)
+        num_unique_profiles = int(unique_sorted(profile['profile_id']).size)
         calcrule_counts = Counter(int(x) for x in profile['calcrule_id'])
         calcrule_distribution = {str(k): v for k, v in sorted(calcrule_counts.items())}
     else:
@@ -152,7 +153,7 @@ def compute_portfolio_complexity(static_path):
     coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
 
     if len(items) > 0:
-        num_items = int(np.unique(items['item_id']).size)
+        num_items = int(unique_sorted(items['item_id']).size)
     else:
         num_items = 0
 

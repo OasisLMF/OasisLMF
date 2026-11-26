@@ -25,7 +25,7 @@ import numba as nb
 import numpy as np
 from pathlib import Path
 
-from oasislmf.pytools.common.data import resolve_file, write_ndarray_to_fmt_csv, items_dtype
+from oasislmf.pytools.common.data import resolve_file, write_ndarray_to_fmt_csv, items_dtype, unique_sorted
 from oasislmf.pytools.common.input_files import read_coverages
 from oasislmf.pytools.converters.data import TOOL_INFO
 from oasislmf.pytools.gul.common import coverage_type
@@ -83,7 +83,7 @@ def cdf_tocsv(stack, file_in, file_out, file_type, noheader, run_dir):
     del coverages_tiv
 
     compute = np.zeros(coverages.shape[0] + 1, items.dtype['coverage_id'])
-    seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
+    seeds = np.zeros(len(unique_sorted(items['group_id'])), dtype=items_dtype['group_id'])
 
     batch_data = np.empty(_BATCH_ROWS, dtype=dtype)
     batch_pos = 0

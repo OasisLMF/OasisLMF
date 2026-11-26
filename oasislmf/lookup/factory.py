@@ -17,6 +17,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from ..pytools.common.data import unique_sorted
 from ..utils.data import get_json
 from ..utils.deprecation import warn_deprecated
 from ..utils.exceptions import OasisException
@@ -37,7 +38,7 @@ def _split_locations(loc_df, part_count):
     categories. Otherwise every chunk pickled to a worker carries the whole portfolio's values of a
     column such as a unique LocNumber.
     """
-    loc_ids_parts = np.array_split(np.unique(loc_df['loc_id']), part_count)
+    loc_ids_parts = np.array_split(unique_sorted(loc_df['loc_id']), part_count)
     category_cols = loc_df.select_dtypes('category').columns
     for loc_ids in loc_ids_parts:
         # the masked slice is already new data; the shallow copy only avoids pandas 2's SettingWithCopyWarning

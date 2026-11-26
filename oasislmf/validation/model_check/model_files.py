@@ -18,7 +18,7 @@ import numpy as np
 import pyarrow.parquet as pq
 
 from ...pytools.aal.manager import event_id_dtype
-from ...pytools.common.data import areaperil_int, vulnerability_bin_header_type, vulnerability_dtype
+from ...pytools.common.data import areaperil_int, isin_sorted, unique_sorted, vulnerability_bin_header_type, vulnerability_dtype
 from ...pytools.common.input_files import read_occurrence_bin, read_periods, read_returnperiods
 from ...pytools.getmodel.common import EventIndexBin_dtype, footprint_index_filename
 from ...pytools.getmodel.footprint import Footprint
@@ -183,13 +183,13 @@ def load_vulnerability(report, model_storage, vuln_ids=None):
     """
     header_size = vulnerability_bin_header_type.itemsize
     files = set(model_storage.listdir())
-    wanted = None if vuln_ids is None else np.unique(np.asarray(vuln_ids, dtype=vulnerability_dtype['vulnerability_id']))
+    wanted = None if vuln_ids is None else unique_sorted(np.asarray(vuln_ids, dtype=vulnerability_dtype['vulnerability_id']))
 
     if vulnerability_dataset in files:
         with model_storage.open(parquetvulnerability_meta_filename, 'r') as f:
             meta = json.load(f)
-        available = np.unique(pq.read_table(vulnerability_dataset, filesystem=model_storage.fs,
-                                            columns=['vulnerability_id']).column('vulnerability_id').to_numpy())
+        available = unique_sorted(pq.read_table(vulnerability_dataset, filesystem=model_storage.fs,
+                                                columns=['vulnerability_id']).column('vulnerability_id').to_numpy())
         filters = None if wanted is None else [('vulnerability_id', 'in', wanted.tolist())]
         df = pq.read_table(vulnerability_dataset, filesystem=model_storage.fs, columns=['vulnerability_id', 'vuln_array'],
                            filters=filters).to_pandas()
@@ -203,13 +203,13 @@ def load_vulnerability(report, model_storage, vuln_ids=None):
         if 'vulnerability.idx' in files:
             with model_storage.open('vulnerability.idx', 'rb') as f:
                 vulns_idx = np.frombuffer(f.read(), dtype=VulnerabilityIndex_dtype)
-            available = np.unique(vulns_idx['vulnerability_id'])
+            available = unique_sorted(vulns_idx['vulnerability_id'])
             if ((vulns_idx['original_size'] > 0) & (vulns_idx['original_size'] != vulns_idx['size'])).any():
                 report.error('vulnerability.format',
                              'vulnerability.idx describes compressed rows, which the loss kernels do not support')
                 return VulnerabilityData('vulnerability.bin+idx', available, num_damage_bins)
             if wanted is not None:
-                vulns_idx = vulns_idx[np.isin(vulns_idx['vulnerability_id'], wanted)]
+                vulns_idx = vulns_idx[isin_sorted(vulns_idx['vulnerability_id'], wanted)]
             if (bin_size - header_size) % VulnerabilityRow_dtype.itemsize:
                 report.error('vulnerability.format', 'vulnerability.bin size is not a whole number of 12-byte rows but a '
                              'vulnerability.idx is present; is the idx stale next to a flat 16-byte-row file?')
@@ -224,16 +224,16 @@ def load_vulnerability(report, model_storage, vuln_ids=None):
             return None
         with model_storage.with_fileno('vulnerability.bin') as f:
             vulns = np.memmap(f, dtype=vulnerability_dtype, offset=header_size, mode='r')
-            available = np.unique(vulns['vulnerability_id'])
-            rows = np.array(vulns if wanted is None else vulns[np.isin(vulns['vulnerability_id'], wanted)])
+            available = unique_sorted(vulns['vulnerability_id'])
+            rows = np.array(vulns if wanted is None else vulns[isin_sorted(vulns['vulnerability_id'], wanted)])
         return VulnerabilityData('vulnerability.bin', available, num_damage_bins, rows)
 
     if 'vulnerability.csv' in files:
         with model_storage.open('vulnerability.csv', 'r') as f:
             rows = np.loadtxt(f, dtype=vulnerability_dtype, delimiter=',', skiprows=1, ndmin=1)
-        available = np.unique(rows['vulnerability_id'])
+        available = unique_sorted(rows['vulnerability_id'])
         if wanted is not None:
-            rows = rows[np.isin(rows['vulnerability_id'], wanted)]
+            rows = rows[isin_sorted(rows['vulnerability_id'], wanted)]
         return VulnerabilityData('vulnerability.csv', available, int(rows['damage_bin_id'].max()) if len(rows) else 0, rows)
 
     report.error('vulnerability.exists', 'no vulnerability file (parquet dataset, bin or csv) found in the model data')
@@ -378,7 +378,7 @@ def scan_footprint(report, model_storage, run_dir, event_ids, portfolio_areaperi
                 summary.events_checked += 1
                 ap, ib, pr = event['areaperil_id'], event['intensity_bin_id'], event['probability']
                 starts = np.r_[0, np.flatnonzero(ap[1:] != ap[:-1]) + 1]
-                unique_ap = np.unique(ap)
+                unique_ap = unique_sorted(ap)
                 if len(starts) != len(unique_ap):
                     noncontiguous.add([int(event_id)])
                 if unique_ap[0] == 0:
@@ -415,7 +415,7 @@ def scan_footprint(report, model_storage, run_dir, event_ids, portfolio_areaperi
     report.missing('footprint.events_present', 'events in the selected event set have no footprint (they produce no loss)',
                    summary.missing_events, level=WARNING)
     if portfolio_areaperils is not None:
-        summary.hit_areaperils = np.unique(np.concatenate(hits)) if hits else np.empty(0, dtype=areaperil_int)
+        summary.hit_areaperils = unique_sorted(np.concatenate(hits)) if hits else np.empty(0, dtype=areaperil_int)
     return summary
 
 
@@ -462,10 +462,10 @@ def check_event_files(report, run_files):
                        [f'event {e} period {p}' for e, p in zip(occ['event_id'][bad], occ['period_no'][bad])])
         if event_ids is not None:
             report.missing('occurrence.events_covered', 'events with no occurrence rows are absent from ALT/PLT/EPT outputs',
-                           np.setdiff1d(event_ids, occ['event_id']).tolist(), level=WARNING)
+                           np.setdiff1d(unique_sorted(event_ids), unique_sorted(occ['event_id']), assume_unique=True).tolist(), level=WARNING)
             report.missing('occurrence.events_in_event_set',
                            'occurrence rows reference events not in the events file (they never produce loss; is the occurrence file '
-                           'paired with the right event set?)', np.setdiff1d(occ['event_id'], event_ids).tolist(), level=INFO)
+                           'paired with the right event set?)', np.setdiff1d(unique_sorted(occ['event_id']), unique_sorted(event_ids), assume_unique=True).tolist(), level=INFO)
         try:
             weights = read_periods(no_of_periods, input_dir)
             report.ok('periods.format')
@@ -515,7 +515,7 @@ def check_aggregate_vulnerability(report, model_storage, vuln_available_ids, use
     agg_ids = np.array(sorted(agg_map))
     report.missing('aggregate_vulnerability.id_collision',
                    'aggregate ids also exist as vulnerability ids; items using them are treated as aggregates',
-                   np.intersect1d(agg_ids, vuln_available_ids).tolist(), level=WARNING)
+                   np.intersect1d(unique_sorted(agg_ids), unique_sorted(vuln_available_ids), assume_unique=True).tolist(), level=WARNING)
     used = set(agg_map) if used_vuln_ids is None else set(agg_map) & {int(x) for x in used_vuln_ids}
     missing_used = sorted({s for a in used for s in agg_map[a]} - set(vuln_available_ids.tolist()))
     report.missing('aggregate_vulnerability.sub_ids',

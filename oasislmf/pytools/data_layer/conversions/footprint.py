@@ -12,6 +12,7 @@ import pyarrow as pa
 from pyarrow import parquet as pq
 
 from oasis_data_manager.filestore.backends.local import LocalStorage
+from oasislmf.pytools.common.data import unique_sorted
 from oasislmf.pytools.getmodel.footprint import Footprint
 
 
@@ -77,7 +78,7 @@ def convert_bin_to_parquet_event(static_path: str, row_group_size=default_row_gr
         pass
     with open_bin_footprint(static_path) as footprint_obj:
         # unique, so that no two batches write the same event's file
-        event_ids = np.unique(footprint_obj.footprint_index['event_id'])
+        event_ids = unique_sorted(footprint_obj.footprint_index['event_id'])
         meta_data = {
             "num_intensity_bins": footprint_obj.num_intensity_bins,
             "has_intensity_uncertainty": True if footprint_obj.has_intensity_uncertainty == 1 else False

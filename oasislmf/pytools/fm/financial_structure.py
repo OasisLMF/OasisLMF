@@ -13,7 +13,7 @@ from numba import from_dtype, njit
 
 
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, building_count_dtype, fm_structure_info_dtype, load_as_ndarray, load_as_array, almost_equal,
+from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, unique_sorted, building_count_dtype, fm_structure_info_dtype, load_as_ndarray, load_as_array, almost_equal,
                                           fm_policytc_dtype,
                                           fm_profile_dtype, fm_profile_step_dtype,
                                           fm_programme_dtype,
@@ -167,7 +167,7 @@ def load_static(static_path):
 
     items = load_as_ndarray(static_path, 'items', items_dtype, must_exist=False)[['item_id', 'coverage_id']]
     coverages = load_as_array(static_path, 'coverages', oasis_float, must_exist=False)
-    if np.unique(items['coverage_id']).shape[0] != coverages.shape[0]:
+    if unique_sorted(items['coverage_id']).shape[0] != coverages.shape[0]:
         # one of the file is missing we default to empty array
         items = np.empty(0, dtype=items_dtype)
         coverages = np.empty(0, dtype=oasis_float)

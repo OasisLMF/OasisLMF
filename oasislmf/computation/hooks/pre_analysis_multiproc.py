@@ -7,6 +7,7 @@ import copy
 import numpy as np
 import pandas as pd
 
+from ...pytools.common.data import unique_sorted
 from ...utils.exceptions import OasisException
 from ...utils.multiproc import run_multiproc
 
@@ -37,7 +38,7 @@ def _split_chunks(loc_df, acc_df, part_count, group_cols):
             for key_part in key_parts
         )
     else:
-        loc_id_parts = np.array_split(np.unique(loc_df['loc_id']), part_count)
+        loc_id_parts = np.array_split(unique_sorted(loc_df['loc_id']), part_count)
         loc_parts = (loc_df[loc_df['loc_id'].isin(loc_id_parts[i])] for i in range(part_count))
         acc_parts = (None for _ in range(part_count))
 

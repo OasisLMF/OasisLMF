@@ -12,7 +12,7 @@ import os
 
 import numpy as np
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import building_count_dtype, correlations_dtype, load_as_ndarray, oasis_float
+from oasislmf.pytools.common.data import building_count_dtype, correlations_dtype, isin_sorted, load_as_ndarray, oasis_float, unique_sorted
 from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id, read_coverage_buildings, read_coverages, read_correlations
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.gul.common import coverage_type
@@ -162,7 +162,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     items = gul_get_items(input_path, ignore_file_type)
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
     if valid_area_peril_id is not None:
-        items = items[np.isin(items['areaperil_id'], valid_area_peril_id)]
+        items = items[isin_sorted(items['areaperil_id'], valid_area_peril_id)]
 
     # --- item map (hashmap + jagged array) -------------------------------------
     logger.debug('generate item map')
@@ -197,7 +197,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
         corr_data_by_item_id = np.zeros(max_item_id + 1, dtype=correlations_dtype)
         corr_data_by_item_id['peril_correlation_group'][data['item_id']] = data['peril_correlation_group']
         corr_data_by_item_id['damage_correlation_value'][data['item_id']] = data['damage_correlation_value']
-        unique_peril_correlation_groups = np.unique(data['peril_correlation_group'])
+        unique_peril_correlation_groups = unique_sorted(data['peril_correlation_group'])
 
         # pre-compute Gaussian lookup tables
         norm_inv_cdf = compute_norm_inv_cdf_lookup(x_min, x_max, norm_inv_N)

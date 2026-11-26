@@ -8,7 +8,7 @@ from contextlib import ExitStack
 from pathlib import Path
 from oasislmf.pytools.summary.manager import SUMMARY_META_SIZE
 
-from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE,
+from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, unique_sorted,
                                           summary_stream_index_dtype, def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, SUMMARY_STREAM_ID, init_streams_in, mv_read
 from oasislmf.pytools.common.input_files import PERIODS_FILE, occ_range, read_occurrence, read_periods, read_returnperiods
@@ -465,7 +465,7 @@ def run(
         if use_idx_path:
             logger.info("Found %d/%d .idx file(s) — using per-summary-id indexing (reduced disk)", n_idx, len(files))
             merged = build_merged_idx(idx_handles_raw)
-            unique_summary_ids = np.unique(merged["summary_id"])
+            unique_summary_ids = unique_sorted(merged["summary_id"])
             max_summary_id = int(unique_summary_ids[-1]) if len(unique_summary_ids) > 0 else 0
         else:
             if 0 < n_idx < len(files):

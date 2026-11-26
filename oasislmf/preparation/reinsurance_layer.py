@@ -12,7 +12,7 @@ from ..utils.log import oasis_log
 from ..utils import oed
 
 from oasislmf.pytools.converters.csvtobin.utils.common import df_to_ndarray
-from oasislmf.pytools.common.data import fm_programme_dtype, fm_profile_dtype, fm_policytc_dtype, fm_xref_dtype
+from oasislmf.pytools.common.data import fm_programme_dtype, fm_profile_dtype, fm_policytc_dtype, fm_xref_dtype, unique_sorted
 
 REINS_RISK_LEVEL_XREF_COLUMN_MAP = {
     oed.REINS_RISK_LEVEL_LOCATION_GROUP: ["LocGroup", "PortNumber", "AccNumber", "PolNumber", "LocNumber"],
@@ -307,7 +307,7 @@ def create_risk_level_profile_id(ri_df, profile_map_df, fm_profile_df, reins_typ
         )
 
         match = match_filter_level_scope(filter_df, ri_filter_fields, merge_on)
-        profile_map_df.loc[np.unique(filter_df['index'].to_numpy()[match]), 'profile_id'] = PASSTHROUGH_PROFILE_ID
+        profile_map_df.loc[unique_sorted(filter_df['index'].to_numpy()[match]), 'profile_id'] = PASSTHROUGH_PROFILE_ID
 
     # Risk level
     layer_filter = reins_type_filter

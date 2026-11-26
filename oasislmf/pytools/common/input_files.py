@@ -11,7 +11,7 @@ from pathlib import Path
 from oasislmf.pytools.common.data import (COVERAGE_BUILDINGS_FILE, coverage_buildings_dtype,
                                           coverage_buildings_headers,
                                           oasis_int, oasis_float,
-                                          areaperil_int, load_as_ndarray, correlations_headers, correlations_dtype, coverages_headers,
+                                          areaperil_int, load_as_ndarray, unique_sorted, correlations_headers, correlations_dtype, coverages_headers,
                                           occurrence_dtype, occurrence_granular_dtype, periods_dtype, quantile_dtype,
                                           quantile_interval_dtype, returnperiods_dtype,
                                           )
@@ -61,7 +61,7 @@ def filter_area_peril_id(keys_tb, peril_filter):
     """
     # peril_filter is listed because np.isin treats a bare string as a sequence of characters,
     # and an empty keys table must still give an integer array for the indexing below to work
-    return np.unique(keys_tb['AreaPerilID'][np.isin(keys_tb['PerilID'], list(peril_filter))])
+    return unique_sorted(keys_tb['AreaPerilID'][np.isin(keys_tb['PerilID'], list(peril_filter))])
 
 
 @nb.njit(cache=True)
@@ -667,7 +667,7 @@ def read_periods(no_of_periods, run_dir, filename=PERIODS_FILE):
     # Identify any missing periods
     expected_periods = np.arange(1, no_of_periods + 1)
     actual_periods = period_weights['period_no']
-    missing_periods = np.setdiff1d(expected_periods, actual_periods)
+    missing_periods = np.setdiff1d(expected_periods, unique_sorted(actual_periods), assume_unique=True)
     if len(missing_periods) > 0:
         raise RuntimeError(f"ERROR: Missing period_no in period binary file {periods_fp}.")
     return period_weights

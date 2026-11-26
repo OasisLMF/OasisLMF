@@ -15,6 +15,7 @@ import pandas as pd
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import Keys
 from oasislmf.pytools.common.blended_areaperil import read_blended_areaperil
+from oasislmf.pytools.common.data import unique_sorted
 from oasislmf.pytools.common.damage_cdf import build_cdf_table
 from oasislmf.pytools.getmodel.footprint import Footprint, FootprintParquetDynamic
 from oasislmf.utils.exceptions import OasisException
@@ -85,7 +86,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
     if os.path.exists(os.path.join(input_path, 'keys.csv')):
         keys_df = pd.read_csv(os.path.join(input_path, 'keys.csv'), dtype=Keys)
         if peril_filter:
-            valid_area_peril_id = np.unique(
+            valid_area_peril_id = unique_sorted(
                 keys_df.loc[keys_df['PerilID'].isin(peril_filter), 'AreaPerilID'])
             logger.debug(
                 f'Peril specific run: ({peril_filter}), '
@@ -127,7 +128,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter,
     # because get_vulns would otherwise fail with a bare "Vulnerability_ids ... are missing".
     conditional_vuln_ids = get_conditional_vuln_ids(model_storage, ignore_file_type)
     if conditional_vuln_ids.size:
-        used = np.intersect1d(np.asarray(vuln_map_keys), conditional_vuln_ids)
+        used = np.intersect1d(unique_sorted(np.asarray(vuln_map_keys)), unique_sorted(conditional_vuln_ids), assume_unique=True)
         if used.size:
             raise OasisException(
                 f"coverage dependency: item(s) use conditional vulnerability id(s) "

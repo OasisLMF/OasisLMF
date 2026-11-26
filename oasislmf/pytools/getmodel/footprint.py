@@ -31,7 +31,7 @@ from .common import (
     SECTION_MERGE_OPTIONS, SECTION_MERGE_DEFAULT,
 )
 from oasislmf.pytools.common.data import (
-    footprint_event_dtype, areaperil_int, memmap_or_empty, is_first_entry_zlib_compressed
+    footprint_event_dtype, areaperil_int, memmap_or_empty, is_first_entry_zlib_compressed, unique_sorted
 )
 from oasislmf.pytools.getmodel.dynamic_footprint import (
     LEVEL_SCALE, MERGE_MAX, MERGE_MAX_INDEPENDENT, MERGE_SUM, collapse, interpolate_brackets, is_sorted, merge_sections)
@@ -166,7 +166,7 @@ class Footprint:
         self.stack = ExitStack()
         self.df_engine = df_engine
         if areaperil_ids is not None:
-            self.areaperil_ids = np.unique(np.array(areaperil_ids, dtype=areaperil_int))
+            self.areaperil_ids = unique_sorted(np.array(areaperil_ids, dtype=areaperil_int))
         else:
             self.areaperil_ids = None
 
@@ -502,7 +502,7 @@ class FootprintParquet(Footprint):
 
         if self.areaperil_ids is not None:
             self.areaperil_ids_filter = [("areaperil_id", "in", self.areaperil_ids)]
-            self.sorted_areaperil_ids = np.unique(self.areaperil_ids)
+            self.sorted_areaperil_ids = unique_sorted(self.areaperil_ids)
         else:
             self.areaperil_ids_filter = None
 

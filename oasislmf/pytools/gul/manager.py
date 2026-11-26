@@ -9,7 +9,7 @@ import numpy as np
 from numba import njit
 from oasislmf.utils.ping import EventProgress
 
-from oasislmf.pytools.common.data import correlations_dtype, items_dtype
+from oasislmf.pytools.common.data import correlations_dtype, items_dtype, unique_sorted
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, check_packed_item_fits, check_packing_supported,
                                                   encode_sidx, max_emitted_blocks,
                                                   mv_write_item_header, write_mv_to_stream,
@@ -256,7 +256,7 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
         cursor = 0
 
         # create the array to store the seeds
-        seeds = np.zeros(len(np.unique(items['group_id'])), dtype=items_dtype['group_id'])
+        seeds = np.zeros(len(unique_sorted(items['group_id'])), dtype=items_dtype['group_id'])
 
         # --- correlation setup from pre-computed structures --------------------
         do_correlation = bool(structures['do_correlation'])

@@ -27,6 +27,7 @@ from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.common.event_stream import PIPE_CAPACITY
 from oasislmf.utils.data import validate_vulnerability_replacements, analysis_settings_loader
 from oasislmf.pytools.common.data import (
+    isin_sorted, unique_sorted,
     conditionalvulnerability_dtype, conditionalvulnerability_headers,
     areaperil_int, areaperil_int_size, nb_areaperil_int,
     oasis_float, oasis_float_size,
@@ -201,7 +202,7 @@ def get_items(input_path, ignore_file_type=set(), valid_area_peril_id=None, blen
         raise FileNotFoundError(f'items file not found at {input_path}')
 
     if valid_area_peril_id is not None:
-        items = items[np.isin(items['areaperil_id'], valid_area_peril_id)]
+        items = items[isin_sorted(items['areaperil_id'], valid_area_peril_id)]
 
     items, direct_items, blended_items, blended = expand_blended_items(items, blend)
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
@@ -233,7 +234,7 @@ def expand_blended_items(items, blend):
     """
     if blend is None:
         return items, items, None, None
-    is_blended = np.isin(items['areaperil_id'], blend.table['blended_areaperil_id'])
+    is_blended = isin_sorted(items['areaperil_id'], blend.table['blended_areaperil_id'])
     if not is_blended.any():
         return items, items, None, None
     blended_items = items[is_blended]
@@ -628,7 +629,7 @@ def decompress_vulns_bin_idx(storage, bin_filename, vulns_idx_bin, vuln_ids_set)
         Tuple[np.ndarray, np.ndarray]: decompressed vulnerability rows, and the index pointing into
             them (offsets past a header of vuln_offset bytes, sizes uncompressed)
     """
-    keep = np.isin(vulns_idx_bin['vulnerability_id'], np.fromiter(vuln_ids_set, dtype=np.int32, count=len(vuln_ids_set)))
+    keep = isin_sorted(vulns_idx_bin['vulnerability_id'], np.fromiter(vuln_ids_set, dtype=np.int32, count=len(vuln_ids_set)))
     needed_idx = np.array(vulns_idx_bin[keep], dtype=VulnerabilityIndex_dtype)
     vulns_bin = np.empty(int(needed_idx['original_size'].sum()) // VulnerabilityRow_dtype.itemsize,
                          dtype=VulnerabilityRow_dtype)
@@ -894,7 +895,7 @@ def get_conditional_vuln_ids(storage: BaseStorage, ignore_file_type=set()):
     recs = read_conditional_vulnerability(storage, ignore_file_type)
     if recs is None or recs.shape[0] == 0:
         return np.zeros(0, dtype=np.int32)
-    return np.unique(recs['vulnerability_id']).astype(np.int32)
+    return unique_sorted(recs['vulnerability_id']).astype(np.int32)
 
 
 def get_damage_bins(storage: BaseStorage, ignore_file_type=set()):

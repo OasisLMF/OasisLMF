@@ -82,6 +82,46 @@ def memmap_or_empty_path(path, dtype):
     return np.memmap(path, dtype=dtype, mode='r')
 
 
+# numpy 2.x answers a plain ``np.unique`` (no return_index / return_inverse / return_counts, no axis)
+# through a hash table. On integer arrays with many distinct values that is about 1 us an element,
+# 40-120 times slower than sorting: 20 s against 0.2 s for 12.5M areaperil ids on numpy 2.4.6.
+# np.isin, np.intersect1d, np.union1d, np.setdiff1d and np.setxor1d call it internally on their
+# inputs. Few distinct values hash quickly, and floats do not take that path.
+
+def unique_sorted(values):
+    """``np.unique(values)`` by sorting: the distinct values, ascending, flattened, in the input's dtype.
+
+    For integer arrays. Unlike ``np.unique``, NaNs are not collapsed into one.
+
+    >>> unique_sorted(np.array([3, 1, 3, 2, 1], dtype=np.int32))
+    array([1, 2, 3], dtype=int32)
+    """
+    values = np.sort(np.asarray(values).ravel())
+    if values.shape[0] < 2:
+        return values
+    is_first = np.empty(values.shape[0], dtype=np.bool_)
+    is_first[0] = True
+    np.not_equal(values[1:], values[:-1], out=is_first[1:])
+    return values[is_first]
+
+
+def isin_sorted(values, test_values):
+    """``np.isin(values, test_values)`` by binary search over the sorted distinct ``test_values``.
+
+    For integer arrays; the result has the shape of ``values``.
+
+    >>> isin_sorted(np.array([5, 1, 7, 2]), np.array([2, 5, 5]))
+    array([ True, False, False,  True])
+    """
+    values = np.asarray(values)
+    test_values = unique_sorted(test_values)
+    if test_values.shape[0] == 0:
+        return np.zeros(values.shape, dtype=np.bool_)
+    pos = np.searchsorted(test_values, values)
+    np.minimum(pos, test_values.shape[0] - 1, out=pos)
+    return test_values[pos] == values
+
+
 def generate_output_metadata(output):
     """Generates ``*_header``, ``*_dtype`` and ``*_fmt`` items given a list of tuples describing some output description
     output description has type List(Tuple({name: str}, {type: Any}, {format: str}))
