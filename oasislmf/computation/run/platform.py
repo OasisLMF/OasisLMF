@@ -33,7 +33,8 @@ from ...platform_api.client import APIClient
 from ...utils.exceptions import OasisException, OasisNoDownloadSelectedException
 from ...utils.data import resolve_disaggregation
 from ...utils.defaults import (API_EXAMPLE_AUTH, DISAGGREGATION_ITEMS, DISAGGREGATION_MODES,
-                               DISAGGREGATION_NONE, DISAGGREGATION_SAMPLES)
+                               DISAGGREGATION_NONE, DISAGGREGATION_SAMPLES, KERNEL_ALLOC_IL_DEFAULT,
+                               KERNEL_ALLOC_RI_DEFAULT)
 from ...utils.inputs import str2bool
 
 from ..base import DISAGGREGATION_HELP, ComputationStep
@@ -777,9 +778,9 @@ class PlatformExposureRun(PlatformBase):
         {'name': 'output_dir', 'flag': '-o', 'is_path': True, 'pre_exist': True, 'default': './',
             'help': 'Output data directory to download the resulting report to'},
         {'name': 'download', 'action': 'store_true', 'help': 'Download the resulting report after the exposure run completes'},
-        {'name': 'kernel_alloc_rule_il', 'flag': '-a', 'type': int, 'default': 2,
+        {'name': 'kernel_alloc_rule_il', 'flag': '-a', 'type': int, 'default': KERNEL_ALLOC_IL_DEFAULT,
             'help': 'Set the fmcalc allocation rule used in direct insured loss'},
-        {'name': 'kernel_alloc_rule_ri', 'flag': '-A', 'type': int, 'default': 3,
+        {'name': 'kernel_alloc_rule_ri', 'flag': '-A', 'type': int, 'default': KERNEL_ALLOC_RI_DEFAULT,
             'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'model_perils_covered', 'nargs': '+', 'default': ['AA1'], 'help': 'List of perils covered by the model'},
         {'name': 'loss_factor', 'flag': '-l', 'type': float, 'nargs': '+', 'default': [1.0], 'help': 'Loss factor(s) to apply'},
