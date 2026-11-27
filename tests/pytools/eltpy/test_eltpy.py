@@ -436,3 +436,64 @@ def test_multifile_current_event_id_not_leaked_across_files():
         expected = sorted([(999, 101), (999, 101), (999, 102), (999, 102),
                            (1000, 201), (1000, 201), (1000, 202), (1000, 202)])
         assert sorted(zip(melt["EventId"], melt["SummaryId"])) == expected
+
+
+# --- issue #2168: optional MELT filtering of zero-loss rows, as pltpy does ---
+
+def _write_summary_stream(path, len_sample, records):
+    """Write a summary stream: records are (event_id, summary_id, exposure, [(sidx, loss), ...])."""
+    from oasislmf.pytools.common.event_stream import SUMMARY_STREAM_ID, loss_type, stream_info_to_bytes
+
+    with open(path, 'wb') as f:
+        f.write(stream_info_to_bytes(SUMMARY_STREAM_ID, 1))
+        f.write(np.array([len_sample, 1], dtype='<i4').tobytes())  # len_sample, summary_set_id
+        for event_id, summary_id, exposure, losses in records:
+            f.write(np.array([event_id, summary_id], dtype='<i4').tobytes())
+            f.write(np.array([exposure], dtype=loss_type).tobytes())
+            for sidx, loss in list(losses) + [(0, 0)]:
+                f.write(np.array([sidx], dtype='<i4').tobytes())
+                f.write(np.array([loss], dtype=loss_type).tobytes())
+
+
+ZERO_LOSS_RECORDS = [
+    (1, 1, 100., [(MEAN_IDX, 0.), (1, 0.), (2, 0.)]),     # no loss at all: both rows dropped
+    (1, 2, 100., [(MEAN_IDX, 5.), (1, 10.), (2, 0.)]),    # loss: both rows kept
+    (1, 3, 100., [(MEAN_IDX, 0.), (1, 4.)]),              # analytical mean 0: only the sample row kept
+    (2, 1, 100., [(MEAN_IDX, 3.), (1, 0.), (2, 0.)]),     # no sampled loss: only the analytical row kept
+]
+
+
+def _run_melt(tmp_path, **kwargs):
+    stream = tmp_path / 'summary.bin'
+    _write_summary_stream(stream, 2, ZERO_LOSS_RECORDS)
+    melt = tmp_path / f"melt_{kwargs.get('melt_exclude_zero_loss', False)}.csv"
+    with patch('oasislmf.pytools.elt.manager.read_event_rates',
+               return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+        main(run_dir=tmp_path, files_in=[str(stream)], melt=str(melt), **kwargs)
+    return pd.read_csv(melt)
+
+
+def test_melt_keeps_zero_loss_rows_by_default(tmp_path):
+    melt = _run_melt(tmp_path)
+
+    assert len(melt) == 2 * len(ZERO_LOSS_RECORDS)
+
+
+def test_melt_exclude_zero_loss_uses_pltpy_conditions(tmp_path):
+    every_row = _run_melt(tmp_path)
+    melt = _run_melt(tmp_path, melt_exclude_zero_loss=True)
+
+    rows = set(zip(melt.EventId, melt.SummaryId, melt.SampleType))
+    assert rows == {(1, 2, 1), (1, 2, 2), (1, 3, 2), (2, 1, 1)}
+    # the rows that remain are unchanged
+    kept = every_row[[r in rows for r in zip(every_row.EventId, every_row.SummaryId, every_row.SampleType)]]
+    pd.testing.assert_frame_equal(kept.reset_index(drop=True), melt)
+
+
+def test_melt_exclude_zero_loss_cli_flag():
+    from oasislmf.pytools.elt import cli
+
+    with patch.object(sys, 'argv', ['eltpy', '-m', 'out.csv', '-Z']), patch.object(cli.manager, 'main') as run:
+        cli.main()
+
+    assert run.call_args.kwargs['melt_exclude_zero_loss'] is True
