@@ -57,7 +57,7 @@ and `log/` holds the script's logs only.
 |---|---|
 | gulmc (the default ground-up engine) | Supported. |
 | gulpy (`gulmc: false`, `modelpy \| gulpy`) | Supported, as one in-process stage. |
-| Insured and reinsurance losses, every inuring priority, `ri_output` and `rl_output` | Supported. |
+| Insured and reinsurance net losses, every inuring priority (`ri_output`, `ri_inuring_priorities`) | Supported. |
 | Every ORD output, CSV or parquet, summarypy low memory, fmpy low memory and sorted output | Supported. |
 | Post loss amplification (`pla`, `pla_secondary_factor`, `pla_uniform_factor`) | Supported. |
 | `join_summary_info` | Supported. |
@@ -69,6 +69,7 @@ and `log/` holds the script's logs only.
 | A custom gulcalc (`model_custom_gulcalc`, or a `<supplier>_<model>_gulcalc` on the path) | Falls back to the script: an external program computes the ground-up loss. |
 | Custom getmodel arguments (`custom_args`) | Falls back to the script. |
 | `full_correlation` | Falls back to the script. The script itself does not complete with it (issue #2311). |
+| The reinsurer's loss (`rl_output`, `rl_inuring_priorities`) | Falls back to the script, which combines it across inuring priorities with `rlcombine`. |
 
 Each ignored setting is noted in the step's log.
 

@@ -1026,3 +1026,34 @@ byte. `custom_args` is now the setting the fallback test uses.
 
 Timing, the test fixture's full kernel (30 events, 2 processes, every ORD output), whole
 `runner.run` wall time: gulpy 32 s with bash, 9 s with the orchestrator (gulmc: 29 s and 6 s).
+
+### 10.8 Merging release 2.5.10
+
+Main brought four changes that the stages and the planner had to follow.
+
+- Reinsurance outputs (#2242). The final RI inuring priority's files are now written as
+  `ri_IP<n>_...` and renamed `ri_...` once the outputs are written (copied instead when
+  `ri_inuring_priorities` also asks for that priority). The planner takes its levels from
+  `get_reinsurance_inuring_priorities`, and the plan carries the rename (`Plan.output_renames`,
+  `OutputRename`), which `run_plan` and the cli apply after the output jobs. summarypy reads
+  `risummaryxref` for ri, and gained the `rl` run type (`rlsummaryxref`) and sentinel events
+  (`-s`); both are in `SummaryStage`. The reinsurer's loss (`rl_output`) is now summarised per RI
+  level by `summarypy -t rl -s` and combined across inuring priorities by `rlcombine`, which reads
+  several summary streams at once. That has no stage yet, so `rl_output` raises `Unsupported` and
+  the run falls back to bash; the fm steps no longer produce gross output for rl.
+- Progress (#2224). gul tools report `gul_ready` once the model is loaded and output tools
+  `outputs_complete` when they finish, against the `gul_processes` and `outputs_total` the runner
+  announces. With a platform target, an orchestrated run announces `gul_processes` 1 and one
+  output per output job, and the pool's `milestone` callback sends `gul_ready` when the first
+  worker has built its chain and `outputs_complete` per job done. The runner announces bash's
+  totals only when the script runs.
+- aalpy mean only (#2303). The planner passes `meanonly` to aalpy for `alt_meanonly`, and the
+  rendered command has `-M`.
+- pytools logging (#2253). `pytool_logging` restores the loggers it changes from a snapshot
+  (`logging_snapshot` / `logging_restore`), as `redirect_logging` now does.
+- Numba cache saves. Pool workers running katpy jobs side by side on a cold cache compile
+  different variants of `merge_plt_data` / `merge_elt_data` (lists of memory maps, or with an
+  ndarray for an empty file) and could save them under the same `.nbc` name, leaving the index
+  pointing at the wrong code (the intermittent Windows "can't unbox array" failure). Each worker
+  calls `warmup.lock_cache_saves()`, which holds a lock file next to the function's index while
+  Numba saves.
