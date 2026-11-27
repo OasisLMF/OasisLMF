@@ -802,28 +802,37 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, n_buil
                 cursor = write_packed_building_specials(byte_mv, cursor, losses[:, item_j], b,
                                                         sample_size)
             if loss_threshold > 0:
-                # a sample the run does not list lost 0, below the threshold: only the run's count
+                # a sample the run does not list lost 0, below the threshold: only the run's count.
+                # The codes ascend, so the building is recomputed only when a code leaves it.
+                building_i = 0
+                building_code = 0
                 for k in range(run_length):
                     loss = sample_losses[run_offset + k]
                     if loss >= loss_threshold:
                         code = run_code(run_code_starts, codes, item_j, k)
-                        building_i = code // sample_size
+                        if code - building_code >= sample_size:
+                            building_i = code // sample_size
+                            building_code = building_i * sample_size
                         cursor = mv_write_sidx_loss(byte_mv, cursor,
-                                                    encode_sidx(building_i + 1, code - building_i * sample_size + 1, sample_size),
+                                                    encode_sidx(building_i + 1, code - building_code + 1, sample_size),
                                                     loss)
             else:
-                # every sample is written, the ones the run does not list as 0
+                # every sample is written: entry `code` of a run holding every code, otherwise the
+                # run's entry for it or 0
+                every_code = run_code_starts[item_j] < 0
                 k = 0
-                for code in range(nb_buildings * sample_size):
-                    loss = 0.
-                    if k < run_length and run_code(run_code_starts, codes, item_j, k) == code:
-                        loss = sample_losses[run_offset + k]
-                        k += 1
-                    if loss >= loss_threshold:
-                        building_i = code // sample_size
-                        cursor = mv_write_sidx_loss(byte_mv, cursor,
-                                                    encode_sidx(building_i + 1, code - building_i * sample_size + 1, sample_size),
-                                                    loss)
+                for building_i in range(nb_buildings):
+                    for sample_idx in range(sample_size):
+                        code = building_i * sample_size + sample_idx
+                        loss = 0.
+                        if every_code:
+                            if code < run_length:
+                                loss = sample_losses[run_offset + code]
+                        elif k < run_length and run_code(run_code_starts, codes, item_j, k) == code:
+                            loss = sample_losses[run_offset + k]
+                            k += 1
+                        if loss >= loss_threshold:
+                            cursor = mv_write_sidx_loss(byte_mv, cursor, encode_sidx(building_i + 1, sample_idx + 1, sample_size), loss)
         else:
             # summed at source: an ordinary unpacked item covering all its buildings, each sample
             # the sum of its buildings', added in building order
@@ -831,9 +840,21 @@ def write_losses(event_id, sample_size, loss_threshold, losses, item_ids, n_buil
                                            loss_correlation[item_j])
             for sample_idx in range(sample_size):
                 sample_acc[sample_idx] = 0.
-            for k in range(run_length):
-                code = run_code(run_code_starts, codes, item_j, k)
-                sample_acc[code - (code // sample_size) * sample_size] += sample_losses[run_offset + k]
+            if run_code_starts[item_j] < 0:
+                # every code in order: building after building, a contiguous add the compiler
+                # vectorises across the samples
+                # (a step of at least 1: with S = 0 the run is empty, but range refuses a 0 step)
+                for building_start in range(run_offset, run_offset + run_length, max(sample_size, 1)):
+                    for sample_idx in range(sample_size):
+                        sample_acc[sample_idx] += sample_losses[building_start + sample_idx]
+            else:
+                # the codes ascend, so the building is recomputed only when a code leaves it
+                building_code = 0
+                for k in range(run_length):
+                    code = run_code(run_code_starts, codes, item_j, k)
+                    if code - building_code >= sample_size:
+                        building_code = (code // sample_size) * sample_size
+                    sample_acc[code - building_code] += sample_losses[run_offset + k]
             for sample_idx in range(1, sample_size + 1):
                 loss = sample_acc[sample_idx - 1]
                 if loss >= loss_threshold:
