@@ -349,6 +349,9 @@ def main(argv=None):
             manager_options['margin'] = args.memory_margin_mb * MB
         options['resource_manager'] = ResourceManager(args.workers, **manager_options)
     stats = executor.run_chunks(spec, chunks, out_dir, taps, args.workers, **options)
+    if 'output_jobs' in options:
+        for rename in plan.output_renames:
+            rename.apply(spec.run_dir)
     logger.info("executor %s: %d events in %d chunks, %d output jobs, %.2f s (output jobs %.2f s)", args.executor, len(events),
                 n_chunks, len(stats.get('jobs', [])), stats.get('wall_seconds', 0.0), stats.get('output_seconds', 0.0))
     if args.stats_json:

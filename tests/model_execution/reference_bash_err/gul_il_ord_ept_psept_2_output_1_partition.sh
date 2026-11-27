@@ -144,5 +144,7 @@ exec_wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9
 ( lecpy -r -Kgul_S2_summaryleccalc -F -S -s -M -m -W -w -O output/gul_S2_ept.csv -o output/gul_S2_psept.csv ) 2>> $LOG_DIR/stderror.err & lpid4=$!
 exec_wait $lpid1 $lpid2 $lpid3 $lpid4
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

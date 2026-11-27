@@ -5,9 +5,8 @@
 
 [![Oasislmf Testing](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/unittest.yml)
 [![Code Quality](https://github.com/OasisLMF/OasisLMF/actions/workflows/code-quality.yml/badge.svg)](https://github.com/OasisLMF/OasisLMF/actions/workflows/code-quality.yml)
-[![PiWind check (Platform 1)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test-v1.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test-v1.yml)
-[![PiWind check (Platform 2)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test-v2.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-test-v2.yml)
-[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml)
+[![Platform Tests](https://github.com/OasisLMF/OasisLMF/actions/workflows/platform-tests.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/platform-tests.yml)
+[![PiWind MDK](https://github.com/OasisLMF/OasisLMF/actions/workflows/piwind-mdk.yml/badge.svg?branch=main&event=push)](https://github.com/OasisLMF/OasisLMF/actions/workflows/mdk-tests.yml)
 
 
 
@@ -86,6 +85,23 @@ You can also install from a specific branch `<branch name>` using:
 
     pip install [-v] git+{https,ssh}://git@github.com/OasisLMF/OasisLMF.git@<branch name>#egg=oasislmf
 
+### Optional dependencies
+
+Some features need extra packages, grouped so you only install what you use:
+
+| Group      | Packages                                              | Enables                                               |
+|------------|-------------------------------------------------------|-------------------------------------------------------|
+| `currency` | forex-python                                          | `FxCurrencyRates` currency conversion                 |
+| `spatial`  | shapely, geopandas, rtree, scikit-learn, h3, rasterio | `rtree`, `h3` and `geotiff` built-in lookup steps     |
+| `plot`     | matplotlib                                            | resource monitor plots and `oasislmf api plot`        |
+| `all`      | `currency` + `spatial` + `plot`                       | all of the above                                      |
+| `extra`    | `currency` + `spatial` + `plot`                       | same as `all` (kept for backwards compatibility)      |
+
+Install one or more groups with, for example:
+
+    pip install "oasislmf[spatial,plot]"
+    pip install "oasislmf[all]"
+
 ### macOS Apple Silicon (M1/M2/M3/M4)
 
 OasisLMF installs natively on Apple Silicon Macs via `pip install oasislmf`. Ensure you have:
@@ -93,7 +109,7 @@ OasisLMF installs natively on Apple Silicon Macs via `pip install oasislmf`. Ens
 - **Python 3.10+** (the system Python on macOS is 3.9 — install via `brew install python@3.12` or pyenv)
 - **macOS 12 (Monterey) or later** (required for scipy ARM64 wheels)
 
-For optional geospatial extras (`pip install oasislmf[extra]`), also install:
+For the optional spatial packages (`pip install "oasislmf[spatial]"`), also install:
 
     brew install spatialindex geos
 

@@ -291,7 +291,20 @@ def orchestrated_run(ref_dir, run_dir, executor, n_workers=2, use_cli=False):
     chunks = plan.make_chunks(read_events(str(run_dir / 'input' / 'events.bin')))
     run_chunks = inline.run_chunks if executor == 'inline' else pool.run_chunks
     stats = run_chunks(plan.spec, chunks, run_dir / 'taps', [], n_workers, output_jobs=plan.output_jobs)
+    for rename in plan.output_renames:
+        rename.apply(str(run_dir))
     return plan, stats
+
+
+def final_outputs(plan):
+    """The output files of a plan's jobs once its ``output_renames`` are applied."""
+    paths = {p for job in plan.output_jobs for p in job_outputs(job)}
+    for rename in plan.output_renames:
+        for path in [p for p in paths if p.startswith(rename.src)]:
+            paths.add(rename.dst + path[len(rename.src):])
+            if not rename.copy:
+                paths.discard(path)
+    return sorted(f'output/{os.path.basename(p)}' for p in paths)
 
 
 @pytest.mark.parametrize('executor, use_cli', [('inline', False), ('pool', True)])
@@ -301,7 +314,7 @@ def test_orchestrated_full_kernel_byte_identical_to_bash(full_kernel_reference, 
     report = compare_trees_bytes(ref_dir, tmp_path / 'run')
     assert report.ok, report.summary()
     outputs = [rel for rel in list_files(ref_dir, subdirs=('output',)) if 'summary-info' not in rel]
-    assert sorted(outputs) == sorted(f'output/{os.path.basename(p)}' for job in plan.output_jobs for p in job_outputs(job))
+    assert sorted(outputs) == final_outputs(plan)
     assert report.compared == len(list_files(ref_dir))
     check_job_stats(stats, plan.output_jobs, 1 if executor == 'inline' else 2)
     assert {j['tool'] for j in stats['jobs']} == {'katpy', 'aalpy', 'lecpy'}

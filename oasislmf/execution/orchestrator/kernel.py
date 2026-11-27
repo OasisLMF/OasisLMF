@@ -286,6 +286,9 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
                 raise _failure(plan, mode, stats, chunk_numbers, n_workers, f"Chunk output error: File '{empty[0]}' is empty",
                                log_dir, script, t_start, n_chunks, manager)
 
+    if run_outputs:
+        for rename in plan.output_renames:
+            rename.apply(run_dir)
     if run_outputs and bash_params.get('remove_working_files'):
         empty_dir(work_dir, create=False)
     text = _run_log(plan, mode, stats, chunk_numbers, n_workers, n_chunks=n_chunks, manager=manager)

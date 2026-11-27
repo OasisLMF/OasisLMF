@@ -370,7 +370,7 @@ class TestGenLosses(ComputationChecker):
 
     def test_losses__run_ri_and_rl__all_layers_summarised(self):
         """Gross RL output is produced at every RI layer, so requesting it alongside net RI
-        output writes an fmsummaryxref into all of them - the pre-built summarypy structures
+        output writes an rlsummaryxref into all of them - the pre-built summarypy structures
         must cover the same set."""
         self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MULTI_LAYER_INF)
         self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MULTI_LAYER_SCP)
@@ -395,7 +395,7 @@ class TestGenLosses(ComputationChecker):
         run_input_dir = os.path.join(call_args['model_run_dir'], 'input')
         built = {
             ri_dir for ri_dir in ri_dirs
-            if os.path.isfile(os.path.join(run_input_dir, ri_dir, 'ri', 'summary_info.npy'))
+            if os.path.isfile(os.path.join(run_input_dir, ri_dir, 'rl', 'summary_info.npy'))
         }
         self.assertEqual(built, set(ri_dirs))
 
@@ -526,6 +526,40 @@ class TestGenLosses(ComputationChecker):
             self.manager.generate_losses_dir(**{**self.min_args, 'model_run_dir': model_run_dir})
         self.assertTrue(any('occurrence index not built' in line for line in logs.output))
 
+    @patch('subprocess.Popen')
+    def test_losses__output__remove_working_file_controls_cleanup(self, mock_popen):
+        """The ``remove_working_file`` option of the output step decides whether
+        the outputs script deletes the ``work/`` and fifo dirs once it has finished."""
+        mock_proc = Mock()
+        mock_proc.pid = 12345
+        mock_proc.communicate.return_value = (b'', None)
+        mock_proc.returncode = 0
+        mock_popen.return_value = mock_proc
+
+        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_gul)
+        for remove_working_file in (True, False):
+            with self.tmp_dir() as model_run_dir, self.subTest(remove_working_file=remove_working_file):
+                call_args = {
+                    **self.min_args,
+                    'model_run_dir': model_run_dir,
+                    'kernel_fifo_relative': True,
+                    'max_process_id': 1,
+                }
+                self.manager.generate_losses_dir(**call_args)
+                self.manager.generate_losses_output(**call_args, remove_working_file=remove_working_file)
+
+                script = self.read_file(os.path.join(model_run_dir, 'run_outputs.sh')).decode()
+                cleanup_lines = [
+                    'rm -R -f {}'.format(os.path.join(model_run_dir, 'work', '*')),
+                    'rm -R -f {}'.format(os.path.join(model_run_dir, 'fifo', '*')),
+                ]
+                for line in cleanup_lines:
+                    if remove_working_file:
+                        self.assertIn(line, script)
+                    else:
+                        self.assertNotIn(line, script)
+
     def test_losses__chucked_workflow(self):
         num_chunks = 5
         self.manager.generate_files(**self.args_gen_files_ri)
@@ -562,6 +596,9 @@ class TestGenLosses(ComputationChecker):
 
             self.manager.generate_losses_output(**call_args)
 
+    RI_ONLY_RUN_SETTINGS = {key: value for key, value in RI_RUN_SETTINGS.items() if not key.startswith('rl_')}
+    """RI_RUN_SETTINGS without the reinsurer's loss (rl), which falls back to bash."""
+
     def _output_files(self, model_run_dir):
         output_dir = pathlib.Path(model_run_dir, 'output')
         return {str(p.relative_to(output_dir)): p.read_bytes() for p in sorted(output_dir.rglob('*')) if p.is_file()}
@@ -596,23 +633,26 @@ class TestGenLosses(ComputationChecker):
                 self.assertTrue(os.path.isfile(os.path.join(model_run_dir, 'run_kernel.sh')))
                 self._assert_ran_with(model_run_dir, 'log', orchestrator)
             self._assert_same_outputs(bash_run_dir, orchestrator_run_dir)
+            return sorted(self._output_files(orchestrator_run_dir))
 
     @pytest.mark.requires_bash
     def test_losses__orchestrator__ri_matches_bash(self):
-        self._compare_generate_losses(self.args_gen_files_ri, RI_RUN_SETTINGS, "10032")
+        self._compare_generate_losses(self.args_gen_files_ri, self.RI_ONLY_RUN_SETTINGS, "10032")
 
     @pytest.mark.requires_bash
-    def test_losses__orchestrator__ri_and_rl_multi_layer_matches_bash(self):
+    def test_losses__orchestrator__ri_multi_layer_with_final_inuring_priority_matches_bash(self):
         self.write_str(self.tmp_oasis_files.get('oed_info_csv'), MULTI_LAYER_INF)
         self.write_str(self.tmp_oasis_files.get('oed_scope_csv'), MULTI_LAYER_SCP)
-        settings = {**RI_AAL_SETTINGS, 'rl_output': True, 'rl_summaries': RI_AAL_SETTINGS['ri_summaries']}
-        self._compare_generate_losses(self.args_gen_files_ri, settings, "10033")
+        settings = {**RI_AAL_SETTINGS, 'ri_inuring_priorities': [1]}
+        outputs = self._compare_generate_losses(self.args_gen_files_ri, settings, "10033")
+        self.assertIn('ri_IP2_S1_selt.csv', outputs)
+        self.assertIn('ri_S1_selt.csv', outputs)
 
     @pytest.mark.requires_bash
     def test_losses__orchestrator__chunked_workflow_matches_bash(self):
         num_chunks = 3
         self.manager.generate_files(**self.args_gen_files_ri)
-        self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), self.RI_ONLY_RUN_SETTINGS)
         with self.tmp_dir() as bash_run_dir, self.tmp_dir() as orchestrator_run_dir:
             for model_run_dir, orchestrator in ((bash_run_dir, False), (orchestrator_run_dir, True)):
                 call_args = {
@@ -636,15 +676,16 @@ class TestGenLosses(ComputationChecker):
 
     @pytest.mark.requires_bash
     def test_losses__orchestrator__unsupported_config_falls_back_to_bash(self):
-        self.manager.generate_files(**self.args_gen_files_gul)
-        self.write_json(self.tmp_files.get('analysis_settings_json'), MIN_RUN_SETTINGS)
+        self.manager.generate_files(**self.args_gen_files_ri)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), RI_RUN_SETTINGS)
         with self.tmp_dir() as model_run_dir, \
                 patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10035"}), \
                 self.assertLogs('oasislmf.execution.runner', level='WARNING') as logs:
-            self.manager.generate_losses(**{**self.min_args, 'model_run_dir': model_run_dir, 'kernel_num_processes': 2,
-                                            'join_summary_info': True, 'orchestrator': True})
+            self.manager.generate_losses(**{**self.min_args, 'oasis_files_dir': self.args_gen_files_ri['oasis_files_dir'],
+                                            'model_run_dir': model_run_dir, 'kernel_num_processes': 2, 'orchestrator': True})
             self._assert_ran_with(model_run_dir, 'log', False)
-        self.assertTrue(any('join-summary-info' in line and 'bash script instead' in line for line in logs.output))
+            self.assertTrue(any(name.startswith('rl_S1_') for name in self._output_files(model_run_dir)))
+        self.assertTrue(any('rlcombine' in line and 'bash script instead' in line for line in logs.output))
 
     def test_losses__orchestrator__error__exception_raised__outputs(self):
         self.manager.generate_files(**self.args_gen_files_ri)
@@ -730,6 +771,34 @@ class TestGenLosses(ComputationChecker):
                 self.assertEqual(orchestrator, mock_run_analysis.call_args.kwargs.get('orchestrator', False))
                 self.assertEqual(2, mock_run_analysis.call_args.kwargs['process_number'])
                 self.assertEqual(orchestrator, mock_run_outputs.call_args.kwargs.get('orchestrator', False))
+
+    @patch('oasislmf.execution.runner.run_outputs')
+    @patch('oasislmf.execution.runner.run_analysis')
+    def test_losses__chunked_workflow__samples_set__in_model_settings(self, mock_run_analysis, mock_run_outputs):
+        # each chunk / output step must use the settings stored by generate_losses_dir,
+        # which hold number_of_samples taken from model_default_samples
+        expected_samples = 250
+        model_settings = {**MIN_MODEL_SETTINGS, 'model_default_samples': expected_samples}
+        no_samples_settings = MIN_RUN_SETTINGS.copy()
+        no_samples_settings.pop('number_of_samples')
+        self.write_json(self.tmp_files.get('model_settings_json'), model_settings)
+        self.write_json(self.tmp_files.get('analysis_settings_json'), no_samples_settings)
+        self.manager.generate_files(**self.args_gen_files_gul)
+
+        with self.tmp_dir() as model_run_dir:
+            call_args = {
+                **self.min_args,
+                'model_settings_json': self.tmp_files.get('model_settings_json').name,
+                'max_process_id': 2,
+                'model_run_dir': model_run_dir,
+            }
+            self.manager.generate_losses_dir(**call_args)
+            with patch.dict(os.environ, {"OASIS_SOCKET_SERVER_PORT": "10022"}):
+                self.manager.generate_losses_partial(**{**call_args, 'process_number': 1, 'analysis_pk': 1})
+            self.manager.generate_losses_output(**call_args)
+
+        self.assertEqual(mock_run_analysis.call_args.kwargs['number_of_samples'], expected_samples)
+        self.assertEqual(mock_run_outputs.call_args.kwargs['analysis_settings']['number_of_samples'], expected_samples)
 
     @patch('oasislmf.execution.runner.run')
     def test_losses__supplier_model_ruuner(self, mock_run_func):

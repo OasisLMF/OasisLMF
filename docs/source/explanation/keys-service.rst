@@ -292,6 +292,25 @@ class otherwise this will try and run and the ``build_simple_add`` function will
 that we have signposted our ``["example"]`` column name in the ``"columns"`` field. This is to ensure that our ``example`` 
 field is not wiped at the end of the process.
 
+Every column listed in a step's ``"columns"`` is required: the lookup fails with ``missing columns ... for step ...`` if
+the location file doesn't have it. For a column that is optional in OED (``Latitude``/``Longitude``, for example), list
+it in ``"optional_columns"`` instead. It is kept if present, and a missing one doesn't fail the step, so the step must
+cope with it being absent (for instance a ``prepare`` step giving it a ``default``):
+
+.. code-block:: JSON
+
+   "coordinates": {
+       "type": "prepare",
+       "optional_columns": ["latitude", "longitude"],
+       "parameters": {"latitude": {"default": null}, "longitude": {"default": null}}
+   }
+
+A ``geog_lookup`` step treats the ``GeogScheme{N}``/``GeogName{N}`` slots it scans as optional automatically.
+
+Column names are matched to the location file ignoring case, but each column is passed to the steps under a single
+spelling, so every step must name it the same way in ``columns`` and ``optional_columns`` (e.g. not ``Latitude`` in
+one step and ``latitude`` in another). The lookup raises an error if they differ.
+
 |
 
 .. _built_in_functions_keys:
@@ -407,13 +426,32 @@ is left untouched. Rows where this column is empty keep whatever message was alr
 
 * **prepare**
 
-Prepare the dataframe by setting default, min and max values and type.
-
-Support several simple DataFrame preparation:
+Prepare the dataframe column by column. Each parameter key is a column name and its value a dict of preparations,
+applied in this order:
    * default: create the column if missing and replace the nan value with the default value
+   * strip: (``true``) remove leading and trailing whitespace from text values
+   * upper: (``true``) upper-case text values
+   * lower: (``true``) lower-case text values (cannot be combined with ``upper``)
    * max: truncate the values in a column to the specified max
    * min: truncate the values in a column to the specified min
    * type: convert the type of the column to the specified numpy dtype
+   * rename: rename the column to this name. An existing column with that name is replaced.
+   * drop: (``true``) remove the column. A missing column is ignored.
+
+``strip``, ``upper`` and ``lower`` only change string values; null and non-text values are left as they are. ``merge``
+matches values exactly, so use them to normalise a column before joining on it. Columns are processed in the order
+they are listed, so a later entry sees the result of an earlier ``rename``. An unknown option raises an error.
+
+.. code-block:: JSON
+
+   "normalise": {
+       "type": "prepare",
+       "columns": ["postalcode", "intermediate_id"],
+       "parameters": {
+           "postalcode": {"strip": true, "upper": true},
+           "intermediate_id": {"rename": "area_peril_id"}
+       }
+   }
 
 .. note::
    We use the string representation of numpy dtype available at
@@ -424,6 +462,9 @@ Support several simple DataFrame preparation:
 * **rtree**
 
 Function Factory to associate a location to a geometry (e.g. ``area_peril``) based on the rtree method.
+
+.. note::
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 .. note::
    !!!
@@ -445,6 +486,13 @@ Function Factory to associate a location to a geometry (e.g. ``area_peril``) bas
 ``id_columns``: column(s) to transform to an 'id_column' (type int32 with nan replaced by -1)
 
 ``file_read_params``: optional extra keyword arguments passed to the geopandas file reading function.
+   * Every non-geometry column of the file is kept in memory and joined to the locations. If the file has
+     columns the lookup doesn't need, list the ones to keep, including the geometry column, e.g.
+     ``{"columns": ["geometry", "area_peril_id", "peril_id"]}`` for parquet.
+
+The geometry file is read and indexed once. When keys are generated with several processes, it is read in
+the parent process before the worker processes start, and all workers share that one copy, so memory use
+doesn't grow with the number of processes.
 
 ``nearest_neighbor_max_distance``: option to look for the nearest neighboring geometry, up to this distance away (in metres, as a Euclidean distance), if no containing geometry is found.
    * We use: https://automating-gis-processes.github.io/site/notebooks/L3/nearest-neighbor-faster.html
@@ -506,10 +554,17 @@ Build a lookup function that assigns geotiff band values to each location from i
 
 ``band_info``: a dict where keys are the assigned column names, and values are dicts with:
    * ``id``: the id of the band in the tiff file
-   * ``default``: the value for locations outside of the geotiff's range
+   * ``default``: the value for pixels the geotiff marks as nodata, and for locations outside of the geotiff's
+     range or with missing coordinates. If the band's type cannot hold it (e.g. ``-1`` for a ``uint8`` band, or
+     ``NaN`` for an integer band), the column's type is widened to one that can.
+
+Each location takes the values of the pixel that contains it. The geotiff must use a geographic CRS such as
+EPSG:4326, or have no CRS, in which case its coordinates are taken as longitude/latitude; a projected CRS is
+rejected. The file is read with ``rasterio``, which only loads the requested bands of the raster blocks holding
+locations, so large rasters do not need to fit in memory.
 
 .. note::
-   Requires ``gdal`` to be installed, see the error message raised at build time for installation instructions.
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 |
 
@@ -544,7 +599,7 @@ Config example::
    }
 
 .. note::
-   Requires the ``h3`` package to be installed (``pip install h3>=4``).
+   Requires the ``spatial`` optional dependencies (``pip install "oasislmf[spatial]"``).
 
 |
 
@@ -585,6 +640,96 @@ dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupa
    }
 
 ``**kwargs``: additional keyword arguments forwarded to the pandas read function.
+
+The file is read once and indexed by its join columns, so each chunk of locations is merged only with the rows it
+can match instead of the whole file. When keys are generated with several processes, the file is read and indexed
+in the parent process before the worker processes start, and all workers share that one copy. Without
+``join_columns``, the join columns can depend on columns that earlier steps add (for example an ``rtree`` step adding
+``area_peril_id``), so the parent finds them by running the lookup on the first few locations. If that run fails,
+each worker builds its own index of the file, which for a large file needs a lot of memory; a warning in the log
+says so. Setting ``join_columns`` avoids this, as the parent then indexes the file on them directly.
+
+|
+
+* **sorted_lookup**
+
+Looks up one integer key column (a grid cell id, for example) in a table too large for ``merge``, which reads its whole
+file into every lookup process. The table is stored as sorted ``.npy`` arrays opened memory-mapped, so the operating
+system's page cache holds one copy shared by every process and every run, and each chunk of locations is matched with
+``np.searchsorted``.
+
+Build the arrays once, when preparing the model's keys data:
+
+.. code-block:: python
+
+   from oasislmf.lookup.builtin import write_sorted_lookup
+
+   write_sorted_lookup("cell_areaperil.parquet", "keys_data/cell_areaperil",
+                       key_column="cell_id", value_columns=["area_peril_id"])
+
+The key column must be integers, unique and not null, and the value columns numeric with no nulls. The directory holds
+one ``.npy`` per column and a ``sorted_lookup.json`` describing them.
+
+``file_path``: the directory written by ``write_sorted_lookup``, supports the ``%%KEYS_DATA_PATH%%`` placeholder.
+
+``value_columns`` (optional): the value columns to add to the locations. Defaults to all of them.
+
+``id_columns`` (optional): column(s) to transform to an id column (nulls replaced by -1).
+
+The key column named in ``sorted_lookup.json`` must be in the locations, so list it in the step's ``"columns"`` (or
+create it in an earlier step). Locations whose key is null, not an integer, or not in the table get null values, and
+-1 in ``id_columns``.
+
+.. versionadded:: 2.5.10
+
+.. code-block:: JSON
+
+   "areaperil": {
+       "type": "sorted_lookup",
+       "columns": ["cell_id"],
+       "parameters": {
+           "file_path": "%%KEYS_DATA_PATH%%/cell_areaperil",
+           "id_columns": ["area_peril_id"]
+       }
+   }
+
+|
+
+* **transform_coordinates**
+
+Projects the locations' latitude/longitude into another coordinate reference system and writes the result to new
+``x``/``y`` columns, so a following step can index a grid defined in that CRS (for example one ``interval_to_index``
+step per axis). Needs ``pyproj``, installed with ``pip install oasislmf[extra]``.
+
+``target_crs``: the CRS to project to, in any form ``pyproj.CRS`` accepts (``"EPSG:27700"``, ``27700``, a PROJ string or
+WKT).
+
+``source_crs`` (optional): the CRS of the latitude/longitude columns. Defaults to ``"EPSG:4326"`` (WGS 84).
+
+``x_column``, ``y_column`` (optional): the output columns. Default to ``x`` and ``y``. ``x`` is always the
+longitude-like axis (easting), whatever the CRS's own axis order.
+
+``latitude_column``, ``longitude_column`` (optional): the input columns. Default to ``latitude`` and ``longitude``.
+
+``area_of_use_only`` (optional, default ``true``): pyproj projects points far outside a CRS's area of use without
+complaint, so by default locations outside the target CRS's published area of use get NaN in both columns. Locations
+with a null latitude or longitude, or that can't be projected, always get NaN.
+The step writes the reason to the location's ``message`` (e.g. ``transform_coordinates failure: outside the area of
+use of EPSG:27700``), which is reported in the keys errors file if no id can then be found.
+
+.. versionadded:: 2.5.10
+
+.. code-block:: JSON
+
+   "project": {
+       "type": "transform_coordinates",
+       "columns": ["latitude", "longitude"],
+       "parameters": {"target_crs": "EPSG:27700"}
+   },
+   "grid_x": {
+       "type": "interval_to_index",
+       "parameters": {"value_column_name": "x", "sorted_array": "%%KEYS_DATA_PATH%%/x_edges.csv"}
+   }
 
 |
 

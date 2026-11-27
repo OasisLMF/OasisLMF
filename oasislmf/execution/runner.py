@@ -9,8 +9,9 @@ import time
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
+from ..utils.ping import oasis_ping
 from .bash import (bash_wrapper, check_custom_gulcalc_can_read_inputs, create_bash_analysis,
-                   create_bash_outputs, genbash, genbash_params)
+                   create_bash_outputs, genbash, genbash_params, has_platform_progress)
 from .orchestrator.kernel import command as orchestrator_command
 from .orchestrator.kernel import run_plan
 from .orchestrator.plan import Unsupported, plan_from_bash_params
@@ -278,14 +279,11 @@ def run(analysis_settings,
                     max_process_id,
                     os.path.abspath("analysis_settings.json"),
                     "input")
-                if item_output != '':
-                    cmd = '{} -i {}'.format(cmd, item_output)
+                cmd = '{}{}'.format(cmd, item_output)
                 if stderr_guard:
                     cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
 
                 return cmd
-        else:
-            custom_get_getmodel_cmd = None
 
     ###########################################################
 
@@ -309,7 +307,9 @@ def run(analysis_settings,
         plan = orchestrator_plan(params, filename)
 
     # Calls run_analysis + run_outputs in a single script
-    genbash(number_of_processes, analysis_settings, **genbash_args)
+    progress_totals = genbash(number_of_processes, analysis_settings, **genbash_args)
+    if has_platform_progress(kwargs.get('analysis_pk')):
+        oasis_ping({'analysis_pk': kwargs['analysis_pk'], **progress_totals})
     monitor = ResourceMonitor(
         output_dir='log',
         poll_interval=resource_monitor_interval,
@@ -417,7 +417,9 @@ def run_analysis(**params):
                       params['stderr_guard'],
                       log_sub_dir=params.get("process_number", None),
                       process_number=params.get("process_number", None)):
-        create_bash_analysis(**params)
+        gul_processes = create_bash_analysis(**params)
+    if has_platform_progress(params.get('analysis_pk')):
+        oasis_ping({'analysis_pk': params['analysis_pk'], 'gul_processes': gul_processes})
 
     process_number = params.get('process_number')
     run_dir = os.path.dirname(params['filename'])
@@ -476,7 +478,9 @@ def run_outputs(**params):
 
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'],
                       log_sub_dir='out'):
-        create_bash_outputs(**params)
+        outputs_total = create_bash_outputs(**params)
+    if has_platform_progress(params.get('analysis_pk')):
+        oasis_ping({'analysis_pk': params['analysis_pk'], 'outputs_total': outputs_total})
 
     run_dir = os.path.dirname(params['filename'])
     log_root = os.path.join(run_dir, 'log')

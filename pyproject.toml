@@ -56,6 +56,7 @@ bintoparquet = "oasislmf.pytools.converters.bintoparquet.cli:main"
 parquettobin = "oasislmf.pytools.converters.parquettobin.cli:main"
 evepy = "oasislmf.pytools.eve.cli:main"
 socket-server = "oasislmf.utils.socket_server:main"
+rlcombine = "oasislmf.pytools.rlcombine.cli:main"
 
 [tool.setuptools]
 include-package-data = true
@@ -77,7 +78,12 @@ version = {attr = "oasislmf.__version__"}
 dependencies = {file = ["requirements-package.in"]}
 
 [tool.setuptools.dynamic.optional-dependencies]
-extra = {file = ["optional-package.in"]}
+currency = {file = ["optional-currency.in"]}
+spatial = {file = ["optional-spatial.in"]}
+plot = {file = ["optional-plot.in"]}
+all = {file = ["optional-currency.in", "optional-spatial.in", "optional-plot.in"]}
+# kept for backwards compatibility, same as all
+extra = {file = ["optional-currency.in", "optional-spatial.in", "optional-plot.in"]}
 
 [tool.cibuildwheel]
 build = "cp310-* cp311-* cp312-* cp313-* cp314-*"

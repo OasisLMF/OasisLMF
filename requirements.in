@@ -1,5 +1,7 @@
 -r ./requirements-package.in
--r ./optional-package.in
+-r ./optional-currency.in
+-r ./optional-spatial.in
+-r ./optional-plot.in
 
 configparser>=3.5.0
 coverage>=7.10

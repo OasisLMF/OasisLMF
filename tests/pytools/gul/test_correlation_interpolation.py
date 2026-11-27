@@ -1,5 +1,10 @@
 """Tests for the interpolated lookup in get_corr_rval (shared by gulpy and gulmc)."""
 
+import os
+import subprocess
+import sys
+from textwrap import dedent
+
 import numpy as np
 import pytest
 from scipy.stats import norm
@@ -75,3 +80,42 @@ def test_corr_rval_middle_reasonable():
     ])
 
     np.testing.assert_allclose(z_unif, z_exact, atol=1e-4)
+
+
+def test_corr_rval_keeps_sqrt_rho_at_full_width_under_oasis_float_f8(tmp_path):
+    """With OASIS_FLOAT=f8, sqrt(rho) must not be rounded to float32 before correlating.
+
+    Runs with its own NUMBA_CACHE_DIR: the on-disk cache does not key on oasis_float, so an f4 build of the kernel would be reused.
+    """
+    script = dedent("""
+        from math import sqrt
+
+        import numpy as np
+
+        from oasislmf.pytools.gul import random as r
+
+        assert r.oasis_float_type is np.float64
+        norm_inv_cdf = r.compute_norm_inv_cdf_lookup(r.x_min, r.x_max, r.norm_inv_N)
+        norm_cdf = r.compute_norm_cdf_lookup(r.cdf_min, r.cdf_max, r.norm_inv_N)
+        N = len(norm_inv_cdf)
+        x_unif = np.array([0.0005, 0.9995, 0.3, 0.7])
+        y_unif = np.array([0.9995, 0.0005, 0.6, 0.2])
+        rho = np.float64(0.3)
+        z_unif = np.zeros(len(x_unif))
+        r.get_corr_rval(x_unif, y_unif, rho, r.x_min, norm_inv_cdf, r.inv_factor, r.cdf_min,
+                        norm_cdf, r.norm_factor, len(x_unif), z_unif)
+
+        def to_norm(u):
+            if u < r.epsilon or u > 1.0 - r.epsilon:
+                return r._interpolate_lookup(u, r.x_min, r.inv_factor, norm_inv_cdf, N)
+            return r._fast_lookup(u, r.x_min, r.inv_factor, norm_inv_cdf, N)
+
+        expected = np.array([
+            r._interpolate_lookup(sqrt(rho) * to_norm(x) + sqrt(1.0 - rho) * to_norm(y), r.cdf_min, r.norm_factor, norm_cdf, N)
+            for x, y in zip(x_unif, y_unif)
+        ])
+        np.testing.assert_allclose(z_unif, expected, rtol=1e-12, atol=0)
+        """)
+    env = {**os.environ, "OASIS_FLOAT": "f8", "NUMBA_CACHE_DIR": str(tmp_path)}
+    result = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True, text=True, timeout=300)
+    assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"

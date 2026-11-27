@@ -254,7 +254,7 @@ def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
                             # carrying on would corrupt memory rather than fail.
                             raise ValueError(
                                 "packed sidx in the stream but the financial structure declares no "
-                                f"packed buildings: {FM_STRUCTURE_INFO_FILE} is missing from the input folder")
+                                "packed buildings, file missing from the input folder:", FM_STRUCTURE_INFO_FILE)
                         local_sidx = decode_local_sidx(sidx, max_sidx_val)
                     else:
                         local_sidx = sidx

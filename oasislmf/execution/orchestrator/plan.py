@@ -18,14 +18,16 @@ In a distributed run (``process_number`` k of ``max_process_id``) bash runs part
 Settings the stages do not cover raise ``Unsupported`` with the reason, and the run falls back to bash.
 """
 import csv
+import glob
 import json
 import logging
 import os
+import shutil
 from dataclasses import asdict, dataclass, field
 
 from oasislmf.execution.bash import (ORD_ALT_MEANONLY_OUTPUT_SWITCHES, ORD_ALT_OUTPUT_SWITCHES,
                                      ORD_EPT_OUTPUT_SWITCHES, ORD_LECCALC, ORD_PSEPT_OUTPUT_SWITCHES, OUTPUT_SWITCHES,
-                                     get_ri_inuring_priorities, get_rl_inuring_priorities, ord_enabled)
+                                     INTERMEDIATE_INURING_PRIORITY_PREFIX, get_reinsurance_inuring_priorities, ord_enabled)
 from oasislmf.pytools.getmodel.common import SECTION_MERGE_DEFAULT
 from oasislmf.utils.defaults import (EVE_DEFAULT_SHUFFLE, EVE_FISHER_YATES, EVE_NO_SHUFFLE, EVE_ROUND_ROBIN,
                                      EVE_STD_SHUFFLE)
@@ -89,6 +91,31 @@ class Unsupported(Exception):
 
 
 @dataclass
+class OutputRename:
+    """Output files bash renames, or copies, once every output job is done (``do_ri_final_output``).
+
+    Attributes:
+        src (str): the prefix of the files to rename, relative to the run directory.
+        dst (str): the prefix that replaces it.
+        copy (bool): copy the files, keeping the originals, instead of renaming them.
+    """
+    src: str
+    dst: str
+    copy: bool = False
+
+    def apply(self, run_dir):
+        """Rename (or copy) every file of ``run_dir`` whose path starts with ``src`` to the same path starting with ``dst``."""
+        src = os.path.join(run_dir, self.src)
+        dst = os.path.join(run_dir, self.dst)
+        for path in sorted(glob.glob(glob.escape(src) + '*')):
+            target = dst + path[len(src):]
+            if self.copy:
+                shutil.copyfile(path, target)
+            else:
+                os.replace(path, target)
+
+
+@dataclass
 class OutputJob:
     """One command bash runs after every partition is done.
 
@@ -116,7 +143,7 @@ class OutputJob:
             argv += [KAT_FLAGS[t] for t in KAT_FLAGS if kw.get(t)]
             return argv + ['-f', kw['file_type'], '-i', *kw['files_in'], '-o', kw['out']]
         if self.tool == 'aalpy':
-            argv = ['aalpy', f"-K{kw['subfolder']}"]
+            argv = ['aalpy', f"-K{kw['subfolder']}"] + (['-M'] if kw.get('meanonly') else [])
             if kw.get('alct'):
                 argv += ['-c', kw['alct']]
                 if 'confidence' in kw:
@@ -168,12 +195,14 @@ class Plan:
         event_shuffle (int): evepy partitioning rule (``EVE_*`` of ``oasislmf.utils.defaults``).
         process_number (int | None): in a distributed run, the one partition this run computes (bash's
             ``process_number``); its work files are in ``<process_number>.work/`` as bash names them. None for all.
+        output_renames (list[OutputRename]): the output files renamed or copied once every output job is done.
     """
     spec: ChainSpec
     output_jobs: list = field(default_factory=list)
     n_chunks: int = 1
     event_shuffle: int = EVE_DEFAULT_SHUFFLE
     process_number: int = None
+    output_renames: list = field(default_factory=list)
 
     @property
     def chunk_numbers(self):
@@ -205,13 +234,15 @@ class Plan:
     def to_dict(self):
         """Return the plan as a plain JSON-serialisable dict."""
         return {'spec': self.spec.to_dict(), 'output_jobs': [job.to_dict() for job in self.output_jobs],
-                'n_chunks': self.n_chunks, 'event_shuffle': self.event_shuffle, 'process_number': self.process_number}
+                'n_chunks': self.n_chunks, 'event_shuffle': self.event_shuffle, 'process_number': self.process_number,
+                'output_renames': [asdict(rename) for rename in self.output_renames]}
 
     @classmethod
     def from_dict(cls, data):
         """Build a plan from the output of ``to_dict``."""
         return cls(spec=ChainSpec.from_dict(data['spec']), output_jobs=[OutputJob.from_dict(j) for j in data['output_jobs']],
-                   n_chunks=data['n_chunks'], event_shuffle=data['event_shuffle'], process_number=data.get('process_number'))
+                   n_chunks=data['n_chunks'], event_shuffle=data['event_shuffle'], process_number=data.get('process_number'),
+                   output_renames=[OutputRename(**rename) for rename in data.get('output_renames', [])])
 
     def to_json(self):
         """Return the plan as a JSON string."""
@@ -237,6 +268,9 @@ def _check_supported(bash_params, analysis_settings, run_dir):
         raise Unsupported('full correlation output (genbash reads FIFOs nothing writes, issue #2311)')
     if bash_params.get('custom_args'):
         raise Unsupported(f"custom_args {sorted(bash_params['custom_args'])} are passed to the getmodel command")
+    if bash_params.get('rl_output'):
+        raise Unsupported("rl output (the reinsurer's loss is combined across inuring priorities by rlcombine, "
+                          "which the orchestrator does not run)")
     event_shuffle = bash_params.get('event_shuffle', EVE_DEFAULT_SHUFFLE)
     if event_shuffle not in EVE_FLAGS:
         raise Unsupported(f'unknown event shuffle rule {event_shuffle!r}')
@@ -247,7 +281,7 @@ def _check_supported(bash_params, analysis_settings, run_dir):
     if bash_params.get('num_gul_per_lb') and bash_params.get('num_fm_per_lb') and il_or_ri and not distributed:
         logger.info('The orchestrator ignores the load balancer (num_gul_per_lb / num_fm_per_lb): '
                     'its workers take the next chunk when they are free')
-    for runtype in ('gul', 'il', 'ri', 'rl'):
+    for runtype in ('gul', 'il', 'ri'):
         if not bash_params.get(f'{runtype}_output'):
             continue
         for summary in analysis_settings.get(f'{runtype}_summaries', []):
@@ -361,7 +395,7 @@ def _summary_sets(summaries, runtype, ip, work_dir, kat_dir, low_memory=False):
 def _summary_node(runtype, ip, step, output, static_path, summaries, work_dir, kat_dir, low_memory=False):
     """One summarypy of the tree: where it reads, its stage kwargs and its summary sets."""
     sets = _summary_sets(summaries, runtype, ip, work_dir, kat_dir, low_memory)
-    stage = {'run_type': 'ri' if runtype == 'rl' else runtype, 'summary_set_ids': [s['id'] for s in sets],
+    stage = {'run_type': runtype, 'summary_set_ids': [s['id'] for s in sets],
              'static_path': 'input' if static_path is None else static_path, 'low_memory': low_memory, 'output_zeros': False}
     return {'runtype': runtype, 'inuring_priority': ip, 'source': {'step': step, 'output': output},
             'static_path_flag': static_path is not None, 'stage': stage, 'sets': sets}
@@ -400,7 +434,7 @@ def _output_jobs(bash_params, analysis_settings, nodes, n_chunks):
                         kwargs['confidence'] = ord_output['alct_confidence']
                 jobs.append(OutputJob('aalpy', kwargs, summary_info))
             if ord_enabled(summaries[n], ORD_ALT_MEANONLY_OUTPUT_SWITCHES):
-                jobs.append(OutputJob('aalpy', {'subfolder': f'{stem}_summary_altmeanonly',
+                jobs.append(OutputJob('aalpy', {'subfolder': f'{stem}_summary_altmeanonly', 'meanonly': True,
                                                 'aal': f'{output_dir}{stem}_altmeanonly.{ext}', 'ext': ext}, summary_info))
             if ord_enabled(summaries[n], ORD_LECCALC):
                 kwargs = {'subfolder': f'{stem}_summaryleccalc', 'use_return_period': bool(ord_output.get('return_period_file')),
@@ -437,8 +471,7 @@ def plan_from_bash_params(bash_params, run_dir=None):
     gul_output = bool(bash_params.get('gul_output'))
     il_output = bool(bash_params.get('il_output'))
     ri_output = bool(bash_params.get('ri_output'))
-    rl_output = bool(bash_params.get('rl_output'))
-    n_ri = int(bash_params.get('num_reinsurance_iterations') or 0) if (ri_output or rl_output) else 0
+    n_ri = int(bash_params.get('num_reinsurance_iterations') or 0) if ri_output else 0
     work_dir = bash_params.get('work_dir', 'work/')
     low_memory = bool(bash_params.get('summarypy_low_memory'))
     kat_dir = bash_params.get('work_kat_dir', 'work/kat/')
@@ -448,17 +481,16 @@ def plan_from_bash_params(bash_params, run_dir=None):
     fm_common = {'low_memory': bool(bash_params.get('fmpy_low_memory')), 'sort_output': bool(bash_params.get('fmpy_sort_output'))}
 
     fm = []
-    if il_output or ri_output or rl_output:
+    if il_output or ri_output:
         il_step = {'name': 'il', 'allocation_rule': int(bash_params['il_alloc_rule']), 'static_path': 'input',
                    'gross': True, 'net': False, **fm_common}
         if _step_policies(run_dir):
             il_step['step_policies'] = True
         fm.append(il_step)
-    ri_levels = {ip['level']: ip['text'] for ip in get_ri_inuring_priorities(analysis_settings, n_ri)} if ri_output else {}
-    rl_levels = {ip['level']: ip['text'] for ip in get_rl_inuring_priorities(n_ri)} if rl_output else {}
+    ri_levels = {ip['level']: ip['text'] for ip in get_reinsurance_inuring_priorities(analysis_settings, n_ri)} if ri_output else {}
     for i in range(1, n_ri + 1):
         fm.append({'name': 'ri', 'allocation_rule': int(bash_params['ri_alloc_rule']), 'static_path': os.path.join('input', f'RI_{i}'),
-                   'gross': i in rl_levels, 'net': i < n_ri or i in ri_levels, **fm_common})
+                   'gross': False, 'net': i < n_ri or i in ri_levels, **fm_common})
     for i, step in enumerate(fm):
         step['feeds_next'] = None if i + 1 == len(fm) else ('gross' if step['name'] == 'il' else 'net')
 
@@ -470,9 +502,6 @@ def plan_from_bash_params(bash_params, run_dir=None):
     for level, text in ri_levels.items():
         nodes.append(_summary_node('ri', text, level, 'net', os.path.join('input', f'RI_{level}'),
                                    analysis_settings['ri_summaries'], work_dir, kat_dir, low_memory))
-    for level, text in rl_levels.items():
-        nodes.append(_summary_node('rl', text, level, 'gross', os.path.join('input', f'RI_{level}'),
-                                   analysis_settings['rl_summaries'], work_dir, kat_dir, low_memory))
 
     spec = ChainSpec(run_dir=run_dir, gul=gul, fm=fm, summaries=nodes, pla=_pla_kwargs(analysis_settings), gul_engine=gul_engine)
     n_chunks = int(bash_params.get('max_process_id') or 1)
@@ -482,7 +511,19 @@ def plan_from_bash_params(bash_params, run_dir=None):
         if not 1 <= process_number <= n_chunks:
             raise ValueError(f'process_number {process_number} is not a partition of 1..{n_chunks}')
     return Plan(spec=spec, output_jobs=_output_jobs(bash_params, analysis_settings, nodes, n_chunks), n_chunks=n_chunks,
-                event_shuffle=bash_params.get('event_shuffle', EVE_DEFAULT_SHUFFLE), process_number=process_number)
+                event_shuffle=bash_params.get('event_shuffle', EVE_DEFAULT_SHUFFLE), process_number=process_number,
+                output_renames=_ri_final_output(bash_params, analysis_settings, n_ri) if ri_output else [])
+
+
+def _ri_final_output(bash_params, analysis_settings, n_ri):
+    """The renaming ``do_ri_final_output`` scripts once the output files are written.
+
+    The final inuring priority's files are written as ``ri_IP<n>_...``, then renamed ``ri_...``, or copied there when
+    ``ri_inuring_priorities`` also asks for that priority on its own.
+    """
+    output_dir = bash_params.get('output_dir', 'output/')
+    return [OutputRename(src=f'{output_dir}ri_{INTERMEDIATE_INURING_PRIORITY_PREFIX}{n_ri}_', dst=f'{output_dir}ri_',
+                         copy=n_ri in analysis_settings.get('ri_inuring_priorities', []))]
 
 
 def _fifo(fifo_dir, runtype, k, consumer=''):

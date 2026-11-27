@@ -106,5 +106,7 @@ katpy -s -f bin -i work/kat/gul_S1_elt_sample_P1 -o output/gul_S1_selt.csv & kpi
 exec_wait $kpid1
 
 
+
+# --- removing working files
 rm -R -f work/*
 rm -R -f /tmp/%FIFO_DIR%/

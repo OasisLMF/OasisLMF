@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Full list of pytools tool names to monitor
 MONITORED_TOOLS = frozenset([
     'evepy', 'modelpy', 'gulpy', 'fmpy', 'gulmc',
-    'summarypy', 'plapy', 'katpy', 'eltpy', 'pltpy', 'aalpy', 'lecpy',
+    'summarypy', 'rlcombine', 'plapy', 'katpy', 'eltpy', 'pltpy', 'aalpy', 'lecpy',
 ])
 
 # Regex to extract a tool name from a process's command-line
@@ -52,6 +52,7 @@ TOOL_COLORS = {
     "fmpy": "#aec7e8",
     "gulmc": "#ffbb78",
     "summarypy": "#1f77b4",
+    "rlcombine": "#98df8a",
     "pltpy": "#ff7f0e",
     "eltpy": "#2ca02c",
     "katpy": "#d62728",
@@ -414,7 +415,7 @@ def _generate_plots(rows, report_dir, system_memory_mb=None):
         import matplotlib.ticker as ticker
     except ImportError:
         logger.warning("matplotlib not installed — skipping resource monitor plots. "
-                       "Install with: pip install oasislmf[extra]")
+                       'Install with: pip install "oasislmf[plot]"')
         return {}
 
     tool_series = _aggregate_by_tool_and_time(rows)

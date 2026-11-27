@@ -213,6 +213,8 @@ def test_returnperiods_removes_duplicates():
         Path(tmp, "in.csv").write_text("return_period\n10\n100\n100\n")
         csvtobin(Path(tmp, "in.csv"), Path(tmp, "returnperiods.bin"), "returnperiods")
         returnperiods, use_return_period_file = read_returnperiods(True, tmp, filename="returnperiods.bin")
+        # a view into the mapped file, which Windows can't delete while it's held (#2238)
+        returnperiods = returnperiods.tolist()
 
     assert use_return_period_file is True
-    assert list(returnperiods) == [100, 10]
+    assert returnperiods == [100, 10]

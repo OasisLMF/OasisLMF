@@ -247,7 +247,7 @@ field.
 Choosing how buildings are represented
 ######################################
 
-.. versionadded:: NEXT
+.. versionadded:: 2.5.10
     The ``--disaggregation`` switch and the ``none`` and ``samples`` modes. Before this,
     disaggregation was always on and behaved as ``items``.
 
@@ -359,7 +359,7 @@ gul_summary_map:
 ``samples``: buildings in the sample dimension
 ##############################################
 
-.. versionadded:: NEXT
+.. versionadded:: 2.5.10
 
 Under ``items`` the number of item records grows with the number of buildings: a portfolio of
 aggregate locations averaging 10 buildings each produces ten times the items, and every stage of

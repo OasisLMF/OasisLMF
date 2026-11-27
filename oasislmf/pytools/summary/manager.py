@@ -18,13 +18,14 @@ import pyarrow.parquet as pq
 from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
 from oasislmf.pytools.common.event_stream import init_streams_in, stream_info_to_bytes
 from oasislmf.pytools.common.stage import StreamSink
-from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_LOSS  # noqa: F401
+from oasislmf.pytools.common.run_types import (RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_GROSS_LOSS,  # noqa: F401
+                                               RUNTYPE_REINSURANCE_LOSS)
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_fmt, SELT_headers, VALID_EXT
 from oasislmf.pytools.summary.stage import (SPECIAL_SIDX_COUNT, SUMMARY_HEADER_SIZE, SUMMARY_META_SIZE, SIDX_LOSS_WRITE_SIZE,  # noqa: F401
                                             SUPPORTED_RUN_TYPE, SummaryReader, SummaryStage, get_summary_object, load_summary_object,
                                             load_summary_map, read_summary_objects, extract_risk_info, read_buffer, mv_write_event,
                                             fill_event_rows, get_summary_set_id_to_summary_set_index, get_summary_xref_info,
-                                            reset_event)
+                                            reset_event, SENTINEL_SIZE, get_sentinel_bytes)
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class SummaryRowWriter:
         self.row_i = 0
 
 
-def run(files_in, static_path, run_type, low_memory, output_zeros, output_format='bin', **kwargs):
+def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_event=False, output_format='bin', **kwargs):
     """Run the summary calculation, writing a summary output for each summary set.
 
     With the default ``bin`` format each summary set is written as a binary summary stream. With ``csv``
@@ -88,14 +89,23 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
     ImpactedExposure), one row per sidx of the stream, special sidx included.
 
     Args:
-        files_in: list of file path to read event from
-        run_type: type of the source that is sending the stream
-        static_path: path to the static files
-        low_memory: if true output summary index file (bin output only)
-        output_zeros: if true output 0 loss
-        output_format: one of ``bin``, ``csv`` or ``parquet``
+        files_in (str | List[str] | None): file path(s) to read events from, stdin if None
+        static_path (str): path to the static files
+        run_type (str): type of the source that is sending the stream, one of SUPPORTED_RUN_TYPE
+        low_memory (bool): if true output summary index file (bin output only)
+        output_zeros (bool): if true output 0 loss
+        sentinel_event (bool): if true close every event with an ``E:S0`` sentinel record
+            (summary_id 0), written even when the event has no summary record. Used by rlcombine.
+            Bin output only. Defaults to False
+        output_format (str): one of ``bin``, ``csv`` or ``parquet``. Defaults to ``bin``
         **kwargs: additional options, including ``summary_sets_output``, a list of
             ``-summary_set_id summary_set_path`` pairs
+
+    Raises:
+        Exception: if summary_sets_output is malformed or the input stream type is not supported
+        ValueError: if low_memory and sentinel_event are both set, if low_memory or sentinel_event is used with
+            csv or parquet output, if output_format or a file extension is not valid, or if a summary set is not in
+            the summaryxref
     """
     summary_sets_path = {}
     error_msg = (f"summary_sets_output expected format is a list of -summary_set_id summary_set_path (ex: -1 S1.bin -2 S2.bin')"
@@ -108,11 +118,15 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
         except ValueError:
             raise Exception(error_msg)
 
+    if low_memory and sentinel_event:
+        raise ValueError('cannot combine `low_memory` and `sentinel_event`')
     if output_format not in VALID_EXT:
         raise ValueError(f"unsupported output format {output_format}, expected one of {VALID_EXT}")
     output_binary = output_format == 'bin'
     if low_memory and not output_binary:
         raise ValueError(f"low memory index files are only available for bin output, not {output_format}")
+    if sentinel_event and not output_binary:
+        raise ValueError(f"sentinel events are only available for bin output, not {output_format}")
     if not output_binary:
         for summary_set_path in summary_sets_path.values():
             suffix = Path(summary_set_path).suffix
@@ -134,7 +148,8 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, output_format
         input_header = stream_info_to_bytes(stream_source_type, stream_agg_type) + len_sample.tobytes()
 
         stage = stack.enter_context(SummaryStage(input_header, static_path, run_type, summary_sets_path.keys(),
-                                                 low_memory=low_memory, output_zeros=output_zeros))
+                                                 low_memory=low_memory, output_zeros=output_zeros,
+                                                 sentinel_event=sentinel_event))
 
         summary_sets_out = None
         if output_binary:

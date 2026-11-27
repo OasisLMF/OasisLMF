@@ -13,7 +13,6 @@ Jagged Array Naming Convention
 import logging
 import sys
 from contextlib import ExitStack
-import time
 
 import numpy as np
 import numba as nb
@@ -35,8 +34,7 @@ from oasislmf.pytools.gulmc import stage as gulmc_stage
 from oasislmf.pytools.common.stage import StreamSink
 from oasislmf.pytools.common.id_index import get_idx as id_index_get_idx, NOT_FOUND as ID_INDEX_NOT_FOUND
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async
-from oasislmf.utils.defaults import SERVER_UPDATE_TIME
+from oasislmf.utils.ping import EventProgress
 from oasislmf.utils.exceptions import OasisException
 
 logger = logging.getLogger(__name__)
@@ -158,8 +156,9 @@ def run(run_dir,
           runtime. Defaults to False.
         section_merge (str, optional): how a dynamic footprint merges an areaperil's intensities across the sections of
           one event (see Footprint.load). Defaults to None, the footprint's default.
-        **kwargs: additional keyword arguments. socket_server (str) enables the progress ping and, when numeric, gives
-          the port to override; analysis_pk is reported with each ping.
+        **kwargs: additional keyword arguments. socket_server (str) enables the progress pings (a `gul_ready` ping once
+          the model is loaded, then `events_complete` counts) and, when numeric, gives the port to override; analysis_pk
+          is reported with each ping.
 
     Raises:
         ValueError: if alloc_rule is not 0, 1, 2, or 3.
@@ -201,31 +200,15 @@ def run(run_dir,
 
         stream_out.write(stage.header)
 
-        counter = 0
-        timer = time.time()
-        socket_server_val = kwargs.get('socket_server', 'False')
-        ping = socket_server_val != 'False'
-        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
+        progress = EventProgress(kwargs.get('socket_server', 'False'), kwargs.get("analysis_pk", None))
+        progress.ready()
         while True:
             if not streams_in.readinto(event_id_mv):
-                if ping:
-                    ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                    if ping_port is not None:
-                        ping_data['port_override'] = ping_port
-                    oasis_ping(ping_data)
+                progress.finish()
                 break
 
-            has_items = stage.process_event(event_ids[0], sink)
-            counter += 1
-            if not has_items:
-                continue
-            if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                timer = time.time()
-                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                if ping_port is not None:
-                    ping_data['port_override'] = ping_port
-                oasis_ping_async(ping_data)
-                counter = 0
+            stage.process_event(event_ids[0], sink)
+            progress.event_done()
 
     return 0
 
@@ -255,7 +238,7 @@ def pdf_to_cdf(pdf, n_pdf, cdf):
     probability, so the returned length can be shorter than ``n_pdf``. It returns a length rather
     than a ``cdf[:n]`` slice so the per-item loop creates no array view (see the refcount note in common/event_stream.py).
     """
-    cumsum = 0
+    cumsum = np.float64(0.)
     i = 0
     while i < n_pdf:
         cumsum += pdf[i]
@@ -281,7 +264,7 @@ def calc_eff_damage_cdf(vuln_pdf, haz_pdf, Nhaz_bins, eff_damage_cdf):
         int: valid length of the cdf written to ``eff_damage_cdf`` (see ``pdf_to_cdf`` for why a
           length rather than a slice).
     """
-    eff_damage_cdf_cumsum = 0.
+    eff_damage_cdf_cumsum = np.float64(0.)
     damage_bin_i = 0
     while damage_bin_i < vuln_pdf.shape[1]:
         for haz_i in range(Nhaz_bins):
@@ -373,11 +356,12 @@ def compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv):
     if tiv <= 0:
         return 0.
 
+    tiv = np.float64(tiv)
     damage_type = damage_bins[Neff_damage_bins - 1]['damage_type']
     if damage_type == DAMAGE_TYPE_RELATIVE:
         damage_bin_scaling = tiv
     elif damage_type == DAMAGE_TYPE_ABSOLUTE:
-        damage_bin_scaling = 1
+        damage_bin_scaling = 1.
     elif damage_type == DAMAGE_TYPE_DURATION:
         # convert annual tiv to daily
         damage_bin_scaling = tiv / 365

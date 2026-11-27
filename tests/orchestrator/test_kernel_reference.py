@@ -18,6 +18,9 @@ from tests.orchestrator.tools.kernel_reference import (ALL_ORD_OUTPUTS, BASH_PAR
 
 K = 2
 SUMMARY_SETS = {'gul': (1, 2), 'il': (1, 2, 3), 'ri': (1,)}
+WORK_STEMS = {'gul': 'gul_', 'il': 'il_', 'ri': 'ri_IP4_'}
+"""Run type -> prefix of its work files: genbash names the final RI level's (the fixture has 4) ``ri_IP4_``, and renames
+its output files ``ri_`` at the end."""
 ORD_TABLES = {'elt_sample': 'selt', 'elt_quantile': 'qelt', 'elt_moment': 'melt',
               'plt_sample': 'splt', 'plt_quantile': 'qplt', 'plt_moment': 'mplt'}
 WORK_SUMMARY_DIRS = ('summary_palt', 'summary_altmeanonly', 'summaryleccalc')
@@ -50,8 +53,8 @@ def expected_files(n_chunks):
         for n in sets:
             ext = 'parquet' if n == 3 else 'csv'
             for k in range(1, n_chunks + 1):
-                files.update(f'work/kat/{run_type}_S{n}_{table}_P{k}' for table in ORD_TABLES)
-                files.update(f'work/{run_type}_S{n}_{sub}/P{k}.bin' for sub in WORK_SUMMARY_DIRS)
+                files.update(f'work/kat/{WORK_STEMS[run_type]}S{n}_{table}_P{k}' for table in ORD_TABLES)
+                files.update(f'work/{WORK_STEMS[run_type]}S{n}_{sub}/P{k}.bin' for sub in WORK_SUMMARY_DIRS)
             files.update(f'output/{run_type}_S{n}_{name}.{ext}' for name in list(ORD_TABLES.values()) + list(AGG_OUTPUTS))
             files.add(f'output/{run_type}_S{n}_summary-info.{ext}')
     return files
@@ -210,13 +213,13 @@ def test_compare_tools_detect_a_changed_byte_and_a_missing_file_in_a_reference(f
     copy = copy_run(ref, tmp_path / 'copy')
     assert compare_trees_bytes(ref, copy).ok
     flip_byte(copy / 'work' / 'kat' / 'il_S2_elt_sample_P2', 20)
-    (copy / 'work' / 'ri_S1_summaryleccalc' / 'P2.bin').unlink()
+    (copy / 'work' / 'ri_IP4_S1_summaryleccalc' / 'P2.bin').unlink()
     (copy / 'output' / 'gul_S1_ept.csv').unlink()
     report = compare_trees_bytes(ref, copy)
     assert report.different == [f'work/kat/il_S2_elt_sample_P2: first difference at byte 20 '
                                 f'(sizes {(copy / "work/kat/il_S2_elt_sample_P2").stat().st_size}'
                                 f' and {(copy / "work/kat/il_S2_elt_sample_P2").stat().st_size})']
-    assert report.only_in_a == ['output/gul_S1_ept.csv', 'work/ri_S1_summaryleccalc/P2.bin']
+    assert report.only_in_a == ['output/gul_S1_ept.csv', 'work/ri_IP4_S1_summaryleccalc/P2.bin']
     rows = compare_outputs_rows(ref, copy)
     assert rows.only_in_a == ['output/gul_S1_ept.csv'] and not rows.different
 
@@ -234,7 +237,7 @@ def test_full_kernel_reference_with_summarypy_low_memory_keeps_idx_files(full_ke
     assert json.loads((low_memory / BASH_PARAMS_FILE).read_text())['summarypy_low_memory'] is True
     files = list_files(low_memory)
     idx = {rel for rel in files if rel.endswith('.idx')}
-    expected_idx = {f'work/{run_type}_S{n}_{sub}/P{k}.idx' for run_type, sets in SUMMARY_SETS.items() for n in sets
+    expected_idx = {f'work/{WORK_STEMS[run_type]}S{n}_{sub}/P{k}.idx' for run_type, sets in SUMMARY_SETS.items() for n in sets
                     for sub in ('summary_palt', 'summaryleccalc') for k in range(1, K + 1)}
     assert idx == expected_idx
     assert all(files[rel].stat().st_size > 0 for rel in idx)

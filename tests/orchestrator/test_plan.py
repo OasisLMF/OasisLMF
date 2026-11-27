@@ -15,7 +15,7 @@ from oasislmf.execution import bash
 from oasislmf.execution.orchestrator import inline, pool
 from oasislmf.execution.orchestrator.chain import ChainSpec, spec_for_taps
 from oasislmf.execution.orchestrator.chunks import partition_events, read_events
-from oasislmf.execution.orchestrator.plan import (OutputJob, Plan, Unsupported, plan_from_bash_params,
+from oasislmf.execution.orchestrator.plan import (OutputJob, OutputRename, Plan, Unsupported, plan_from_bash_params,
                                                   render_chunk_commands)
 from oasislmf.pytools.eve.manager import event_id_dtype, partition_events__random
 from oasislmf.pytools.eve.manager import run as evepy_run
@@ -54,14 +54,13 @@ CASES = {
                           {'id': 3, 'ord_output': {'alt_meanonly': True, 'psept_aep': True, 'parquet_format': True}}]},
         {'num_reinsurance_iterations': 0, 'gul_alloc_rule': 1, 'il_alloc_rule': 3},
     ),
-    'gul_il_ri_rl_intermediate': (
-        {'number_of_samples': 10, 'gul_threshold': 0, 'gul_output': True, 'il_output': True, 'ri_output': True, 'rl_output': True,
+    'gul_il_ri_intermediate': (
+        {'number_of_samples': 10, 'gul_threshold': 0, 'gul_output': True, 'il_output': True, 'ri_output': True,
          'ri_inuring_priorities': [1],
          'gul_summaries': [{'id': 1, 'ord_output': {'plt_sample': True, 'elt_quantile': True, 'elt_sample': True, 'alt_period': True,
                                                     'ept_full_uncertainty_aep': True, 'psept_oep': True}}],
          'il_summaries': [{'id': 1, 'ord_output': {'elt_moment': True}}, {'id': 2, 'ord_output': {'alt_meanonly': True}}],
-         'ri_summaries': [{'id': 1, 'ord_output': {'elt_moment': True, 'plt_quantile': True}}],
-         'rl_summaries': [{'id': 1, 'ord_output': {'alt_period': True}}]},
+         'ri_summaries': [{'id': 1, 'ord_output': {'elt_moment': True, 'plt_quantile': True}}]},
         {'num_reinsurance_iterations': 2},
     ),
     'il_ri_options': (
@@ -75,10 +74,6 @@ CASES = {
     'ri_only_one_layer': (
         {'number_of_samples': 2, 'gul_threshold': 0, 'ri_output': True, 'ri_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}]},
         {'num_reinsurance_iterations': 1, 'event_shuffle': EVE_FISHER_YATES},
-    ),
-    'rl_only': (
-        {'number_of_samples': 2, 'gul_threshold': 0, 'rl_output': True, 'rl_summaries': [{'id': 1, 'ord_output': {'elt_moment': True}}]},
-        {'num_reinsurance_iterations': 2},
     ),
     'il_only': (
         {'number_of_samples': 2, 'gul_threshold': 0, 'il_output': True, 'il_summaries': [{'id': 1, 'ord_output': {'plt_sample': True}}]},
@@ -225,7 +220,7 @@ def test_plan_renders_exactly_the_genbash_commands(tmp_path, case, n_chunks, std
 
 
 @pytest.mark.parametrize('k', [1, 3])
-@pytest.mark.parametrize('case', ['gul_il_ri_low_memory', 'gul_il_ri_rl_intermediate', 'il_ri_options'])
+@pytest.mark.parametrize('case', ['gul_il_ri_low_memory', 'gul_il_ri_intermediate', 'il_ri_options'])
 def test_plan_of_a_distributed_chunk_renders_the_chunk_script_commands(tmp_path, case, k):
     """generate-losses-chunk k of 3: the plan's chunk k is the analysis script bash writes for process_number k."""
     settings, options = CASES[case]
@@ -252,7 +247,7 @@ def test_plan_of_a_distributed_chunk_renders_the_chunk_script_commands(tmp_path,
 
 
 def test_plan_from_bash_params_json_round_trip(tmp_path):
-    settings, options = CASES['gul_il_ri_rl_intermediate']
+    settings, options = CASES['gul_il_ri_intermediate']
     run_dir, params = generate(tmp_path, settings, options, 2)
     as_json = json.loads(json.dumps(params, default=lambda v: None if callable(v) else str(v)))
     plan = plan_from_bash_params(as_json, run_dir=str(run_dir))
@@ -264,7 +259,7 @@ def test_plan_from_bash_params_json_round_trip(tmp_path):
 
 
 def test_plan_tree_shape(tmp_path):
-    settings, options = CASES['gul_il_ri_rl_intermediate']
+    settings, options = CASES['gul_il_ri_intermediate']
     run_dir, params = generate(tmp_path, settings, options, 2)
     spec = plan_from_bash_params(params, run_dir=str(run_dir)).spec
     assert spec.run_dir == str(run_dir)
@@ -273,15 +268,13 @@ def test_plan_tree_shape(tmp_path):
                         'model_df_engine': 'oasis_data_manager.df_reader.reader.OasisPandasReader', 'dynamic_footprint': False,
                         'section_merge': 'max'}
     assert [(s['name'], s['static_path'], s['allocation_rule'], s['gross'], s['net'], s['feeds_next']) for s in spec.fm] == [
-        ('il', 'input', 2, True, False, 'gross'), ('ri', ri_path(1), 3, True, True, 'net'), ('ri', ri_path(2), 3, True, True, None)]
+        ('il', 'input', 2, True, False, 'gross'), ('ri', ri_path(1), 3, False, True, 'net'), ('ri', ri_path(2), 3, False, True, None)]
     assert [(n['runtype'], n['inuring_priority'], n['source']['step'], n['source']['output'], n['stage']['run_type'],
              n['stage']['static_path'], n['stage']['summary_set_ids']) for n in spec.summaries] == [
         ('gul', '', None, None, 'gul', 'input', [1]),
         ('il', '', 0, 'gross', 'il', 'input', [1, 2]),
         ('ri', 'IP1_', 1, 'net', 'ri', ri_path(1), [1]),
-        ('ri', '', 2, 'net', 'ri', ri_path(2), [1]),
-        ('rl', 'IP1_', 1, 'gross', 'ri', ri_path(1), [1]),
-        ('rl', 'IP2_', 2, 'gross', 'ri', ri_path(2), [1]),
+        ('ri', 'IP2_', 2, 'net', 'ri', ri_path(2), [1]),
     ]
     gul_set = spec.summaries[0]['sets'][0]
     assert gul_set['outputs'] == [
@@ -308,7 +301,7 @@ def test_plan_output_jobs_kwargs(tmp_path):
         'subfolder': 'gul_S1_summary_palt', 'aal': 'output/gul_S1_palt.csv', 'alct': 'output/gul_S1_alct.csv', 'confidence': 0.9,
         'ext': 'csv'}
     assert jobs[('aalpy', 'output/gul_S1_altmeanonly.csv')] == {
-        'subfolder': 'gul_S1_summary_altmeanonly', 'aal': 'output/gul_S1_altmeanonly.csv', 'ext': 'csv'}
+        'subfolder': 'gul_S1_summary_altmeanonly', 'meanonly': True, 'aal': 'output/gul_S1_altmeanonly.csv', 'ext': 'csv'}
     assert jobs[('lecpy', 'output/gul_S1_ept.csv')] == {
         'subfolder': 'gul_S1_summaryleccalc', 'use_return_period': True, 'ext': 'csv', 'ept': 'output/gul_S1_ept.csv',
         'psept': 'output/gul_S1_psept.csv', 'agg_full_uncertainty': True, 'occ_full_uncertainty': True, 'agg_sample_mean': True,
@@ -318,12 +311,12 @@ def test_plan_output_jobs_kwargs(tmp_path):
     assert OutputJob('katpy', {}).entry_point == 'oasislmf.pytools.kat.manager:main'
 
 
-def test_spec_for_taps_switches_on_the_outputs_taps_read(tmp_path):
-    settings, options = CASES['rl_only']
-    run_dir, params = generate(tmp_path, settings, options, 2)
-    spec = plan_from_bash_params(params, run_dir=str(run_dir)).spec
-    assert [(s['gross'], s['net']) for s in spec.fm] == [(True, False), (True, True), (True, False)]
-    assert [(s['gross'], s['net']) for s in spec_for_taps(spec, ['gul', 'il', 'ri']).fm] == [(True, False), (True, True), (True, True)]
+def test_spec_for_taps_switches_on_the_outputs_taps_read():
+    spec = ChainSpec(run_dir='.', fm=[
+        {'name': 'il', 'allocation_rule': 2, 'gross': False, 'net': False, 'feeds_next': 'gross'},
+        {'name': 'ri', 'allocation_rule': 3, 'gross': False, 'net': True, 'feeds_next': 'net'},
+        {'name': 'ri', 'allocation_rule': 3, 'gross': True, 'net': False, 'feeds_next': None}])
+    assert [(s['gross'], s['net']) for s in spec_for_taps(spec, ['gul', 'il', 'ri']).fm] == [(True, False), (False, True), (True, True)]
     assert spec_for_taps(spec, ['gul']).to_json() == spec.to_json()
     assert spec.fm[2]['net'] is False
     without_flags = ChainSpec(run_dir='.', fm=[{'name': 'il', 'allocation_rule': 2, 'feeds_next': None}])
@@ -331,8 +324,8 @@ def test_spec_for_taps_switches_on_the_outputs_taps_read(tmp_path):
 
 
 @pytest.mark.parametrize('executor', ['inline', 'pool'])
-def test_planned_run_with_ri_tap_and_rl_output_only(tmp_path, executor):
-    settings, options = CASES['rl_only']
+def test_planned_run_with_ri_tap(tmp_path, executor):
+    settings, options = CASES['ri_only_one_layer']
     run_dir, params = generate(tmp_path, settings, options, 2)
     plan = plan_from_bash_params(params, run_dir=str(run_dir))
     chunks = plan.make_chunks(np.arange(1, 11, dtype=np.int32))
@@ -394,6 +387,8 @@ BASE = {'number_of_samples': 1, 'gul_threshold': 0, 'gul_output': True, 'gul_sum
     (BASE, {'custom_gulcalc_cmd': 'supplier_model_gulcalc'}, 'custom gulcalc'),
     ({**BASE, 'full_correlation': True}, {'gulmc': False}, 'full correlation'),
     (BASE, {'custom_args': {'x': 1}}, 'custom_args'),
+    ({**BASE, 'rl_output': True, 'rl_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}]}, {'num_reinsurance_iterations': 1},
+     'rlcombine'),
 ])
 def test_unsupported(tmp_path, monkeypatch, settings, options, reason):
     gulcalc = tmp_path / 'bin' / ('supplier_model_gulcalc.bat' if sys.platform == 'win32' else 'supplier_model_gulcalc')
@@ -406,6 +401,29 @@ def test_unsupported(tmp_path, monkeypatch, settings, options, reason):
     with pytest.raises(Unsupported, match=reason) as info:
         plan_from_bash_params(params)
     assert reason in info.value.reason
+
+
+@pytest.mark.parametrize('ri_inuring_priorities, copy', [([], False), ([1], True), ([2], False)])
+def test_ri_final_output_renames_or_copies_the_final_priority(tmp_path, ri_inuring_priorities, copy):
+    settings = {**CASES['ri_only_one_layer'][0], 'ri_inuring_priorities': ri_inuring_priorities}
+    run_dir, params = generate(tmp_path, settings, CASES['ri_only_one_layer'][1], 2)
+    plan = plan_from_bash_params(params, run_dir=str(run_dir))
+    assert plan.output_renames == [OutputRename(src='output/ri_IP1_', dst='output/ri_', copy=copy)]
+    assert Plan.from_json(plan.to_json()) == plan
+    output = tmp_path / 'run' / 'output'
+    output.mkdir(parents=True)
+    (output / 'ri_IP1_S1_selt.csv').write_text('a')
+    (output / 'gul_S1_selt.csv').write_text('b')
+    OutputRename(src='output/ri_IP1_', dst='output/ri_', copy=copy).apply(str(tmp_path / 'run'))
+    expected = {'ri_S1_selt.csv', 'gul_S1_selt.csv'} | ({'ri_IP1_S1_selt.csv'} if copy else set())
+    assert set(os.listdir(output)) == expected
+    assert (output / 'ri_S1_selt.csv').read_text() == 'a'
+
+
+def test_plans_without_ri_output_rename_nothing(tmp_path):
+    settings, options = CASES['il_only']
+    run_dir, params = generate(tmp_path, settings, options, 2)
+    assert plan_from_bash_params(params, run_dir=str(run_dir)).output_renames == []
 
 
 LB_SETTINGS = {**BASE, 'il_output': True, 'il_summaries': [{'id': 1, 'ord_output': {'elt_sample': True}}]}

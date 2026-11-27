@@ -7,8 +7,7 @@ from contextlib import ExitStack
 
 import numpy as np
 from numba import njit
-import time
-from oasislmf.utils.ping import oasis_ping, oasis_ping_async
+from oasislmf.utils.ping import EventProgress
 
 from oasislmf.pytools.common.data import items_dtype
 from oasislmf.pytools.common.event_stream import (encode_sidx, mv_write_item_header,
@@ -32,7 +31,6 @@ from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.common.stage import StreamSink
 from oasislmf.pytools.gul import stage as gul_stage
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.defaults import SERVER_UPDATE_TIME
 
 logger = logging.getLogger(__name__)
 
@@ -198,29 +196,13 @@ def run(run_dir, ignore_file_type, sample_size, loss_threshold, alloc_rule, debu
 
         stream_out.write(stage.header)
 
-        counter = 0
-        timer = time.time()
-        socket_server_val = kwargs.get('socket_server', 'False')
-        ping = socket_server_val != 'False'
-        ping_port = int(socket_server_val) if ping and str(socket_server_val).isdigit() else None
+        progress = EventProgress(kwargs.get('socket_server', 'False'), kwargs.get("analysis_pk", None))
         for event_data in read_getmodel_stream(streams_in, stage.items, stage.item_map_hm, stage.item_map_hm_keys,
                                                stage.item_map_ja_offsets, stage.coverages, stage.compute, stage.seeds):
             stage.process_cdf_event(event_data, sink)
-            counter += 1
+            progress.event_done()
 
-            if ping and time.time() - timer > SERVER_UPDATE_TIME:
-                ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-                if ping_port is not None:
-                    ping_data['port_override'] = ping_port
-                oasis_ping_async(ping_data)
-                counter = 0
-                timer = time.time()
-
-        if ping:
-            ping_data = {"events_complete": counter, "analysis_pk": kwargs.get("analysis_pk", None)}
-            if ping_port is not None:
-                ping_data['port_override'] = ping_port
-            oasis_ping(ping_data)
+        progress.finish()
     return 0
 
 
@@ -373,7 +355,7 @@ def compute_event_losses(event_id, coverages, coverage_ids, items_data,
                             rval = rndms[sample_idx - 1]
 
                             if rval >= prob_to[Nbins - 1]:
-                                rval = prob_to[Nbins - 1] - 0.00000003
+                                rval = np.float64(prob_to[Nbins - 1]) - 0.00000003
                                 bin_idx = Nbins - 1
                             else:
                                 # find the bin in which the random value `rval` falls into

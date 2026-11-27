@@ -516,6 +516,9 @@ reinsurance contracts, and can output either the reinsurance gross loss, or net 
 * **net** being the difference between the input loss and the policy/contract losses
 
 **net** loss is output when the command line parameter -n is used, otherwise output loss is gross by default.
+With ``-n -`` (or ``-n <path>``) both are written: the gross to ``-o`` and the net to stdout (or
+``<path>``). This lets one reinsurance iteration report the loss to its contracts while its net
+loss streams on to the next iteration.
 
 Supported reinsurance types
 """""""""""""""""""""""""""
@@ -633,6 +636,41 @@ iteration.
 The net calculation for iterations with multiple layers is:
 
     net loss = max(0, input loss - layer1 loss - layer2 loss - ... - layer n loss)
+
+Reinsurance outputs
+"""""""""""""""""""
+
+.. versionadded:: 2.5.10
+
+A model run can report two reinsurance perspectives, each set in the analysis settings:
+
+* **ri** (``ri_output``, ``ri_summaries``) — the loss net of reinsurance. Each iteration's net
+  feeds the next, so the last iteration's net is the net of the whole programme.
+* **rl** (``rl_output``, ``rl_summaries``) — the reinsurer's loss, the gross output of each
+  iteration. Each iteration is summarised by ``summarypy -t rl -s`` and ``rlcombine`` sums them
+  into the reinsurer's loss of the whole programme.
+
+``ri_inuring_priorities`` and ``rl_inuring_priorities`` list OED ``InuringPriority`` values to
+also report on their own, as ``ri_IP{level}_*`` and ``rl_IP{level}_*`` files, where ``{level}``
+is an iteration (``RI_{level}``). ``reins_output_levels_summary.json`` in the output folder maps
+each ``IP{level}`` back to its inuring priority and risk level. See
+:doc:`../reference/kernel/CoreComponents` for the components.
+
+An inuring priority whose contracts are at different risk levels (for example a ``LOC`` and an
+``ACC`` treaty, both at ``InuringPriority`` 1) runs over several iterations, one per risk level:
+
+* ``ri`` reports the last of them, ``ri_IP{level}``, as each iteration's net feeds the next.
+* ``rl`` reports each of them, one ``rl_IP{level}`` per iteration, as each iteration's
+  reinsurer's loss covers only its own contracts.
+
+With ``full_correlation``, the fully correlated outputs in ``output/full_correlation/`` include
+``ri`` for the final inuring priority only, and no ``rl``
+(`#2311 <https://github.com/OasisLMF/OasisLMF/issues/2311>`_).
+
+.. note::
+   When an iteration has several layers (several contracts at one inuring priority and risk
+   level), only the top layer's loss reaches the ``rl`` stream
+   (`#2266 <https://github.com/OasisLMF/OasisLMF/issues/2266>`_).
 
 
 .. _architecture_FM:
