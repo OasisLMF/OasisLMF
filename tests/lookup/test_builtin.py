@@ -283,6 +283,45 @@ def test_build_rtree_matches_sjoin_with_overlapping_geometries(tmp_path):
     assert output.loc[9, "poly_id"] == OASIS_UNKNOWN_ID
 
 
+def test_build_rtree_per_peril_adds_no_index_column(tmp_path):
+    """With a peril_id column in the geometry file, the per-peril results are concatenated without
+    adding the old index as an `index` column, so a second rtree step can run after it (#2283)."""
+    gpd = pytest.importorskip("geopandas")
+    shapely = pytest.importorskip("shapely")
+    gpd.GeoDataFrame(
+        {"peril_id": ["WTC", "ORF"], "poly_id": [1, 2]},
+        geometry=[shapely.box(0, 0, 2, 2), shapely.box(0, 0, 2, 2)], crs="EPSG:4326",
+    ).to_parquet(tmp_path / "per_peril.parquet")
+    gpd.GeoDataFrame(
+        {"region_id": [7]}, geometry=[shapely.box(0, 0, 2, 2)], crs="EPSG:4326",
+    ).to_parquet(tmp_path / "regions.parquet")
+    locations = pd.DataFrame({
+        "loc_id": [1, 1, 2],
+        "peril_id": ["WTC", "ORF", "WSS"],
+        "longitude": [1.0, 1.0, 1.5],
+        "latitude": [1.0, 1.0, 1.5],
+    })
+
+    per_peril = Lookup(config={}).build_rtree(
+        file_path=(tmp_path / "per_peril.parquet").as_posix(), file_type="parquet", id_columns="poly_id")
+    output = per_peril(locations)
+    assert "index" not in output.columns
+    assert output.index.is_unique
+    by_peril = output.set_index("peril_id")["poly_id"]
+    assert by_peril["WTC"] == 1 and by_peril["ORF"] == 2
+    assert pd.isna(by_peril["WSS"])  # perils with no geometry pass through unmatched
+
+    # previously raised ValueError: cannot insert index, already exists
+    output = Lookup(config={}).build_rtree(
+        file_path=(tmp_path / "per_peril.parquet").as_posix(), file_type="parquet", id_columns="poly_id")(
+        output.drop(columns="poly_id"))
+    regions = Lookup(config={}).build_rtree(
+        file_path=(tmp_path / "regions.parquet").as_posix(), file_type="parquet", id_columns="region_id")
+    output = regions(output)
+    assert "index" not in output.columns
+    assert (output["region_id"] == 7).all()
+
+
 def _count_parquet_reads(monkeypatch):
     from oasislmf.lookup import builtin
     reads = []
