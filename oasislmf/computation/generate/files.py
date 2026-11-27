@@ -3,6 +3,7 @@ __all__ = [
     'GenerateDummyModelFiles',
     'GenerateDummyOasisFiles',
     'compute_ri_inuring_priority_output_levels',
+    'no_keys_error_message',
 ]
 
 import io
@@ -80,6 +81,21 @@ def compute_ri_inuring_priority_output_levels(ri_layers):
         if ip not in mapping or idx > mapping[ip]:
             mapping[ip] = idx
     return mapping
+
+
+def no_keys_error_message(keys_fp, keys_errors_fp=None):
+    """Error message for a keys file with no successful lookup results.
+
+    Names the keys errors file that was actually written. When its path isn't known, it is
+    assumed to sit next to the keys file with the same format (e.g. `keys-errors.parquet`
+    for `keys.parquet`).
+    """
+    if not keys_errors_fp and keys_fp:
+        ext = os.path.splitext(keys_fp)[1] or '.csv'
+        keys_errors_fp = os.path.join(os.path.dirname(keys_fp), f'keys-errors{ext}')
+    errors_name = os.path.basename(keys_errors_fp) if keys_errors_fp else 'keys-errors'
+    return ('No successful lookup results found in the keys file - '
+            f'Check the `{errors_name}` file for details. \n File path: {keys_errors_fp or "Missing"}')
 
 
 class GenerateFiles(ComputationStep):
@@ -352,9 +368,7 @@ class GenerateFiles(ComputationStep):
             # value may list several sections ('3001;3002')
             'section_id': 'str',
         }
-        keys_error_fp = os.path.join(os.path.dirname(_keys_fp), 'keys-errors.csv') if _keys_fp else 'Missing'
-        missing_keys_msg = 'No successful lookup results found in the keys file - '
-        missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
+        missing_keys_msg = no_keys_error_message(_keys_fp, _keys_errors_fp)
         try:
             keys_df = get_dataframe(
                 src_fp=_keys_fp,
