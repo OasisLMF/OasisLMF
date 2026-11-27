@@ -178,6 +178,17 @@ def _fast_lookup(value, range_start, factor, table, N):
     return table[index]
 
 
+@njit(cache=True, fastmath=True, inline='always')
+def norm_inv_cdf_lookup(u, x_min, inv_factor, norm_inv_cdf, N):
+    """The standard normal quantile of the uniform ``u``, from the ``norm_inv_cdf`` table.
+
+    The table's lower entry in the middle, linear interpolation in the tails.
+    """
+    if u < epsilon or u > 1.0 - epsilon:
+        return _interpolate_lookup(u, x_min, inv_factor, norm_inv_cdf, N)
+    return _fast_lookup(u, x_min, inv_factor, norm_inv_cdf, N)
+
+
 @njit(cache=True, fastmath=True)
 def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
                   norm_cdf, norm_factor, Nsamples, z_unif):
@@ -192,24 +203,42 @@ def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
     N = len(norm_inv_cdf)
-    eps = epsilon
-    upper = 1.0 - eps
 
     for i in range(Nsamples):
-        x_i = x_unif[i]
-        y_i = y_unif[i]
-
-        if x_i < eps or x_i > upper:
-            x_norm = _interpolate_lookup(x_i, x_min, inv_factor, norm_inv_cdf, N)
-        else:
-            x_norm = _fast_lookup(x_i, x_min, inv_factor, norm_inv_cdf, N)
-
-        if y_i < eps or y_i > upper:
-            y_norm = _interpolate_lookup(y_i, x_min, inv_factor, norm_inv_cdf, N)
-        else:
-            y_norm = _fast_lookup(y_i, x_min, inv_factor, norm_inv_cdf, N)
+        x_norm = norm_inv_cdf_lookup(x_unif[i], x_min, inv_factor, norm_inv_cdf, N)
+        y_norm = norm_inv_cdf_lookup(y_unif[i], x_min, inv_factor, norm_inv_cdf, N)
 
         z_norm = sqrt_rho * x_norm + sqrt_1_minus_rho * y_norm
+
+        z_unif[i] = _interpolate_lookup(z_norm, cdf_min, norm_factor, norm_cdf, N)
+
+
+@njit(cache=True, fastmath=True)
+def to_norm_space(unif, x_min, inv_factor, norm_inv_cdf):
+    """Replace each uniform of the 2d ``unif`` with its standard normal quantile, in place.
+
+    For the correlated values of an event, which every item of a correlation group combines with
+    its own: transformed once here rather than once per item, building and sample (see
+    ``get_corr_rval_norm``).
+    """
+    N = len(norm_inv_cdf)
+    for row in range(unif.shape[0]):
+        for col in range(unif.shape[1]):
+            unif[row, col] = norm_inv_cdf_lookup(unif[row, col], x_min, inv_factor, norm_inv_cdf, N)
+
+
+@njit(cache=True, fastmath=True)
+def get_corr_rval_norm(x_norm, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
+                       norm_cdf, norm_factor, Nsamples, z_unif):
+    """``get_corr_rval`` with the shared values already in normal space (``to_norm_space``)."""
+    sqrt_rho = sqrt(rho)
+    sqrt_1_minus_rho = sqrt(1. - rho)
+    N = len(norm_inv_cdf)
+
+    for i in range(Nsamples):
+        y_norm = norm_inv_cdf_lookup(y_unif[i], x_min, inv_factor, norm_inv_cdf, N)
+
+        z_norm = sqrt_rho * x_norm[i] + sqrt_1_minus_rho * y_norm
 
         z_unif[i] = _interpolate_lookup(z_norm, cdf_min, norm_factor, norm_cdf, N)
 

@@ -33,7 +33,7 @@ from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_ID
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, accumulate_hermite_coeffs_into, loss_correlation, HERMITE_TERMS)
 from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
-                                         generate_hash_hazard, get_corr_rval, get_random_generator,
+                                         generate_hash_hazard, get_corr_rval_norm, get_random_generator, to_norm_space,
                                          _lh_philox_block, _lh_philox_partial_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.common.damage_cdf import (add_cdf_row, add_member_cdfs, add_no_loss_mass, cdf_length, convolve_damage_cdf,
@@ -692,7 +692,14 @@ def run(run_dir,
                     haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
                     if hazard_rng_index > 0:
                         haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
+                        if do_haz_correlation:
+                            # into normal space once for the event, not once per item (get_corr_rval_norm)
+                            to_norm_space(haz_eps_ij, norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'],
+                                          norm_inv_cdf)
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
+                    if do_correlation:
+                        to_norm_space(damage_eps_ij, norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'],
+                                      norm_inv_cdf)
 
                 if list_item_samples:
                     (event_sample_codes, event_sample_areaperil_j, event_sample_bins, event_sample_vuln,
@@ -1078,8 +1085,8 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
 
     Writes ``n_samples`` values into ``haz_z_unif`` and ``vuln_z_unif`` in place, value ``i`` being
     for sample ``sample_idxs[i]``. When correlation is enabled for the relevant dimension the values
-    are drawn through the Gaussian copula (``get_corr_rval``) with the correlated values of those
-    samples; otherwise the item's base random values are copied straight across. Hazard values are
+    are drawn through the Gaussian copula (``get_corr_rval_norm``) with the correlated values of
+    those samples, already in normal space; otherwise the item's base random values are copied straight across. Hazard values are
     only drawn when ``hazard_rng_index >= 0`` (non-deterministic hazard under full Monte Carlo). The
     damage values are scaled by ``damage_rval_adj``.
 
@@ -1095,8 +1102,9 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
         haz_rndms_item (np.array[float64]): the item's hazard base random values of those samples,
             in the same order. Under building packing they are one building's.
         vuln_rndms_item (np.array[float64]): the same for damage.
-        haz_eps_ij (np.array[float]): correlated random values for hazard sampling, per sample.
-        damage_eps_ij (np.array[float]): correlated random values for damage sampling, per sample.
+        haz_eps_ij (np.array[float]): correlated random values for hazard sampling, per sample,
+            already in normal space (``to_norm_space``).
+        damage_eps_ij (np.array[float]): the same for damage sampling.
         norm_inv_parameters (NormInversionParameters): parameters for Gaussian inversion.
         norm_inv_cdf (np.array[float]): inverse Gaussian cdf lookup table.
         norm_cdf (np.array[float]): Gaussian cdf lookup table.
@@ -1113,7 +1121,7 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
             group = item['peril_correlation_group']
             for sample_i in range(n_samples):
                 eps_buf[sample_i] = haz_eps_ij[group, sample_idxs[sample_i]]
-            get_corr_rval(
+            get_corr_rval_norm(
                 eps_buf, haz_rndms_item, item['hazard_correlation_value'],
                 norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
                 norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
@@ -1128,7 +1136,7 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
         group = item['peril_correlation_group']
         for sample_i in range(n_samples):
             eps_buf[sample_i] = damage_eps_ij[group, sample_idxs[sample_i]]
-        get_corr_rval(
+        get_corr_rval_norm(
             eps_buf, vuln_rndms_item, item['damage_correlation_value'],
             norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
             norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
