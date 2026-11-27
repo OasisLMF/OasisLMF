@@ -9,13 +9,14 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from oasislmf.pytools.common.data import (DEFAULT_BUFFER_SIZE, MEAN_TYPE_ANALYTICAL, MEAN_TYPE_SAMPLE, oasis_int, oasis_float,
-                                          write_ndarray_to_fmt_csv, def_to_type_and_size)
+                                          def_to_type_and_size)
 from oasislmf.pytools.common.event_stream import (MAX_LOSS_IDX, MEAN_IDX, NUMBER_OF_AFFECTED_RISK_IDX, EventReader, init_streams_in,
-                                                  mv_read, reservation_overflows, SUMMARY_STREAM_ID)
+                                                  mv_read, reservation_overflows)
 from oasislmf.pytools.common.input_files import (occ_range, occ_get_date, occ_max_records_per_event, read_occurrence, read_periods,
                                                  read_quantile)
-from oasislmf.pytools.common.parquet import BufferedParquetWriter
-from oasislmf.pytools.plt.data import MPLT_dtype, MPLT_fmt, MPLT_headers, QPLT_dtype, QPLT_fmt, QPLT_headers, SPLT_dtype, SPLT_fmt, SPLT_headers
+from oasislmf.pytools.elt.stage import check_output_paths, summary_stream_header
+from oasislmf.pytools.plt import stage as plt_stage
+from oasislmf.pytools.plt.data import MPLT_dtype, QPLT_dtype, SPLT_dtype
 from oasislmf.pytools.utils import redirect_logging
 
 logger = logging.getLogger(__name__)
@@ -451,7 +452,7 @@ def read_input_files(run_dir, compute_qplt, sample_size):
         sample_size (int): Sample size
 
     Returns:
-        file_data (Dict[str, Any]): A dict of relevent data extracted from files
+        Dict[str, Any]: the data read from the input files, by name.
     """
     occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
     period_weights = read_periods(no_of_periods, Path(run_dir, "input"))
@@ -488,46 +489,13 @@ def run(
         noheader (bool): Boolean value to skip header in output file. Defaults to False.
         output_format (str): Output format extension. Defaults to "csv".
     """
-    outmap = {
-        "splt": {
-            "compute": splt_output_file is not None,
-            "file_path": splt_output_file,
-            "fmt": SPLT_fmt,
-            "headers": SPLT_headers,
-            "file": None,
-        },
-        "mplt": {
-            "compute": mplt_output_file is not None,
-            "file_path": mplt_output_file,
-            "fmt": MPLT_fmt,
-            "headers": MPLT_headers,
-            "file": None,
-        },
-        "qplt": {
-            "compute": qplt_output_file is not None,
-            "file_path": qplt_output_file,
-            "fmt": QPLT_fmt,
-            "headers": QPLT_headers,
-            "file": None,
-        },
-    }
-
-    output_format = "." + output_format
-    output_binary = output_format == ".bin"
-    output_parquet = output_format == ".parquet"
-    # Check for correct suffix
-    for path in [v["file_path"] for v in outmap.values()]:
-        if path is None:
-            continue
-        if Path(path).suffix == "":  # Ignore suffix for pipes
-            continue
-        if (Path(path).suffix != output_format):
-            raise ValueError(f"Invalid file extension for {output_format}, got {path},")
+    paths = {"splt": splt_output_file, "mplt": mplt_output_file, "qplt": qplt_output_file}
+    check_output_paths(paths.values(), output_format)
 
     if run_dir is None:
         run_dir = './work'
 
-    if not all([v["compute"] for v in outmap.values()]):
+    if not all(path is not None for path in paths.values()):
         logger.warning("No output files specified")
 
     with ExitStack() as stack:
@@ -535,71 +503,18 @@ def run(
             files_in = None  # init_streams checks for None to read from sys.stdin.buffer
 
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
-        if stream_source_type != SUMMARY_STREAM_ID:
-            raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
-
-        file_data = read_input_files(
+        stage = stack.enter_context(plt_stage.PltStage(
             run_dir,
-            outmap["qplt"]["compute"],
-            len_sample
-        )
-        plt_reader = PLTReader(
-            len_sample,
-            outmap["splt"]["compute"],
-            outmap["mplt"]["compute"],
-            outmap["qplt"]["compute"],
-            file_data["occ_csr"],
-            file_data["period_weights"],
-            file_data["granular_date"],
-            file_data["intervals"],
-            n_files=len(streams_in),
-        )
-
-        # Initialise output files PLT
-        if output_binary:
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'wb'))
-                outmap[out_type]["file"] = out_file
-        elif output_parquet:
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-                dtype = plt_reader.get_data(out_type).dtype
-                outmap[out_type]["file"] = stack.enter_context(BufferedParquetWriter(outmap[out_type]["file_path"], dtype))
-        else:
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-                out_file = stack.enter_context(open(outmap[out_type]["file_path"], 'w'))
-                if not noheader:
-                    csv_headers = ','.join(outmap[out_type]["headers"])
-                    out_file.write(csv_headers + '\n')
-                outmap[out_type]["file"] = out_file
-
-        # Process summary files
-        for event_id in plt_reader.read_streams(streams_in):
-            for out_type in outmap:
-                if not outmap[out_type]["compute"]:
-                    continue
-
-                data_idx = plt_reader.get_data_idx(out_type)
-                data = plt_reader.get_data(out_type)[:data_idx[0]]
-
-                if outmap[out_type]["file"] is not None and data.size > 0:
-                    if output_binary:
-                        data.tofile(outmap[out_type]["file"])
-                    elif output_parquet:
-                        outmap[out_type]["file"].write(data)
-                    else:
-                        write_ndarray_to_fmt_csv(
-                            outmap[out_type]["file"],
-                            data,
-                            outmap[out_type]["headers"],
-                            outmap[out_type]["fmt"]
-                        )
-                data_idx[0] = 0
+            summary_stream_header(stream_source_type, stream_agg_type, len_sample),
+            splt=splt_output_file is not None,
+            mplt=mplt_output_file is not None,
+            qplt=qplt_output_file is not None,
+            output_format=output_format,
+            noheader=noheader,
+        ))
+        stage.start_chunk({out_type: path for out_type, path in paths.items() if path is not None})
+        stage.process_streams(streams_in)
+        stage.finish_chunk()
 
 
 @redirect_logging(exec_name='pltpy')

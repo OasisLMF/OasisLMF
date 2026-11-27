@@ -368,7 +368,7 @@ def read_input_files(run_dir):
         run_dir (str | os.PathLike): Path to directory containing required files structure
 
     Returns:
-        file_data (Dict[str, Any]): A dict of relevent data extracted from files
+        Dict[str, Any]: the data read from the input files, by name.
     """
     occ_csr, date_algorithm, granular_date, no_of_periods = read_occurrence(Path(run_dir, "input"))
     period_weights = read_periods(no_of_periods, Path(run_dir, "input"))

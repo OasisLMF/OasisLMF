@@ -45,7 +45,6 @@ Writing Flow
    - Write delimiter
 """
 
-import sys
 import numpy as np
 import numba as nb
 import logging
@@ -53,7 +52,7 @@ import logging
 from oasislmf.pytools.common.event_stream import (stream_info_to_bytes, LOSS_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY, EventReader,
                                                   MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_IDX, MEAN_IDX, NUM_SPECIAL_SIDX,
                                                   decode_local_sidx,
-                                                  mv_read, mv_write_item_header, mv_write_sidx_loss, write_mv_to_stream)
+                                                  mv_read, mv_write_item_header, mv_write_sidx_loss)
 from oasislmf.pytools.common.data import (FM_STRUCTURE_INFO_FILE, loss_pair_dtype, loss_pair_size,
                                           def_to_type_and_size)
 
@@ -443,9 +442,15 @@ def load_event(byte_mv, event_id, nodes_array,
 
 
 class EventWriterSparse:
-    def __init__(self, files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+    """Write the output nodes of a computed event as loss stream bytes to a sink.
+
+    The event is serialised by ``load_event`` into a buffer of PIPE_CAPACITY bytes; an event that
+    does not fit is written to the sink in several pieces. The sink must consume (copy) the data
+    passed to ``write`` before returning, because the buffer is reused for the next piece.
+    """
+
+    def __init__(self, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
                  pass_through, len_sample, computes):
-        self.files_out = files_out
         self.nodes_array = nodes_array
         self.sidx_indexes = sidx_indexes
         self.sidx_indptr = sidx_indptr
@@ -459,21 +464,20 @@ class EventWriterSparse:
 
         self.byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
 
-    def __enter__(self):
-        if self.files_out is None:
-            self.stream_out = sys.stdout.buffer
-        else:
-            self.stream_out = open(self.files_out, 'wb')
-        # prepare output buffer
-        self.stream_out.write(stream_info_to_bytes(LOSS_STREAM_ID, ITEM_STREAM))
-        self.stream_out.write(np.int32(self.len_sample).tobytes())
-        return self
+    @property
+    def header(self):
+        """bytes: the loss stream header written before the first event."""
+        return stream_info_to_bytes(LOSS_STREAM_ID, ITEM_STREAM) + np.int32(self.len_sample).tobytes()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.files_out:
-            self.stream_out.close()
+    def write(self, event_id, compute_idx, sink):
+        """Write the event's output nodes to ``sink``.
 
-    def write(self, event_id, compute_idx):
+        Args:
+            event_id (int): id of the event being written.
+            compute_idx (np.ndarray): computation state pointers; ``level_start_compute_i`` must point
+                at the first output node and is advanced past the last one.
+            sink: object with ``write(data)``, called with a numpy byte view once per piece.
+        """
         val_i = -1
         layer_i = 0
         node_id = 1
@@ -490,7 +494,8 @@ class EventWriterSparse:
                 layer_i,
                 val_i)
 
-            write_mv_to_stream(self.stream_out, self.byte_mv, cursor)
+            if cursor:
+                sink.write(self.byte_mv[:cursor])
 
 
 @nb.jit(cache=True, nopython=True)
@@ -502,7 +507,7 @@ def get_compute_end(computes, compute_idx):
 
 
 class EventWriterOrderedOutputSparse(EventWriterSparse):
-    def write(self, event_id, compute_idx):
+    def write(self, event_id, compute_idx, sink):
         compute_start_i, compute_end_i = get_compute_end(self.computes, compute_idx)
         self.computes[compute_start_i: compute_end_i] = np.sort(self.computes[compute_start_i: compute_end_i], kind='stable')
-        return super().write(event_id, compute_idx)
+        return super().write(event_id, compute_idx, sink)

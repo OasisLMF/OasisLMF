@@ -16,6 +16,7 @@ from .data import def_to_type_and_size, sidx as sidx_definition
 
 # streams
 PIPE_CAPACITY = 65536  # bytes
+STREAM_HEADER_SIZE = 8  # bytes: stream type and sample count
 
 # stream source type
 CDF_STREAM_ID = 0
@@ -278,6 +279,38 @@ def bytes_to_stream_types(stream_header):
         (stream source type (np.int32), stream aggregation type (np.int32))
     """
     return np.frombuffer(stream_header[3:], 'i1')[0], np.frombuffer(stream_header[:3] + b'\x00', '<i4')[0]
+
+
+def parse_loss_stream_header(input_header, stream_type_error):
+    """Validate the header of a loss stream (gul, il or ri, plain or with packed buildings) and return its sample count.
+
+    Used by the fmpy and summarypy stages, which accept the same streams but word the stream type error
+    differently. An aggregation type that is not defined is refused rather than read as if it were items, which
+    would give a wrong loss and not a failure.
+
+    Args:
+        input_header (bytes): the 8-byte header of the stream.
+        stream_type_error (str): message of the exception raised for a stream type that is not a loss stream,
+            formatted with ``stream_type`` and ``agg_type``.
+
+    Returns:
+        np.int32: the sample count (max sidx) of the stream.
+
+    Raises:
+        ValueError: the header is not ``STREAM_HEADER_SIZE`` bytes long.
+        Exception: the stream type or the aggregation type is not one of a loss stream.
+    """
+    input_header = bytes(input_header)
+    if len(input_header) != STREAM_HEADER_SIZE:
+        raise ValueError(f'stream header must be {STREAM_HEADER_SIZE} bytes, got {len(input_header)}')
+    stream_source_type, stream_agg_type = bytes_to_stream_types(input_header[:4])
+    len_sample = np.frombuffer(input_header[4:], dtype=np.int32)[0]
+    if stream_source_type not in (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID):
+        raise Exception(stream_type_error.format(stream_type=stream_source_type, agg_type=stream_agg_type))
+    if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
+        raise Exception(f"unsupported stream aggregation type {stream_agg_type}, expected one of "
+                        f"{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)")
+    return len_sample
 
 
 def read_stream_info(stream_obj):
@@ -707,6 +740,34 @@ class EventReader:
 
         finally:
             main_selector.close()
+
+    def read_block(self, byte_mv, n=None):
+        """Read an in-memory block of whole events, yield each event id and load its values as read_streams does.
+
+        The block is parsed by the subclass's ``read_buffer`` exactly as ``read_streams`` parses what is
+        left in its buffer once a stream is exhausted: an event ends when a new event id is read or the
+        data ends, and ``item_exit``, ``event_read_log`` and ``finalize_event`` are called before each
+        event id is yielded.
+
+        Args:
+            byte_mv (np.ndarray): 1-D int8 array holding one or more whole events of the stream, without
+                the stream header. It is only read, so it may be read-only.
+            n (int, optional): number of valid bytes at the start of ``byte_mv``. Defaults to its length.
+
+        Yields:
+            int: each event id read from the block, in order
+        """
+        valid_buff = byte_mv.shape[0] if n is None else n
+        cursor = 0
+        yield_event = True
+        while yield_event:
+            cursor, event_id, item_id, yield_event = self.read_buffer(byte_mv, cursor, valid_buff, 0, 0, file_idx=0)
+
+            if event_id:
+                self.item_exit()
+                self.event_read_log(event_id)
+                self.finalize_event()
+                yield event_id
 
     def read_event(self, stream_in, main_selector, stream_selector, mv, byte_mv, cursor, valid_buff, file_idx):
         """Read one event from stream_in

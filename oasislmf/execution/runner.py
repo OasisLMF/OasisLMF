@@ -11,8 +11,32 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.ping import oasis_ping
 from .bash import (bash_wrapper, check_custom_gulcalc_can_read_inputs, create_bash_analysis,
-                   create_bash_outputs, genbash, has_platform_progress)
+                   create_bash_outputs, genbash, genbash_params, has_platform_progress)
+from .orchestrator.kernel import command as orchestrator_command
+from .orchestrator.kernel import run_plan
+from .orchestrator.plan import Unsupported, plan_from_bash_params
 from .resource_monitor import MONITORED_TOOLS, ResourceMonitor
+
+logger = logging.getLogger(__name__)
+
+ORCHESTRATOR_FALLBACK_WARNING = 'The orchestrator cannot run this analysis (%s): running the kernel with the bash script instead'
+
+
+def orchestrator_plan(params, script):
+    """The orchestrator's plan of the run ``params`` describes, or None when it must run with bash.
+
+    Args:
+        params (dict): bash_params of the run.
+        script (str): the script bash runs; the run directory is its directory, as the script ``cd``s there.
+
+    Returns:
+        Plan | None: the plan; None after logging a warning with the reason when the planner raises ``Unsupported``.
+    """
+    try:
+        return plan_from_bash_params(params, run_dir=os.path.dirname(os.path.abspath(script)))
+    except Unsupported as exc:
+        logger.warning(ORCHESTRATOR_FALLBACK_WARNING, exc.reason)
+        return None
 
 
 def _snapshot_log_dir(log_dir):
@@ -192,8 +216,19 @@ def run(analysis_settings,
         resource_monitor_interval=1,
         disable_resource_report=False,
         log_level=None,
+        orchestrator=False,
         **kwargs
         ):
+    """Run the whole kernel (analysis then outputs) for ``analysis_settings`` in the directory of ``filename``.
+
+    A bash script is generated at ``filename`` by ``genbash`` and executed. With ``orchestrator`` set, the script is
+    still written (the record of the run, read by ``rerun``), but the run is made by the orchestrator from the same
+    parameters (``orchestrator.kernel.run_plan``), unless the planner does not support it (for example a custom
+    gulcalc or getmodel command): then a warning gives the reason and the script is run as without the option.
+
+    Raises:
+        subprocess.CalledProcessError: the kernel failed, or its pytool logs are incomplete.
+    """
     model_df_engine = model_df_engine or df_engine
 
     #  MOVED into bash_params #########################################
@@ -252,10 +287,7 @@ def run(analysis_settings,
 
     ###########################################################
 
-    # Calls run_analysis + run_outputs in a single script
-    progress_totals = genbash(
-        number_of_processes,
-        analysis_settings,
+    genbash_args = dict(
         gul_alloc_rule=set_alloc_rule_gul,
         il_alloc_rule=set_alloc_rule_il,
         ri_alloc_rule=set_alloc_rule_ri,
@@ -269,19 +301,31 @@ def run(analysis_settings,
         log_level=log_level,
         **kwargs,
     )
-    if has_platform_progress(kwargs.get('analysis_pk')):
+    plan = params = None
+    if orchestrator:
+        params = genbash_params(number_of_processes, analysis_settings, **genbash_args)
+        plan = orchestrator_plan(params, filename)
+
+    # Calls run_analysis + run_outputs in a single script
+    progress_totals = genbash(number_of_processes, analysis_settings, **genbash_args)
+    if plan is None and has_platform_progress(kwargs.get('analysis_pk')):
         oasis_ping({'analysis_pk': kwargs['analysis_pk'], **progress_totals})
     monitor = ResourceMonitor(
         output_dir='log',
         poll_interval=resource_monitor_interval,
         enabled=not disable_resource_report,
     )
-    proc = subprocess.Popen(['bash', filename], stdout=subprocess.PIPE)
-    monitor.start(proc.pid)
-    stdout, _ = proc.communicate()
-    monitor.stop()
-    if proc.returncode != 0:
-        raise subprocess.CalledProcessError(proc.returncode, ['bash', filename], output=stdout)
+    if plan is not None:
+        cmd = orchestrator_command('all', filename)
+        stdout = run_plan(plan, params, 'all', 'log', filename, monitor=monitor).encode('utf-8')
+    else:
+        cmd = ['bash', filename]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        monitor.start(proc.pid)
+        stdout, _ = proc.communicate()
+        monitor.stop()
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(proc.returncode, cmd, output=stdout)
     logging.info(stdout.decode('utf-8'))
     try:
         _ensure_pytool_logs_complete(
@@ -292,7 +336,7 @@ def run(analysis_settings,
     except OasisException as e:
         # Callers such as GenerateLosses dump the run logs and call rerun() on CalledProcessError.
         raise subprocess.CalledProcessError(
-            1, ['bash', filename], output=stdout + f'\n[ERROR] {e}\n'.encode('utf-8')
+            1, cmd, output=stdout + f'\n[ERROR] {e}\n'.encode('utf-8')
         ) from e
 
 
@@ -352,8 +396,21 @@ def rerun():
 
 @oasis_log()
 def run_analysis(**params):
+    """Run the analysis of every partition, or of partition ``process_number`` alone, from ``bash_params``.
+
+    The analysis script is written at ``params['filename']`` and executed. With ``params['orchestrator']`` set and a
+    run the planner supports, the script is written but the orchestrator runs the analysis instead, with the same work
+    files (``orchestrator.kernel``, mode ``analysis``); otherwise a warning gives the reason and the script is run.
+
+    Returns:
+        tuple: ``(params['fifo_queue_dir'], run log text)``.
+
+    Raises:
+        subprocess.CalledProcessError: the kernel failed.
+    """
     resource_monitor_interval = params.pop('resource_monitor_interval', 1.0)
     disable_resource_report = params.pop('disable_resource_report', False)
+    plan = orchestrator_plan(params, params['filename']) if params.pop('orchestrator', False) else None
 
     with bash_wrapper(params['filename'],
                       params['bash_trace'],
@@ -361,7 +418,7 @@ def run_analysis(**params):
                       log_sub_dir=params.get("process_number", None),
                       process_number=params.get("process_number", None)):
         gul_processes = create_bash_analysis(**params)
-    if has_platform_progress(params.get('analysis_pk')):
+    if plan is None and has_platform_progress(params.get('analysis_pk')):
         oasis_ping({'analysis_pk': params['analysis_pk'], 'gul_processes': gul_processes})
 
     process_number = params.get('process_number')
@@ -370,19 +427,25 @@ def run_analysis(**params):
     monitor_dir = os.path.join(log_root, str(process_number)) if process_number else log_root
     monitor = ResourceMonitor(output_dir=monitor_dir, poll_interval=resource_monitor_interval, generate_report=False,
                               enabled=not disable_resource_report)
-    proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
-    monitor.start(proc.pid)
-    stdout, _ = proc.communicate()
-    monitor.stop()
-    logging.debug("run_analysis: bash script (pid=%s) exited with code %s, checking log completeness in %s",
-                  proc.pid, proc.returncode, monitor_dir)
-    check_start = time.time()
+    if plan is not None:
+        log_dir = os.path.join('log', str(process_number)) if process_number else 'log'
+        bash_trace = run_plan(plan, params, 'analysis', log_dir, params['filename'], monitor=monitor)
+        logging.debug("run_analysis: orchestrator run finished, checking log completeness in %s", monitor_dir)
+        check_start = time.time()
+    else:
+        proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
+        monitor.start(proc.pid)
+        stdout, _ = proc.communicate()
+        monitor.stop()
+        logging.debug("run_analysis: bash script (pid=%s) exited with code %s, checking log completeness in %s",
+                      proc.pid, proc.returncode, monitor_dir)
+        check_start = time.time()
 
-    # Check for bash errors
-    if proc.returncode != 0:
-        raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
+        # Check for bash errors
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
 
-    bash_trace = stdout.decode('utf-8')
+        bash_trace = stdout.decode('utf-8')
     logging.info(bash_trace)
 
     # Check and wait for loggers to complete
@@ -397,33 +460,51 @@ def run_analysis(**params):
 
 @oasis_log()
 def run_outputs(**params):
+    """Run the output stage (katpy, aalpy, lecpy over ``work/``, then cleanup) from ``bash_params``.
+
+    The outputs script is written at ``params['filename']`` and executed. With ``params['orchestrator']`` set and a
+    run the planner supports, the script is written but the orchestrator runs the output jobs instead
+    (``orchestrator.kernel``, mode ``outputs``); otherwise a warning gives the reason and the script is run.
+
+    Returns:
+        str: the run log text.
+
+    Raises:
+        subprocess.CalledProcessError: the kernel failed.
+    """
     resource_monitor_interval = params.pop('resource_monitor_interval', 1.0)
     disable_resource_report = params.pop('disable_resource_report', False)
+    plan = orchestrator_plan(params, params['filename']) if params.pop('orchestrator', False) else None
 
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'],
                       log_sub_dir='out'):
         outputs_total = create_bash_outputs(**params)
-    if has_platform_progress(params.get('analysis_pk')):
+    if plan is None and has_platform_progress(params.get('analysis_pk')):
         oasis_ping({'analysis_pk': params['analysis_pk'], 'outputs_total': outputs_total})
 
     run_dir = os.path.dirname(params['filename'])
     log_root = os.path.join(run_dir, 'log')
     monitor = ResourceMonitor(output_dir=os.path.join(log_root, 'out'), poll_interval=resource_monitor_interval,
                               log_root=log_root, enabled=not disable_resource_report)
-    proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
-    monitor.start(proc.pid)
-    stdout, _ = proc.communicate()
-    monitor.stop()
     out_log_dir = os.path.join(log_root, 'out')
-    logging.debug("run_outputs: bash script (pid=%s) exited with code %s, checking log completeness in %s",
-                  proc.pid, proc.returncode, out_log_dir)
-    check_start = time.time()
+    if plan is not None:
+        bash_trace = run_plan(plan, params, 'outputs', os.path.join('log', 'out'), params['filename'], monitor=monitor)
+        logging.debug("run_outputs: orchestrator run finished, checking log completeness in %s", out_log_dir)
+        check_start = time.time()
+    else:
+        proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
+        monitor.start(proc.pid)
+        stdout, _ = proc.communicate()
+        monitor.stop()
+        logging.debug("run_outputs: bash script (pid=%s) exited with code %s, checking log completeness in %s",
+                      proc.pid, proc.returncode, out_log_dir)
+        check_start = time.time()
 
-    # Check for bash errors
-    if proc.returncode != 0:
-        raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
+        # Check for bash errors
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(proc.returncode, ['bash', params['filename']], output=stdout)
 
-    bash_trace = stdout.decode('utf-8')
+        bash_trace = stdout.decode('utf-8')
     logging.info(bash_trace)
 
     # Check and wait for loggers to complete

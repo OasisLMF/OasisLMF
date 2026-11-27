@@ -2,8 +2,9 @@
 #
 # This runs on every PR and push to main to catch Windows-specific regressions.
 # It is intentionally lightweight — install + smoke test only — to keep CI costs low.
-# The one exception is the zipped-converter tests: python.org Python 3.14+ on Windows bundles
-# zlib-ng, which compresses differently from classic zlib (#2236), and no other job covers that.
+# The exceptions are the zipped-converter tests: python.org Python 3.14+ on Windows bundles
+# zlib-ng, which compresses differently from classic zlib (#2236), and no other job covers that;
+# and the orchestrator tests (one Python version), the kernel executor meant to run on Windows.
 
 name: Windows Smoke Test
 
@@ -101,3 +102,19 @@ jobs:
             tests/pytools/converters/test_converters_footprint.py::test_footprint_zip_tobin_independent_of_deflate_implementation \
             tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability \
             tests/pytools/converters/test_converters_vulnerability.py::test_vulnerability_zip_tobin_independent_of_deflate_implementation
+
+      # The orchestrator suites without the tests that need bash or pytools pipelines over OS pipes
+      # (marker requires_bash, skipped on Windows anyway): planner, chunking, inline and pool executors
+      # on the test fixture with real stages, runner and chunked runs with the orchestrator option.
+      # Not test_generate_losses.py: its fixtures give generate_files OED paths as strings, which
+      # oasis_data_manager opens as file://<path>, a URL with an empty path on Windows.
+      - name: Orchestrator tests
+        if: matrix.python-version == '3.12'
+        timeout-minutes: 60
+        shell: bash
+        run: |
+          python -m pip install pytest hypothesis mock -r optional-package.in
+          python -m pytest -q -m "not requires_bash" \
+            tests/orchestrator \
+            tests/model_execution/test_resource_monitor.py \
+            tests/model_execution/test_runner.py::TestRunWithOrchestrator

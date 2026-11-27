@@ -149,6 +149,59 @@ def read_getmodel_stream(stream_in, items,
         valid_buf -= cursor
 
 
+def read_getmodel_block(byte_mv, items, item_map_hm, item_map_hm_keys, item_map_ja_offsets, coverages, compute, seeds,
+                        items_data=None):
+    """Read one whole event of the getmodel output stream held in memory.
+
+    The block is parsed as ``read_getmodel_stream`` parses the event from a stream: ``stream_to_data`` reads its
+    records into the same structures, starting from the state ``read_getmodel_stream`` resets to at the start of
+    each event. What ``read_getmodel_stream`` yields for an event does not depend on where its buffer refills fell,
+    so reading the whole event at once gives the same result.
+
+    Args:
+        byte_mv (numpy.ndarray): 1-D int8 array holding the records of one event, without the stream header.
+        items (numpy.ndarray): sorted items array (already filtered by peril if applicable).
+        item_map_hm (np.array[uint8]): packed hashmap (areaperil_id, vulnerability_id) → pair_index.
+        item_map_hm_keys (np.array[item_map_key_dtype]): key storage for the hashmap.
+        item_map_ja_offsets (np.array[oasis_int]): CSR offsets into items array (N_pairs + 1).
+        coverages (numpy.ndarray[coverage_type]): array with coverage data.
+        compute (numpy.array[int]): list of coverages to be computed.
+        seeds (numpy.array[int]): the random seeds for each coverage_id.
+        items_data (numpy.array[items_data_type], optional): buffer for the item-related data, reused when it is
+            large enough. A new one is made if None.
+
+    Returns:
+        tuple | None: what ``read_getmodel_stream`` yields for the event (event_id, index of the last coverage_id
+        stored in compute, item-related data, damage cdf records, cdf bins, indices of the bins where each cdf record
+        starts, number of unique random seeds), or None if the block holds no record.
+
+    Raises:
+        ValueError: if the block ends inside a record or holds more than one event.
+    """
+    valid_buf = byte_mv.shape[0]
+    if valid_buf == 0:
+        return None
+    min_size_cdf_entry = damagecdfrec_stream.size + 4 + ProbMean.size
+    if items_data is None:
+        items_data = np.empty(2 ** NP_BASE_ARRAY_SIZE, dtype=items_data_type)
+    group_id_rng_index, rec_idx_ptr = gen_structs()
+    coverages['cur_items'].fill(0)
+
+    (cursor, yield_event, event_id, dmgcdfrec, rec, rec_idx_ptr, last_event_id, compute_i, _items_data_i, items_data, rng_index,
+     _group_id_rng_index, _damagecdf_i) = stream_to_data(
+        byte_mv, valid_buf, min_size_cdf_entry, -1, items,
+        item_map_hm, item_map_hm_keys, item_map_ja_offsets,
+        coverages,
+        0, compute, 0, items_data, seeds, 0, group_id_rng_index,
+        0, rec_idx_ptr
+    )
+    if yield_event:
+        raise ValueError(f"cdf block holds more than one event: {last_event_id} then {event_id}")
+    if cursor != valid_buf:
+        raise ValueError(f"cdf block ended prematurely, event_id: {last_event_id}, read {cursor} of {valid_buf} bytes")
+    return last_event_id, compute_i, items_data, dmgcdfrec, rec, rec_idx_ptr, rng_index
+
+
 @njit(cache=True, fastmath=True)
 def stream_to_data(byte_mv, valid_buf, size_cdf_entry, last_event_id, items,
                    item_map_hm, item_map_hm_keys, item_map_ja_offsets,

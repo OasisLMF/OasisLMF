@@ -4,7 +4,7 @@
 -r ./optional-plot.in
 
 configparser>=3.5.0
-coverage
+coverage>=7.10
 furo
 hypothesis
 mock

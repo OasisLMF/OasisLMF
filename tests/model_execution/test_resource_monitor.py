@@ -1,8 +1,11 @@
+import os
 import time
 from collections import defaultdict
 from unittest import TestCase
 
-from oasislmf.execution.resource_monitor import _plot_cpu_time
+import psutil
+
+from oasislmf.execution.resource_monitor import _plot_cpu_time, monitored_tool, process_memory
 
 
 class _StubAxes:
@@ -100,3 +103,23 @@ class PlotCpuTimeTests(TestCase):
 
         self.assertEqual(len(plt.ax.lines["gulmc"][0]), 3600)
         self.assertLess(elapsed, 5)
+
+
+def test_monitored_tool_from_command_line():
+    assert monitored_tool(['/usr/bin/python3', '/home/u/.local/bin/fmpy', '-a2']) == 'fmpy'
+    assert monitored_tool(['python', '-m', 'oasislmf.execution.orchestrator.worker']) == 'orchestrator'
+    assert monitored_tool(['python', '-m', 'oasislmf.execution.orchestrator.cli']) is None
+    assert monitored_tool(['bash', 'run_kernel.sh']) is None
+
+
+def test_process_memory_falls_back_to_rss_when_uss_is_denied(monkeypatch):
+    proc = psutil.Process(os.getpid())
+    mem, uss_kb = process_memory(proc)
+    assert uss_kb == mem.uss // 1024
+
+    def denied(self):
+        raise psutil.AccessDenied(self.pid)
+
+    monkeypatch.setattr(psutil.Process, 'memory_full_info', denied)
+    mem, uss_kb = process_memory(proc)
+    assert mem.rss > 0 and uss_kb == mem.rss // 1024

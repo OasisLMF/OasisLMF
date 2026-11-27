@@ -1,223 +1,45 @@
 """Entry point to the run method of summarypy
 read an event loss stream and aggregate it into the relevant summary loss stream
 
-The run type selects the summaryxref read from the static path: ``gul`` (gulsummaryxref),
-``il`` (fmsummaryxref), ``ri`` (risummaryxref) or ``rl`` (rlsummaryxref).
-
-With ``-s/--sentinel-event``, every event of each summary set stream is closed by a sentinel record
-``E:S0`` (summary_id 0, expval 0 and the (0, 0) terminator), even when the event has no summary record.
-This lets rlcombine tell when an inuring priority has finished an event. Sentinel streams are only
-meant for rlcombine, and ``-s`` cannot be combined with ``-m``.
-
-using numba latest version 0.59, we are limited is our usage of classes and have to pass each data structure into the different function
-The attributes are name the same throughout the code, below is their definition
-
-Static intermediary data structure::
-
-    summary_pipes : dict summary_set_id to path then updated to stream when reading starts
-    summary_sets_id : array of all summary_set_id that have a stream
-    summary_set_indices : array of the summary_set_index of each summary_set_id that has a stream
-    summary_set_id_to_summary_set_index : array mapping summary_set_id => summary_set_index
-    summary_set_index_to_loss_ptr : mapping array summary_set_index => starting index of summary_id loss (first dimension) in the loss_summary table
-    item_id_to_summary_id : mapping array item_id => [summary_id for each summary set]
-    item_id_to_risks_i : mapping array item_id => risks_i (index of th corresponding risk)
-    risk_i_to_n_buildings : mapping array risks_i => number of buildings the risk stands for (1 unless packed)
-
-event based intermediary data structure::
-
-    summary_set_index_to_present_loss_ptr_end : copy of summary_set_index_to_loss_ptr that store the end of list of summary_id for each summary set
-    present_summary_id : array that store all the summary_id found in the event
-                         each summary set start at summary_set_index_to_loss_ptr and ends at summary_set_index_to_present_loss_ptr_end
-    loss_index : store the index in loss_summary of each summary corresponding to an item for quick lookup on read
-    loss_summary : 2D array of losses for each summary
-                   loss_summary[loss_index[summary_set_index], sidx] = loss
-    is_risk_affected : array to store in if a risk has already been affected or not in this event
-    affected_risks : risks_i set in is_risk_affected during the event (the first affected_risks_n[0] entries),
-                     so that only those are reset at the end of the event
+The per-event work (reading the loss stream, aggregating it and writing each summary set) is done by
+SummaryStage in stage.py, which also holds the Numba kernels and documents the data structures.
+This module reads the command-line options, opens the inputs and outputs and drives the stage over them.
 """
-import numpy as np
-import numba as nb
-from numpy.lib.recfunctions import repack_fields
-from numba.typed import Dict as nb_dict
-import json
-
-from contextlib import ExitStack
 import logging
-import os
+from contextlib import ExitStack
 from itertools import zip_longest
 from pathlib import Path
+import os
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from oasislmf.pytools.common.data import (building_count_dtype, def_to_type_and_size, load_as_ndarray, oasis_int, nb_oasis_int, oasis_float,
-                                          null_index, fm_summary_xref_dtype, gul_summary_xref_dtype,
-                                          loss_pair_dtype, loss_pair_size, summary_stream_index_dtype, write_ndarray_to_fmt_csv)
-from oasislmf.pytools.common.event_stream import (EventReader, init_streams_in, stream_info_to_bytes, write_mv_to_stream,
-                                                  mv_read, mv_write_summary_header, mv_write_sidx_loss,
-                                                  GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID, SUMMARY_STREAM_ID, ITEM_STREAM, PIPE_CAPACITY,
-                                                  LOSS_STREAM_AGG_TYPES,
-                                                  MEAN_IDX, TIV_IDX, NUMBER_OF_AFFECTED_RISK_IDX, MAX_LOSS_IDX,
-                                                  NUM_SPECIAL_SIDX, decode_local_sidx)
-from oasislmf.pytools.common.run_types import RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_GROSS_LOSS, RUNTYPE_REINSURANCE_LOSS, LOSS_RUNTYPES
+from oasislmf.pytools.common.data import write_ndarray_to_fmt_csv
+from oasislmf.pytools.common.event_stream import init_streams_in, stream_info_to_bytes
+from oasislmf.pytools.common.stage import StreamSink
+from oasislmf.pytools.common.run_types import (RUNTYPE_GROUNDUP_LOSS, RUNTYPE_INSURED_LOSS, RUNTYPE_REINSURANCE_GROSS_LOSS,  # noqa: F401
+                                               RUNTYPE_REINSURANCE_LOSS)
 from oasislmf.pytools.elt.data import SELT_dtype, SELT_fmt, SELT_headers, VALID_EXT
-from oasislmf.pytools.rlcombine.reader import SENTINEL_SUMMARY_ID
+from oasislmf.pytools.summary.stage import (SPECIAL_SIDX_COUNT, SUMMARY_HEADER_SIZE, SUMMARY_META_SIZE, SIDX_LOSS_WRITE_SIZE,  # noqa: F401
+                                            SUPPORTED_RUN_TYPE, SummaryReader, SummaryStage, get_summary_object, load_summary_object,
+                                            load_summary_map, read_summary_objects, extract_risk_info, read_buffer, mv_write_event,
+                                            fill_event_rows, get_summary_set_id_to_summary_set_index, get_summary_xref_info,
+                                            reset_event, SENTINEL_SIZE, get_sentinel_bytes)
 from oasislmf.pytools.utils import redirect_logging
-from oasislmf.utils.defaults import SUMMARY_OUTPUT
 
 logger = logging.getLogger(__name__)
 
 
-event_id_dtype, event_id_dtype_size = def_to_type_and_size('event_id')
-item_id_dtype, item_id_dtype_size = def_to_type_and_size('item_id')
-loss_dtype, loss_dtype_size = def_to_type_and_size('loss')
-summaryset_id_dtype, summaryset_id_dtype_size = def_to_type_and_size('summaryset_id')
-summary_id_dtype, summary_id_dtype_size = def_to_type_and_size('summary_id')
-
-SPECIAL_SIDX_COUNT = 6  # 0 is included as a special sidx
-SUMMARY_HEADER_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size + SPECIAL_SIDX_COUNT * (loss_pair_size)
-SUMMARY_META_SIZE = 4 + 4 + summaryset_id_dtype_size  # (stream_type, sample size , summary_set_id)
-SIDX_LOSS_WRITE_SIZE = 2 * (loss_pair_size)
-SENTINEL_SIZE = event_id_dtype_size + summary_id_dtype_size + loss_dtype_size + loss_pair_size
-
-
 SUPPORTED_SUMMARY_SET_ID = list(range(1, 10))
 
-risk_key_type = nb.types.UniTuple(nb_oasis_int, 2)
-
-summary_info_dtype = np.dtype([('nb_risk', oasis_int), ])
-
-summary_map_dtype = np.dtype([('loc_id', oasis_int), ('item_id', oasis_int), ('building_id', oasis_int)])
-summary_map_with_buildings_dtype = np.dtype(summary_map_dtype.descr + [('number_of_buildings', building_count_dtype)])
-
-SUPPORTED_RUN_TYPE = LOSS_RUNTYPES
-
 OUTPUT_ROWS_BUFFER_SIZE = 100_000
-
-
-def get_sentinel_bytes(event_id):
-    """Build the sentinel record that closes an event in a ``-s/--sentinel-event`` summary stream.
-
-    The sentinel is a summary record with summary_id SENTINEL_SUMMARY_ID (0), expval 0 and no
-    (sidx, loss) pairs other than the (0, 0) terminator.
-
-    Args:
-        event_id (event_id_dtype): event the sentinel closes
-
-    Returns:
-        byte_mv (ndarray): numpy byte view of the SENTINEL_SIZE bytes of the record
-
-    Raises:
-        Exception: if the record written is not SENTINEL_SIZE bytes
-    """
-    byte_mv = np.empty(SENTINEL_SIZE, dtype='b')
-
-    cursor = 0
-    cursor = mv_write_summary_header(byte_mv, cursor, event_id, SENTINEL_SUMMARY_ID, 0)
-    cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
-    if cursor != SENTINEL_SIZE:
-        raise Exception('sentinel is not the correct size')
-    return byte_mv
 
 
 def create_summary_object_file(static_path, run_type):
     """Create and write summary object into static path"""
     summary_objects = get_summary_object(static_path, run_type)
     write_summary_objects(static_path, run_type, *summary_objects)
-
-
-def load_summary_object(static_path, run_type):
-    """Load already prepare summary data structure if present otherwise create them"""
-    if os.path.isfile(os.path.join(static_path, run_type, 'summary_info.npy')):
-        return read_summary_objects(static_path, run_type)
-    else:
-        return get_summary_object(static_path, run_type)
-
-
-def load_summary_map(static_path, name, col_map=None):
-    """Load a summary map, with its ``number_of_buildings`` column when it carries one.
-
-    The column is written under building packing, where one row stands for that many buildings.
-    A map written before packing existed, or assembled by hand, does not have it.
-
-    The columns are looked up in the file ``load_as_ndarray`` reads, in its order of preference. A
-    ``.bin`` has no header to look in and is read without the column.
-    """
-    dtype = summary_map_dtype
-    path = os.path.join(static_path, name)
-    if not os.path.isfile(path + '.bin'):
-        columns = set()
-        if os.path.isfile(path + '.parquet'):
-            import pyarrow.parquet as pq
-            columns = set(pq.read_schema(path + '.parquet').names)
-        elif os.path.isfile(path + '.csv'):
-            with open(path + '.csv') as f:
-                columns = {h.strip() for h in f.readline().split(',')}
-        if 'number_of_buildings' in columns:
-            dtype = summary_map_with_buildings_dtype
-    return load_as_ndarray(static_path, name, dtype, col_map=col_map)
-
-
-def get_summary_object(static_path, run_type):
-    """Read static files to get summary static data structure
-
-    The summaryxref read depends on run_type: gulsummaryxref (gul), fmsummaryxref (il),
-    risummaryxref (ri) or rlsummaryxref (rl). Only gul and il also read a summary map to track the
-    number of affected risks.
-
-    Args:
-        static_path (str): path to the static files
-        run_type (str): one of SUPPORTED_RUN_TYPE
-
-    Returns:
-        summary_info (ndarray[summary_info_dtype]): single element array holding the number of risks
-        summary_set_id_to_summary_set_index (ndarray[oasis_int]): mapping summary_set_id => summary_set_index
-        summary_set_index_to_loss_ptr (ndarray[oasis_int]): starting index of each summary set in the loss_summary table
-        item_id_to_summary_id (ndarray[oasis_int]): mapping item_id => summary_id for each summary set
-        item_id_to_risks_i (ndarray[oasis_int]): mapping item_id => risk index, empty for ri and rl
-
-    Raises:
-        Exception: if run_type is not supported
-    """
-    # extract item_id to index in the loss summary
-    if run_type == RUNTYPE_GROUNDUP_LOSS:
-        summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['gul'], gul_summary_xref_dtype)
-        summary_map = load_summary_map(static_path, 'gul_summary_map')
-
-    elif run_type == RUNTYPE_INSURED_LOSS:
-        summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['il'], fm_summary_xref_dtype)
-        summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
-        summary_map = load_summary_map(static_path, 'fm_summary_map', col_map={'item_id': 'output_id'})
-
-    elif run_type == RUNTYPE_REINSURANCE_LOSS:
-        summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['ri'], fm_summary_xref_dtype)
-        summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
-        summary_map = None  # numba use none to optimise function when some part are not used
-
-    elif run_type == RUNTYPE_REINSURANCE_GROSS_LOSS:
-        summary_xref = load_as_ndarray(static_path, SUMMARY_OUTPUT['rl'], fm_summary_xref_dtype)
-        summary_xref = summary_xref.astype(gul_summary_xref_dtype)  # Change dtype to keep consistent column names
-        summary_map = None
-    else:
-        raise Exception(f"run type {run_type} not in supported list {SUPPORTED_RUN_TYPE}")
-
-    summary_sets_id = np.sort(np.unique(summary_xref['summaryset_id']))
-    summary_set_id_to_summary_set_index = get_summary_set_id_to_summary_set_index(summary_sets_id)
-    summary_set_index_to_loss_ptr, item_id_to_summary_id = get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summary_set_index)
-
-    if summary_map is not None:
-        nb_risk, item_id_to_risks_i, risk_i_to_n_buildings = extract_risk_info(item_id_to_summary_id.shape[0], summary_map)
-    else:
-        item_id_to_risks_i = np.zeros(0, dtype=oasis_int)
-        risk_i_to_n_buildings = np.zeros(0, dtype=building_count_dtype)
-        nb_risk = 0
-
-    summary_info = np.empty(1, dtype=summary_info_dtype)
-    info = summary_info[0]
-    info['nb_risk'] = nb_risk
-
-    return (summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-            item_id_to_risks_i, risk_i_to_n_buildings)
 
 
 def write_summary_objects(static_path, run_type, summary_info, summary_set_id_to_summary_set_index,
@@ -229,319 +51,6 @@ def write_summary_objects(static_path, run_type, summary_info, summary_set_id_to
     np.save(os.path.join(static_path, run_type, 'item_id_to_summary_id'), item_id_to_summary_id)
     np.save(os.path.join(static_path, run_type, 'item_id_to_risks_i'), item_id_to_risks_i)
     np.save(os.path.join(static_path, run_type, 'risk_i_to_n_buildings'), risk_i_to_n_buildings)
-
-
-def read_summary_objects(static_path, run_type):
-    summary_info = np.load(os.path.join(static_path, run_type, 'summary_info.npy'), mmap_mode='r')
-    summary_set_id_to_summary_set_index = np.load(os.path.join(static_path, run_type, 'summary_set_id_to_summary_set_index.npy'), mmap_mode='r')
-    summary_set_index_to_loss_ptr = np.load(os.path.join(static_path, run_type, 'summary_set_index_to_loss_ptr.npy'), mmap_mode='r')
-    item_id_to_summary_id = np.load(os.path.join(static_path, run_type, 'item_id_to_summary_id.npy'), mmap_mode='r')
-    item_id_to_risks_i = np.load(os.path.join(static_path, run_type, 'item_id_to_risks_i.npy'), mmap_mode='r')
-    n_buildings_path = os.path.join(static_path, run_type, 'risk_i_to_n_buildings.npy')
-    if os.path.isfile(n_buildings_path):
-        risk_i_to_n_buildings = np.load(n_buildings_path, mmap_mode='r')
-    else:  # objects prepared before building packing: every risk is one building
-        risk_i_to_n_buildings = np.ones(summary_info[0]['nb_risk'], dtype=building_count_dtype)
-    return (summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-            item_id_to_risks_i, risk_i_to_n_buildings)
-
-
-@nb.njit(cache=True)
-def nb_extract_risk_info(item_id_to_risks_i, risk_i_to_n_buildings, summary_map, row_n_buildings):
-    loc_id_building_id_to_building_risk = nb_dict.empty(risk_key_type, nb_oasis_int)
-    last_risk_i = 0
-    for i in range(summary_map.shape[0]):
-        loc_id_building_id = (nb_oasis_int(summary_map["loc_id"][i]), nb_oasis_int(summary_map["building_id"][i]))
-        if loc_id_building_id in loc_id_building_id_to_building_risk:
-            risk_i = loc_id_building_id_to_building_risk[loc_id_building_id]
-        else:
-            loc_id_building_id_to_building_risk[loc_id_building_id] = risk_i = nb_oasis_int(last_risk_i)
-            # the rows of one risk share its location, so they carry the same count
-            risk_i_to_n_buildings[risk_i] = row_n_buildings[i]
-            last_risk_i += 1
-        item_id_to_risks_i[summary_map["item_id"][i]] = nb_oasis_int(risk_i)
-    return last_risk_i
-
-
-def extract_risk_info(len_item_id, summary_map):
-    """Extract relevant information regarding item and risk mapping from summary_map
-
-    Args:
-        len_item_id: number of items
-        summary_map: numpy ndarray view of the summary_map
-
-    Returns:
-        (number of risk, mapping array item_id => risks_i, mapping array risks_i => number of buildings)
-    """
-    item_id_to_risks_i = np.zeros(len_item_id, oasis_int)
-    risk_i_to_n_buildings = np.ones(summary_map.shape[0], building_count_dtype)
-    if 'number_of_buildings' in summary_map.dtype.names:
-        row_n_buildings = np.maximum(np.asarray(summary_map['number_of_buildings'], dtype=building_count_dtype), 1)
-    else:
-        row_n_buildings = np.ones(summary_map.shape[0], building_count_dtype)
-    nb_risk = nb_extract_risk_info(
-        item_id_to_risks_i,
-        risk_i_to_n_buildings,
-        repack_fields(summary_map[['loc_id', 'item_id', 'building_id']]),
-        row_n_buildings)
-    return nb_risk, item_id_to_risks_i, risk_i_to_n_buildings[:nb_risk]
-
-
-@nb.jit(nopython=True, cache=True)
-def read_buffer(byte_mv, cursor, valid_buff, event_id, item_id,
-                summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-                loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-                item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk, affected_risks, affected_risks_n):
-    """Read valid part of byte_mv and load relevant data for one event"""
-    last_event_id = event_id
-    # A summary is per item, so a packed item's buildings share a bucket: decode onto the sample the
-    # index represents and let the accumulation below add them. Identity for an ordinary stream.
-    # Its affected risks are counted by building too, as row disaggregation counts them: a packed
-    # risk stands for risk_i_to_n_buildings of them.
-    max_sidx_val = loss_summary.shape[1] - SPECIAL_SIDX_COUNT
-    while True:
-        if item_id:
-            n_sidx_loss = (valid_buff - cursor) // loss_pair_size
-            if n_sidx_loss == 0:
-                break
-            sidx_loss_view = byte_mv[cursor:cursor + n_sidx_loss * loss_pair_size].view(loss_pair_dtype)
-            terminated = False
-            for k in range(n_sidx_loss):
-                sidx = sidx_loss_view[k]['sidx']
-                if not sidx:
-                    ##### do item exit ####
-                    ##########
-                    cursor += (k + 1) * loss_pair_size
-                    item_id = 0
-                    terminated = True
-                    break
-                loss = sidx_loss_view[k]['loss']
-                loss = 0 if np.isnan(loss) else loss
-
-                ###### do loss read ######
-                # Only the positive branch divides by the sample size, and a zero-sample stream carries no
-                # positive sidx -- but it does carry per-building specials, which must still be decoded.
-                if (max_sidx_val > 0 and sidx > max_sidx_val) or sidx < -NUM_SPECIAL_SIDX:
-                    sidx = decode_local_sidx(sidx, max_sidx_val)
-                if sidx > 0 or sidx in [-1, -3, -5]:
-                    for summary_set_index in summary_set_indices:
-                        loss_summary[loss_index[summary_set_index], sidx] += loss
-                ##########
-            if not terminated:
-                cursor += n_sidx_loss * loss_pair_size
-        else:
-            if valid_buff - cursor < (event_id_dtype_size + item_id_dtype_size):
-                break
-            event_id, cursor = mv_read(byte_mv, cursor, event_id_dtype, event_id_dtype_size)
-            if event_id != last_event_id:
-                if last_event_id:  # we have a new event we return the one we just finished
-                    return cursor - event_id_dtype_size, last_event_id, 0, 1
-                else:  # first pass we store the event we are reading
-                    last_event_id = event_id
-            item_id, cursor = mv_read(byte_mv, cursor, item_id_dtype, item_id_dtype_size)
-
-            ##### do new item setup #####
-            if has_affected_risk is not None:
-                risk_i = item_id_to_risks_i[item_id]
-                risk_count = risk_i_to_n_buildings[risk_i]
-                if is_risk_affected[risk_i]:
-                    new_risk = 0
-                else:
-                    is_risk_affected[risk_i] = 1
-                    new_risk = risk_count
-                    affected_risks[affected_risks_n[0]] = risk_i
-                    affected_risks_n[0] += 1
-            else:
-                risk_count = 1
-
-            for summary_set_index in summary_set_indices:
-                if item_id >= item_id_to_summary_id.shape[0] or item_id_to_summary_id[item_id, summary_set_index] == null_index:
-                    raise ValueError('summarypy: item_id', item_id, 'has no summaryxref row for summary set index', summary_set_index)
-                loss_index[summary_set_index] = nb_oasis_int(summary_set_index_to_loss_ptr[summary_set_index]
-                                                             + item_id_to_summary_id[item_id, summary_set_index] - 1)
-                # print(summary_set_index_to_loss_ptr[summary_set_index], item_id_to_summary_id[item_id, summary_set_index])
-                # print('new_risk', event_id, item_id, new_risk)
-                # print('loss_index[summary_set_index]', loss_index[summary_set_index])
-                # print('loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX]', loss_summary[loss_index[summary_set_index], -4])
-                if loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] == 0:  # we use sidx 0 to check if this summary_id has already been seen
-                    present_summary_id[summary_set_index_to_present_loss_ptr_end[summary_set_index]
-                                       ] = item_id_to_summary_id[item_id, summary_set_index]
-                    summary_set_index_to_present_loss_ptr_end[summary_set_index] += 1
-                    loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] = risk_count
-
-                elif has_affected_risk is not None:
-                    loss_summary[loss_index[summary_set_index], NUMBER_OF_AFFECTED_RISK_IDX] += new_risk
-            ##########
-    # Buffer exhausted; caller may re-enter to accumulate more sidx_loss for this event.
-    # SummaryReader.finalize_event handles the per-event sort once, just before yield.
-    return cursor, event_id, item_id, 0
-
-
-@nb.njit(cache=True)
-def reset_event(summary_set_indices, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end,
-                present_summary_id, loss_summary, is_risk_affected, affected_risks, affected_risks_n):
-    """Reset the per-event state for the next event, touching only the entries the event used.
-
-    Zeroes the loss_summary rows of the summary ids present in the event (for each requested set) and
-    clears the risks it affected. present_summary_id needs no clearing: only [start, end) is ever read,
-    and read_buffer rewrites it from start once the end pointer is reset.
-
-    Relies on read_buffer listing every loss_summary row it touches in present_summary_id, which it does
-    on the row's first touch in the event (its NUMBER_OF_AFFECTED_RISK_IDX column is still 0). Call once
-    per event, after every requested set is written: mv_write_event and fill_event_rows return early when
-    the buffer fills and skip zero rows, so the reset cannot live in them.
-    """
-    for summary_set_index in summary_set_indices:
-        start = summary_set_index_to_loss_ptr[summary_set_index]
-        for present_i in range(start, summary_set_index_to_present_loss_ptr_end[summary_set_index]):
-            loss_summary[start + present_summary_id[present_i] - 1, :] = 0
-        summary_set_index_to_present_loss_ptr_end[summary_set_index] = start
-    for risk_j in range(affected_risks_n[0]):
-        is_risk_affected[affected_risks[risk_j]] = 0
-    affected_risks_n[0] = 0
-
-
-@nb.njit(cache=True)
-def mv_write_event(byte_mv, event_id, len_sample, last_loss_summary_index, last_sidx,
-                   output_zeros, has_affected_risk,
-                   summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id, loss_summary,
-                   summary_index_cursor, summary_sets_cursor, summary_stream_index):
-    """Load event summary loss into byte_mv
-
-    Args:
-        byte_mv: numpy byte view to write to the stream
-        event_id: event id
-        len_sample: max sample id
-        last_loss_summary_index: last summary index written (used to restart from the last summary when buffer was full)
-        last_sidx: last sidx written in the buffer (used to restart from the correct sidx when buffer was full
-        output_zeros: if False, summaries and samples with a zero loss are skipped
-        has_affected_risk: None when the number of affected risks is not tracked, otherwise the affected risk data
-        summary_set_index: index of the summary set being written
-        summary_set_index_to_loss_ptr: start offset of each summary set in loss_summary
-        summary_set_index_to_present_loss_ptr_end: end offset of each summary set in present_summary_id
-        present_summary_id: summary ids present in this event, per summary set
-        loss_summary: the loss values to write, indexed by summary set offset and summary id
-        summary_index_cursor: next free slot in summary_stream_index
-        summary_sets_cursor: running byte offset written so far for each summary set
-        summary_stream_index: index records (summary_id, offset) written alongside the stream
-
-    Returns:
-        the cursor reached in byte_mv, the summary index to resume from (-1 when the event is
-        complete), the sidx to resume from, and the updated summary_index_cursor
-    """
-    cursor = 0
-    for loss_summary_index in range(max(summary_set_index_to_loss_ptr[summary_set_index], last_loss_summary_index),
-                                    summary_set_index_to_present_loss_ptr_end[summary_set_index]):
-        summary_id = present_summary_id[loss_summary_index]
-        losses = loss_summary[summary_set_index_to_loss_ptr[summary_set_index] + summary_id - 1]
-
-        if not output_zeros and losses[TIV_IDX] == 0 and losses[MEAN_IDX] == 0:
-            continue
-
-        summary_stream_index[summary_index_cursor]['summary_id'] = summary_id
-        # we use offset to temporally store the cursor, we set the correct value later on
-        summary_stream_index[summary_index_cursor]['offset'] = cursor
-
-        if last_sidx == 0:
-            if cursor < PIPE_CAPACITY - SUMMARY_HEADER_SIZE:
-                cursor = mv_write_summary_header(byte_mv, cursor, event_id, summary_id, losses[TIV_IDX])
-                cursor = mv_write_sidx_loss(byte_mv, cursor, MAX_LOSS_IDX, losses[MAX_LOSS_IDX])
-                if has_affected_risk is not None:
-                    cursor = mv_write_sidx_loss(byte_mv, cursor, NUMBER_OF_AFFECTED_RISK_IDX, losses[NUMBER_OF_AFFECTED_RISK_IDX])
-                cursor = mv_write_sidx_loss(byte_mv, cursor, MEAN_IDX, losses[MEAN_IDX])
-                last_sidx = 1
-            else:
-                return cursor, loss_summary_index, last_sidx, summary_index_cursor
-
-        for sidx in range(last_sidx, len_sample + 1):
-            if not output_zeros and losses[sidx] == 0:
-                continue
-            if cursor < PIPE_CAPACITY - SIDX_LOSS_WRITE_SIZE:  # times 2 to accommodate 0,0 if last item
-                cursor = mv_write_sidx_loss(byte_mv, cursor, sidx, losses[sidx])
-            else:
-                return cursor, loss_summary_index, sidx, summary_index_cursor
-
-        cursor = mv_write_sidx_loss(byte_mv, cursor, 0, 0)
-        # set the correct offset for idx file and update summary_sets_cursor
-        summary_byte_len = cursor - summary_stream_index[summary_index_cursor]['offset']
-        summary_stream_index[summary_index_cursor]['offset'] = summary_sets_cursor[summary_set_index]
-        summary_sets_cursor[summary_set_index] += summary_byte_len
-        summary_index_cursor += 1
-
-        last_sidx = 0
-    return cursor, -1, 0, summary_index_cursor
-
-
-@nb.njit(cache=True)
-def write_selt_row(rows, row_i, event_id, summary_id, sidx, loss, impacted_exposure):
-    row = rows[row_i]
-    row['EventId'] = event_id
-    row['SummaryId'] = summary_id
-    row['SampleId'] = sidx
-    row['Loss'] = loss
-    row['ImpactedExposure'] = impacted_exposure
-    return row_i + 1
-
-
-@nb.njit(cache=True)
-def fill_event_rows(rows, row_i, event_id, len_sample, last_loss_summary_index, last_sidx,
-                    output_zeros, has_affected_risk,
-                    summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id,
-                    loss_summary):
-    """Load event summary loss into a table of SELT rows, in the same order as the binary stream.
-
-    Each record of the binary summary stream becomes one (EventId, SummaryId, SampleId, Loss, ImpactedExposure)
-    row, the special sidx (max loss, number of affected risks, mean) included, and zero losses are skipped
-    under the same rules as mv_write_event.
-
-    Args:
-        rows: SELT_dtype array to fill
-        row_i: index of the next free row in rows
-        event_id: event id
-        len_sample: max sample id
-        last_loss_summary_index: summary index to resume from when rows was full on the previous call
-        last_sidx: sidx to resume from when rows was full on the previous call
-        output_zeros: if False, summaries and samples with a zero loss are skipped
-        has_affected_risk: None when the number of affected risks is not tracked, otherwise the affected risk data
-        summary_set_index: index of the summary set being written
-        summary_set_index_to_loss_ptr: start offset of each summary set in loss_summary
-        summary_set_index_to_present_loss_ptr_end: end offset of each summary set in present_summary_id
-        present_summary_id: summary ids present in this event, per summary set
-        loss_summary: the loss values to write, indexed by summary set offset and summary id
-
-    Returns:
-        the next free row in rows, the summary index to resume from (-1 when the event is complete)
-        and the sidx to resume from
-    """
-    n_header_rows = 3 if has_affected_risk is not None else 2
-    for loss_summary_index in range(max(summary_set_index_to_loss_ptr[summary_set_index], last_loss_summary_index),
-                                    summary_set_index_to_present_loss_ptr_end[summary_set_index]):
-        summary_id = present_summary_id[loss_summary_index]
-        losses = loss_summary[summary_set_index_to_loss_ptr[summary_set_index] + summary_id - 1]
-        tiv = losses[TIV_IDX]
-
-        if not output_zeros and tiv == 0 and losses[MEAN_IDX] == 0:
-            continue
-
-        if last_sidx == 0:
-            if row_i + n_header_rows > rows.shape[0]:
-                return row_i, loss_summary_index, last_sidx
-            row_i = write_selt_row(rows, row_i, event_id, summary_id, MAX_LOSS_IDX, losses[MAX_LOSS_IDX], tiv)
-            if has_affected_risk is not None:
-                row_i = write_selt_row(rows, row_i, event_id, summary_id, NUMBER_OF_AFFECTED_RISK_IDX,
-                                       losses[NUMBER_OF_AFFECTED_RISK_IDX], tiv)
-            row_i = write_selt_row(rows, row_i, event_id, summary_id, MEAN_IDX, losses[MEAN_IDX], tiv)
-            last_sidx = 1
-
-        for sidx in range(last_sidx, len_sample + 1):
-            if not output_zeros and losses[sidx] == 0:
-                continue
-            if row_i >= rows.shape[0]:
-                return row_i, loss_summary_index, sidx
-            row_i = write_selt_row(rows, row_i, event_id, summary_id, sidx, losses[sidx], tiv)
-
-        last_sidx = 0
-    return row_i, -1, 0
 
 
 class SummaryRowWriter:
@@ -570,79 +79,6 @@ class SummaryRowWriter:
         else:
             write_ndarray_to_fmt_csv(self.file, data, SELT_headers, SELT_fmt)
         self.row_i = 0
-
-
-class SummaryReader(EventReader):
-    """Read an event loss stream and aggregate it into the relevant summary loss streams."""
-
-    def __init__(self, summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-                 loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-                 item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk, affected_risks, affected_risks_n):
-        self.summary_set_indices = summary_set_indices
-        self.summary_set_index_to_loss_ptr = summary_set_index_to_loss_ptr
-        self.item_id_to_summary_id = item_id_to_summary_id
-        self.loss_index = loss_index
-        self.loss_summary = loss_summary
-        self.present_summary_id = present_summary_id
-        self.summary_set_index_to_present_loss_ptr_end = summary_set_index_to_present_loss_ptr_end
-        self.item_id_to_risks_i = item_id_to_risks_i
-        self.risk_i_to_n_buildings = risk_i_to_n_buildings
-        self.is_risk_affected = is_risk_affected
-        self.has_affected_risk = has_affected_risk
-        self.affected_risks = affected_risks
-        self.affected_risks_n = affected_risks_n
-        self.logger = logger
-
-    def read_buffer(self, byte_mv, cursor, valid_buff, event_id, item_id, **kwargs):
-        return read_buffer(
-            byte_mv, cursor, valid_buff, event_id, item_id,
-            self.summary_set_indices, self.summary_set_index_to_loss_ptr, self.item_id_to_summary_id,
-            self.loss_index, self.loss_summary, self.present_summary_id, self.summary_set_index_to_present_loss_ptr_end,
-            self.item_id_to_risks_i, self.risk_i_to_n_buildings, self.is_risk_affected, self.has_affected_risk,
-            self.affected_risks, self.affected_risks_n
-        )
-
-    def finalize_event(self, **kwargs):
-        # Sort the slice of summary_ids seen this event so mv_write_event emits in summary_id order.
-        for summary_set_index in self.summary_set_indices:
-            start = self.summary_set_index_to_loss_ptr[summary_set_index]
-            end = self.summary_set_index_to_present_loss_ptr_end[summary_set_index]
-            self.present_summary_id[start:end].sort()  # in place: the slice is a view
-
-
-def get_summary_set_id_to_summary_set_index(summary_sets_id):
-    """Create an array mapping summary_set_id => summary_set_index"""
-    summary_set_id_to_summary_set_index = np.full(np.max(summary_sets_id) + 1, null_index, 'i4')
-    for summary_set_index in range(summary_sets_id.shape[0]):
-        summary_set_id_to_summary_set_index[summary_sets_id[summary_set_index]] = summary_set_index
-    return summary_set_id_to_summary_set_index
-
-
-def get_summary_xref_info(summary_xref, summary_sets_id, summary_set_id_to_summary_set_index):
-    """Extract mapping from summary_xref"""
-    summary_set_index_to_loss_ptr = np.zeros(summary_sets_id.shape[0] + 1, oasis_int)
-    max_item_id = 0
-    for i in range(summary_xref.shape[0]):
-        xref = summary_xref[i]
-        summary_set_index = summary_set_id_to_summary_set_index[xref['summaryset_id']]
-        if summary_set_index == null_index:
-            continue
-        if xref['summary_id'] > summary_set_index_to_loss_ptr[summary_set_index + 1]:
-            summary_set_index_to_loss_ptr[summary_set_index + 1] = xref['summary_id']
-        if xref['item_id'] > max_item_id:
-            max_item_id = xref['item_id']
-    for i in range(1, summary_set_index_to_loss_ptr.shape[0]):
-        summary_set_index_to_loss_ptr[i] += summary_set_index_to_loss_ptr[i - 1]
-
-    item_id_to_summary_id = np.full((max_item_id + 1, summary_sets_id.shape[0]), null_index, oasis_int)
-    for i in range(summary_xref.shape[0]):
-        xref = summary_xref[i]
-        summary_set_index = summary_set_id_to_summary_set_index[xref['summaryset_id']]
-        if summary_set_index == null_index:
-            continue
-        item_id_to_summary_id[xref['item_id'], summary_set_index] = xref['summary_id']
-
-    return summary_set_index_to_loss_ptr, item_id_to_summary_id
 
 
 def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_event=False, output_format='bin', **kwargs):
@@ -681,7 +117,6 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_even
             summary_sets_path[int(summary_set_id[1:])] = summary_set_path
         except ValueError:
             raise Exception(error_msg)
-    summary_sets_id = np.array(list(summary_sets_path.keys()))
 
     if low_memory and sentinel_event:
         raise ValueError('cannot combine `low_memory` and `sentinel_event`')
@@ -699,6 +134,7 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_even
                 raise ValueError(f"Invalid file extension for {output_format}, got {summary_set_path}")
 
     with ExitStack() as stack:
+        summary_sets_pipe = summary_sets_index_pipe = summary_row_writers = None
         if output_binary:
             summary_sets_pipe = {i: stack.enter_context(open(summary_set_path, 'wb')) for i, summary_set_path in summary_sets_path.items()}
             if low_memory:
@@ -709,122 +145,19 @@ def run(files_in, static_path, run_type, low_memory, output_zeros, sentinel_even
                                    for i, summary_set_path in summary_sets_path.items()}
 
         streams_in, (stream_source_type, stream_agg_type, len_sample) = init_streams_in(files_in, stack)
+        input_header = stream_info_to_bytes(stream_source_type, stream_agg_type) + len_sample.tobytes()
 
-        if stream_source_type not in (GUL_STREAM_ID, FM_STREAM_ID, LOSS_STREAM_ID):
-            raise Exception(f"unsupported stream type {stream_source_type}, {stream_agg_type}")
-        # summarypy sums over the sidx it is given, so a packed stream needs no second path -- but
-        # an aggregation type we have not defined must be refused rather than silently summed.
-        if stream_agg_type not in LOSS_STREAM_AGG_TYPES:
-            raise Exception(f"unsupported stream aggregation type {stream_agg_type}, expected one of "
-                            f"{LOSS_STREAM_AGG_TYPES} (item, or item with packed buildings)")
+        stage = stack.enter_context(SummaryStage(input_header, static_path, run_type, summary_sets_path.keys(),
+                                                 low_memory=low_memory, output_zeros=output_zeros,
+                                                 sentinel_event=sentinel_event))
 
-        summary_object = load_summary_object(static_path, run_type)
-        (summary_info, summary_set_id_to_summary_set_index, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-         item_id_to_risks_i, risk_i_to_n_buildings) = summary_object
-
-        # check all summary_set_id required are defined in summaryxref
-        invalid_summary_sets_id = []
-        for summary_set_id in summary_sets_id:
-            if summary_set_id < 1 or summary_set_id >= summary_set_id_to_summary_set_index.shape[0] or summary_set_id_to_summary_set_index[summary_set_id] == null_index:
-                invalid_summary_sets_id.append(summary_set_id)
-        if invalid_summary_sets_id:
-            raise ValueError(
-                f'summary_set_ids {invalid_summary_sets_id} not found in summaryxref available summary_set_id '
-                f'{[summary_set_id for summary_set_id, summary_set_index in enumerate(summary_set_id_to_summary_set_index) if summary_set_index != null_index]}')
-
-        has_affected_risk = True if summary_info[0]['nb_risk'] > 0 else None
-
-        # losses are read and written by each requested set's own summary_set_index (its position in
-        # summaryxref), so the order of the -summary_set_id arguments doesn't change what is written for
-        # each set, and sets that weren't requested are never touched
-        summary_set_indices = summary_set_id_to_summary_set_index[summary_sets_id]
-        nb_xref_summary_sets = summary_set_index_to_loss_ptr.shape[0] - 1
-
-        # init temporary
-        present_summary_id = np.zeros(summary_set_index_to_loss_ptr[-1], oasis_int)
-        loss_index = np.empty(nb_xref_summary_sets, oasis_int)
-        summary_set_index_to_present_loss_ptr_end = np.array(summary_set_index_to_loss_ptr)
-        loss_summary = np.zeros((summary_set_index_to_loss_ptr[-1], len_sample + SPECIAL_SIDX_COUNT), dtype=oasis_float)
-        is_risk_affected = np.zeros(summary_info[0]['nb_risk'], dtype=oasis_int)
-        affected_risks = np.empty(summary_info[0]['nb_risk'], dtype=oasis_int)
-        affected_risks_n = np.zeros(1, dtype=np.int64)
-
-        summary_reader = SummaryReader(
-            summary_set_indices, summary_set_index_to_loss_ptr, item_id_to_summary_id,
-            loss_index, loss_summary, present_summary_id, summary_set_index_to_present_loss_ptr_end,
-            item_id_to_risks_i, risk_i_to_n_buildings, is_risk_affected, has_affected_risk, affected_risks, affected_risks_n)
-
-        out_byte_mv = np.frombuffer(buffer=memoryview(bytearray(PIPE_CAPACITY)), dtype='b')
-
-        # data for index file (low_memory==True)
-        summary_sets_cursor = np.zeros(nb_xref_summary_sets, dtype=np.int64)
-        summary_stream_index = np.empty(summary_set_index_to_loss_ptr[-1], dtype=summary_stream_index_dtype)
-
+        summary_sets_out = None
         if output_binary:
-            for summary_set_id, summary_set_index in zip(summary_sets_id, summary_set_indices):
-                summary_pipe = summary_sets_pipe[summary_set_id]
-                summary_sets_cursor[summary_set_index] += summary_pipe.write(stream_info_to_bytes(SUMMARY_STREAM_ID, ITEM_STREAM))
-                summary_sets_cursor[summary_set_index] += summary_pipe.write(len_sample.tobytes())
-                summary_sets_cursor[summary_set_index] += summary_pipe.write(summaryset_id_dtype.type(summary_set_id).tobytes())
+            for summary_set_id, summary_pipe in summary_sets_pipe.items():
+                summary_pipe.write(stage.headers[summary_set_id])
+            summary_sets_out = {summary_set_id: StreamSink(summary_pipe) for summary_set_id, summary_pipe in summary_sets_pipe.items()}
 
-        event_id = None  # so the error handler below works if the first event fails
-        try:
-            for event_id in summary_reader.read_streams(streams_in):
-                for summary_set_id, summary_set_index in zip(summary_sets_id, summary_set_indices):
-                    if not output_binary:
-                        writer = summary_row_writers[summary_set_id]
-                        last_loss_summary_index = 0
-                        last_sidx = 0
-                        while True:
-                            writer.row_i, last_loss_summary_index, last_sidx = fill_event_rows(
-                                writer.rows, writer.row_i, event_id, len_sample, last_loss_summary_index, last_sidx,
-                                output_zeros, has_affected_risk,
-                                summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id,
-                                loss_summary
-                            )
-                            if last_loss_summary_index == -1:
-                                break
-                            writer.flush()
-                        continue
-
-                    summary_pipe = summary_sets_pipe[summary_set_id]
-                    summary_index_cursor = 0
-                    last_loss_summary_index = 0
-                    last_sidx = 0
-                    while True:
-                        cursor, last_loss_summary_index, last_sidx, summary_index_cursor = mv_write_event(
-                            out_byte_mv, event_id, len_sample, last_loss_summary_index, last_sidx,
-                            output_zeros, has_affected_risk,
-                            summary_set_index, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end, present_summary_id,
-                            loss_summary,
-                            summary_index_cursor, summary_sets_cursor, summary_stream_index
-                        )
-                        write_mv_to_stream(summary_pipe, out_byte_mv, cursor)
-                        if last_loss_summary_index == -1:
-                            break
-
-                    if low_memory:
-                        # write the per-event index records to .idx as packed binary
-                        summary_sets_index_pipe[summary_set_id].write(
-                            summary_stream_index[:summary_index_cursor].tobytes()
-                        )
-
-                    if sentinel_event:
-                        sentinel_bytes = get_sentinel_bytes(event_id)
-                        write_mv_to_stream(summary_pipe, sentinel_bytes, SENTINEL_SIZE)
-
-                reset_event(summary_set_indices, summary_set_index_to_loss_ptr, summary_set_index_to_present_loss_ptr_end,
-                            present_summary_id, loss_summary, is_risk_affected, affected_risks, affected_risks_n)
-
-        except Exception:
-            data = {
-                "event_id": event_id
-            }
-            with open("event_error.json", "w") as f:
-                json.dump(data, f, default=str)
-
-            logger.error(f"event id={event_id} failed in summary")
-            raise
+        stage.process_events(stage.reader.read_streams(streams_in), summary_sets_out, summary_sets_index_pipe, summary_row_writers)
 
         if not output_binary:
             for writer in summary_row_writers.values():

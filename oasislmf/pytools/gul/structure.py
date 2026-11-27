@@ -17,7 +17,7 @@ from oasislmf.pytools.common.input_files import KEYS_DTYPE, filter_area_peril_id
 from oasislmf.pytools.getmodel.manager import get_damage_bins
 from oasislmf.pytools.gul.common import coverage_type
 from oasislmf.utils.exceptions import OasisException
-from oasislmf.pytools.gul.manager import gul_get_items, generate_item_map
+from oasislmf.pytools.gul import manager as gul_manager
 from oasislmf.pytools.gul.random import (
     compute_norm_cdf_lookup, compute_norm_inv_cdf_lookup,
     x_min, x_max, norm_inv_N, cdf_min, cdf_max,
@@ -159,7 +159,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     else:
         valid_area_peril_id = None
 
-    items = gul_get_items(input_path, ignore_file_type)
+    items = gul_manager.gul_get_items(input_path, ignore_file_type)
     items = np.sort(items, order=['areaperil_id', 'vulnerability_id'])
     if valid_area_peril_id is not None:
         items = items[np.isin(items['areaperil_id'], valid_area_peril_id)]
@@ -167,7 +167,7 @@ def build_structures(run_dir, ignore_file_type, peril_filter):
     # --- item map (hashmap + jagged array) -------------------------------------
     logger.debug('generate item map')
     (item_map_hm, item_map_hm_keys,
-     item_map_ja_offsets) = generate_item_map(items, coverages)
+     item_map_ja_offsets) = gul_manager.generate_item_map(items, coverages)
 
     # --- correlations ----------------------------------------------------------
     logger.debug('import correlations')

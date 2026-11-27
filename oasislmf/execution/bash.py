@@ -49,6 +49,7 @@ Entry points:
 """
 
 import contextlib
+import inspect
 import io
 import json
 import logging
@@ -3317,7 +3318,7 @@ def progress_server_message(payload, socket_server_port=None):
 # COMPATIBILITY ONLY - used to support older model runners
 # ========================================================================== #
 
-def genbash(
+def genbash_params(
     max_process_id,
     analysis_settings,
     num_reinsurance_iterations=0,
@@ -3354,8 +3355,9 @@ def genbash(
     socket_server_port=None,
     log_level=None
 ):
-    """Generates a bash script containing pytools calculation instructions for an
-    Oasis model.
+    """The parameters ``genbash`` writes its script from, without writing anything.
+
+    The orchestrator plans a run from this dict, so that it runs exactly what the script would.
 
     Args:
         max_process_id (int): The number of processes to create
@@ -3403,9 +3405,7 @@ def genbash(
         log_level (int or None): Enable logging of pytools subprocesses.
 
     Returns:
-        dict: The run's progress totals: ``gul_processes``, the number of GUL processes that report
-            ``gul_ready`` (from :func:`create_bash_analysis`), and ``outputs_total``, the number of
-            output processes that report completion (from :func:`create_bash_outputs`).
+        dict: the :func:`bash_params` dict, with ``analysis_pk``, ``socket_server_size`` and ``socket_server_port``.
     """
     model_df_engine = model_df_engine or base_df_engine
 
@@ -3443,18 +3443,36 @@ def genbash(
         log_level=log_level
     )
 
-    # remove the file if it already exists
-    if os.path.exists(filename):
-        os.remove(filename)
-
     params['analysis_pk'] = analysis_pk
     params['socket_server_size'] = socket_server_size
     params['socket_server_port'] = socket_server_port
+    return params
 
-    with bash_wrapper(filename, bash_trace, stderr_guard):
+
+def genbash(*args, **kwargs):
+    """Generates a bash script containing pytools calculation instructions for an
+    Oasis model.
+
+    Takes the arguments of :func:`genbash_params` (same signature), which computes the script's parameters.
+
+    Returns:
+        dict: The run's progress totals: ``gul_processes``, the number of GUL processes that report
+            ``gul_ready`` (from :func:`create_bash_analysis`), and ``outputs_total``, the number of
+            output processes that report completion (from :func:`create_bash_outputs`).
+    """
+    params = genbash_params(*args, **kwargs)
+
+    # remove the file if it already exists
+    if os.path.exists(params['filename']):
+        os.remove(params['filename'])
+
+    with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard']):
         gul_processes = create_bash_analysis(**params)
         outputs_total = create_bash_outputs(**params)
     return {'gul_processes': gul_processes, 'outputs_total': outputs_total}
+
+
+genbash.__signature__ = inspect.signature(genbash_params)
 
 
 def add_server_call(call, analysis_pk=None, socket_server_port=None):
