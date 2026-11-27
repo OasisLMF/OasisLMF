@@ -1698,7 +1698,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         else:
             grid_size = round((lat_max - lat_min) / arc_size)
 
-        @nb.jit(cache=True)
+        # Not cached: get_id is a closure over grid_size and lon_first and is called with jitted
+        # functions built per call, so numba can never reuse a cached copy (see #2282).
+        @nb.jit
         def get_id(lat, lon, lat_id, lon_id):
             if lon_first:
                 return lon_id(lon) + lat_id(lat) * grid_size + 1
@@ -1757,7 +1759,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             lat_reverse, lon_reverse
         )
 
-        @nb.jit(cache=True)
+        # Not cached: get_id is a closure over grid_size and lon_first and is called with jitted
+        # functions built per call, so numba can never reuse a cached copy (see #2282).
+        @nb.jit
         def get_id(lat, lon, lat_id, lon_id):
             if lon_first:
                 return z_index(lon_id(lon), lat_id(lat)) + 1
