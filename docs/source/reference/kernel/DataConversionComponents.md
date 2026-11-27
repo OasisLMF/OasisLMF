@@ -106,11 +106,22 @@ The csv file should contain the following fields and include a header row.
 | bin_to            | float  |    4   | Upper damage threshold for the bin                            |   0.02      |
 | interpolation     | float  |    4   | Interpolation damage value for the bin (usually the mid-point)|   0.015     |
 
-The interval_type field has been deprecated and will be filled with zeros in the binary file. It does not need to be included as the final column in the csv file:
+The final column is `damage_type`. It must be present in the csv file: csvtobin and the kernel reject a damage bin dictionary without it. It replaces the deprecated ktools `interval_type` column, which held a closed/open interval identifier and was filled with zeros, and occupies the same position. Use 0 for the default behaviour.
 
 | Name              | Type   |  Bytes | Description                                                    | Example     |
 |:------------------|--------|--------| :--------------------------------------------------------------|------------:|
-| interval_type     | int    |    4   | Identifier of the interval type, e.g. closed, open (deprecated)|    0        | 
+| damage_type       | int    |    4   | How damage values are applied to the TIV (see below)           |    0        |
+
+`damage_type` changes how gulmc turns a sampled damage value into a loss:
+
+| damage_type | Meaning |
+|:------------|:--------|
+| 0           | Default. Inferred from the last damage bin: if its `bin_to` is at most 1, damage values are factors of the TIV; otherwise they are absolute amounts |
+| 1           | Relative: damage values are factors applied to the TIV |
+| 2           | Absolute: damage values are loss amounts, and the TIV is not used |
+| 3           | Duration: damage values are numbers of days, applied to the annual TIV converted to a daily amount (TIV / 365) |
+
+gulmc reads the damage type from the last damage bin in use, so a model should use the same value for every bin. Files written for the old `interval_type` convention have zeros in this column, which gives the default behaviour. See [Absolute Damage](../../explanation/absolute-damage.rst) for worked examples.
 
 The data should be ordered by bin_index ascending and not contain nulls. The bin_index should be a contiguous sequence of integers starting from 1.
 
