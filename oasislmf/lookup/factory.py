@@ -47,6 +47,22 @@ def _split_locations(loc_df, part_count):
         yield chunk_df
 
 
+def _ids_as_int(success_df):
+    """Cast float area_peril_id/vulnerability_id of success rows back to integers (#2217).
+
+    A lookup that returns NaN ids for failed rows makes pandas store the whole column as float,
+    so success rows would be written as e.g. '367923277.0', which numpy >= 2.3 refuses to read
+    as an integer. Only whole, finite values are cast; anything else is written as it is.
+    """
+    cast = {}
+    for col in ('area_peril_id', 'vulnerability_id'):
+        if col in success_df.columns and pd.api.types.is_float_dtype(success_df[col]):
+            values = success_df[col].to_numpy()
+            if np.isfinite(values).all() and (values == np.floor(values)).all():
+                cast[col] = 'int64'
+    return success_df.astype(cast) if cast else success_df
+
+
 def _keys_table(df):
     """Arrow table of df, typed so that any result chunk can be cast to the first chunk's schema.
 
@@ -426,7 +442,7 @@ class BasicKeyServer:
             error_count = 0
             for i, result in enumerate(results):
                 success = result['status'] == OASIS_KEYS_STATUS['success']['id']
-                success_df = result[success]
+                success_df = _ids_as_int(result[success])
                 if not success_df.empty:
                     if success_heading_row is None:
                         success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)
@@ -453,7 +469,7 @@ class BasicKeyServer:
             error_count = 0
             for i, result in enumerate(results):
                 success = result['status'] == OASIS_KEYS_STATUS['success']['id']
-                success_df = result[success]
+                success_df = _ids_as_int(result[success])
                 if not success_df.empty:
                     if successes_count == 0:
                         success_heading_row = self.get_success_heading_row(result.columns, keys_success_msg)

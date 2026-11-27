@@ -1,7 +1,9 @@
 import logging
 import os
 import sys
+import warnings
 import zlib
+from decimal import Decimal, InvalidOperation
 import numba as nb
 import numpy as np
 
@@ -507,6 +509,83 @@ summary_stream_index_dtype = np.dtype([('summary_id', summary_id[1]), ('offset',
 summary_stream_index_size = summary_stream_index_dtype.itemsize
 
 
+def _whole_numbers_as(values, dtype, filepath, field_name):
+    """Convert csv text values to the integer dtype, accepting whole numbers written as floats.
+
+    '367923277.0' and '3.67923277e8' become 367923277. A value with a fractional part, or out of
+    range for dtype, raises OasisException instead of being truncated or wrapped.
+    """
+    values = np.char.strip(values)
+    whole, dot, fraction = np.char.partition(values, '.').T
+    has_exponent = np.char.find(np.char.lower(values), 'e') >= 0
+    digits = np.char.lstrip(whole, '+-')
+    plain = (np.char.str_len(np.char.strip(fraction, '0')) == 0) & ~has_exponent & np.char.isdigit(digits)
+    as_text = np.where(plain, whole, values)
+    for i in np.flatnonzero(~plain):
+        value = str(values[i])
+        try:
+            number = Decimal(value)
+        except InvalidOperation:
+            raise OasisException(f"{filepath}: {field_name} value {value!r} at row {i + 1} is not a number")
+        if not number.is_finite() or number != number.to_integral_value():
+            raise OasisException(f"{filepath}: {field_name} value {value!r} at row {i + 1} is not a whole number")
+        as_text[i] = str(int(number))
+    try:
+        return as_text.astype(dtype)
+    except OverflowError as e:
+        raise OasisException(f"{filepath}: {field_name} has a value out of range for {np.dtype(dtype)}: {e}")
+    except ValueError as e:
+        raise OasisException(f"{filepath}: {field_name} has a value that is not an integer: {e}")
+
+
+def _loadtxt_whole_number_ints(file_in, filepath, use_dtype, usecols):
+    """np.loadtxt that accepts whole numbers written as floats in integer fields (#2217).
+
+    A lookup can write ids such as AreaPerilID as '367923277.0'. numpy < 2.3 parses that with a
+    DeprecationWarning (and silently truncates '1.5'), numpy >= 2.3 raises ValueError. The fast
+    path is plain loadtxt. Only if it fails or warns is the file read again with the integer
+    fields as float64, which is exact for whole numbers up to 2**53; each value is checked to
+    be a whole number in range for its dtype. A field holding larger values (e.g. 64-bit area
+    peril ids) is read a third time, that field only, as text.
+    """
+    start = file_in.tell()
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', DeprecationWarning)
+            return np.loadtxt(file_in, delimiter=',', dtype=use_dtype, usecols=usecols)
+    except (ValueError, DeprecationWarning):
+        file_in.seek(start)
+    int_fields = [name for name in use_dtype.names if np.issubdtype(use_dtype[name], np.integer)]
+    if not int_fields:  # nothing this fallback can fix, re-raise loadtxt's own error
+        return np.loadtxt(file_in, delimiter=',', dtype=use_dtype, usecols=usecols)
+    float_dtype = np.dtype([(name, np.float64 if name in int_fields else use_dtype[name]) for name in use_dtype.names])
+    try:
+        raw = np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=float_dtype, usecols=usecols))
+    except ValueError as e:
+        raise OasisException(f"{filepath}: could not read integer fields {int_fields}: {e}")
+    result = np.empty(raw.shape, dtype=use_dtype)
+    for name in use_dtype.names:
+        if name not in int_fields:
+            result[name] = raw[name]
+            continue
+        values = raw[name]
+        if not np.isfinite(values).all() or (values != np.floor(values)).any():
+            bad = values[~np.isfinite(values) | (values != np.floor(values))][0]
+            raise OasisException(f"{filepath}: {name} has a value that is not a whole number: {bad}")
+        if len(values) and np.abs(values).max() > 2 ** 53:  # beyond float64's exact integers
+            file_in.seek(start)
+            column = usecols[use_dtype.names.index(name)]
+            text = np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype='U32', usecols=[column]))
+            result[name] = _whole_numbers_as(text, use_dtype[name], filepath, name)
+            continue
+        info = np.iinfo(use_dtype[name])
+        if len(values) and (values.min() < info.min or values.max() > info.max):
+            raise OasisException(f"{filepath}: {name} has a value out of range for {use_dtype[name]}")
+        result[name] = values.astype(use_dtype[name])
+    logger.info(f"{filepath}: integer fields written as floats were converted to integers")
+    return result
+
+
 def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
     """Load a file as a numpy ndarray
     useful for multi-columns files
@@ -557,7 +636,7 @@ def load_as_ndarray(dir_path, name, _dtype, must_exist=True, col_map=None):
                 raise OasisException(f"columns expected in {filepath} but not found: {missing}")
 
             if _usecols:
-                return np.atleast_1d(np.loadtxt(file_in, delimiter=',', dtype=np.dtype(_use_dtype), usecols=_usecols))
+                return np.atleast_1d(_loadtxt_whole_number_ints(file_in, filepath, np.dtype(_use_dtype), _usecols))
             else:
                 return np.empty(0, dtype=_dtype)
     else:
