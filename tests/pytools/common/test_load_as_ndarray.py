@@ -43,3 +43,54 @@ def test_load_as_ndarray__parquet_missing_column():
         pd.DataFrame({'loc_id': [1], 'peril_id': ['WTC']}).to_parquet(os.path.join(tmp, 'map.parquet'))
         with pytest.raises(OasisException, match='item_id'):
             load_as_ndarray(tmp, 'map', summary_map_dtype)
+
+
+# --- whole numbers written as floats in integer fields (#2217) ---
+
+from oasislmf.pytools.common.input_files import KEYS_DTYPE  # noqa: E402
+
+KEYS_HEADER = "LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID\n"
+
+
+def _load_keys(tmp_path, rows):
+    (tmp_path / "keys.csv").write_text(KEYS_HEADER + "".join(row + "\n" for row in rows))
+    return load_as_ndarray(str(tmp_path), "keys", KEYS_DTYPE)
+
+
+def test_load_as_ndarray__csv_whole_number_floats_in_integer_fields(tmp_path):
+    keys = _load_keys(tmp_path, ["1,OSF,1,367923277.0,20001", "2,OSF,1,3.67923278e8,20002.00", "3,OSF,3,7,5"])
+    assert keys.dtype == KEYS_DTYPE
+    assert keys["AreaPerilID"].tolist() == [367923277, 367923278, 7]
+    assert keys["VulnerabilityID"].tolist() == [20001, 20002, 5]
+    assert keys["PerilID"].tolist() == ["OSF"] * 3
+
+
+def test_load_as_ndarray__csv_integers_unchanged(tmp_path):
+    keys = _load_keys(tmp_path, ["1,WTC,1,10,3", "2,WSS,4,11,4"])
+    assert keys["AreaPerilID"].tolist() == [10, 11]
+    assert keys["CoverageTypeID"].tolist() == [1, 4]
+
+
+def test_load_as_ndarray__csv_single_float_row(tmp_path):
+    keys = _load_keys(tmp_path, ["1,OSF,1,367923277.0,20001"])
+    assert keys.shape == (1,)
+    assert keys["AreaPerilID"][0] == 367923277
+
+
+@pytest.mark.parametrize("value, match", [
+    ("1.5", "not a whole number"),
+    ("abc", "could not read integer fields"),
+    ("-1.0", "out of range"),
+    ("inf", "not a whole number"),
+])
+def test_load_as_ndarray__csv_bad_integer_values_raise(tmp_path, value, match):
+    with pytest.raises(OasisException, match=match):
+        _load_keys(tmp_path, ["1,OSF,1,7,3", f"2,OSF,1,{value},3"])
+
+
+def test_load_as_ndarray__csv_whole_number_floats_beyond_float64_precision(tmp_path):
+    """uint64 ids above 2**53 are read as text, so float64 rounding can't change them."""
+    dtype = np.dtype([('LocID', np.int32), ('AreaPerilID', np.uint64)])
+    (tmp_path / "big.csv").write_text("LocID,AreaPerilID\n1,18446744073709551615.0\n2,9007199254740993\n")
+    result = load_as_ndarray(str(tmp_path), "big", dtype)
+    assert result["AreaPerilID"].tolist() == [18446744073709551615, 9007199254740993]
