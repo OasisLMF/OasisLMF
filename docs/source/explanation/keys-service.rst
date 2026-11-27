@@ -786,6 +786,24 @@ per-location dynamic protection/adjustment in the model.
 
 |
 
+**Logging of built-in steps**
+
+Each built-in step logs at ``INFO`` when it is built and how long that took, for example:
+
+.. code-block:: none
+
+    Creating 'areaperil' (rtree) lookup step...
+    Created 'areaperil' (rtree) lookup step in 30.12s.
+    Running 'areaperil' (rtree) lookup step on 10000 rows...
+    Completed 'areaperil' (rtree) lookup step in 5.03s.
+
+A ``combine`` step logs its child steps as they are built. Locations are looked up in chunks, and with
+multiprocessing each worker builds its own steps, so the ``Creating``/``Created`` lines appear once per worker. The
+``Running``/``Completed`` lines are logged at ``INFO`` for the first chunk each lookup processes and at ``DEBUG``
+for later chunks; run with debug logging to see the timing of every chunk.
+
+|
+
 .. _config_keys:
 
 Config

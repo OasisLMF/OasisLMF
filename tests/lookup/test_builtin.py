@@ -1826,3 +1826,54 @@ def test_transform_coordinates_then_interval_to_index_end_to_end(tmp_path):
     assert keys.loc[2, "status"] == OASIS_KEYS_STATUS["fail"]["id"]
     assert keys.loc[2, "message"] == ("area_peril_id has an unknown id: "
                                       "transform_coordinates failure: outside the area of use of EPSG:27700")
+
+
+def _step_logging_config():
+    return {
+        "step_definition": {
+            "pivot": {
+                "type": "simple_pivot",
+                "parameters": {"pivots": [{"new_cols": {
+                    "peril_id": "WTC", "coverage_type": 1, "area_peril_id": 1, "vulnerability_id": 1}}]},
+            },
+            "area": {"type": "combine", "parameters": {"id_columns": ["area_peril_id"], "strategy": ["pivot"]}},
+        },
+        "strategy": ["area"],
+    }
+
+
+def test_process_locations_logs_step_creation_and_runs(caplog):
+    """Each step logs when it is built (with combine children) and when it runs, with timings (#2202)."""
+    lookup = Lookup(config=_step_logging_config())
+    locations = pd.DataFrame({"loc_id": [1, 2, 3]})
+
+    with caplog.at_level("DEBUG", logger="oasislmf.lookup.builtin"):
+        lookup.process_locations(locations)
+    messages = [(r.levelname, r.getMessage()) for r in caplog.records if "lookup step" in r.getMessage()]
+
+    assert [m for _, m in messages] == [
+        "Creating 'area' (combine) lookup step...",
+        "Creating 'pivot' (simple_pivot) lookup step...",
+        messages[2][1],
+        messages[3][1],
+        "Running 'area' (combine) lookup step on 3 rows...",
+        messages[5][1],
+    ]
+    assert re.fullmatch(r"Created 'pivot' \(simple_pivot\) lookup step in \d+\.\d\ds\.", messages[2][1])
+    assert re.fullmatch(r"Created 'area' \(combine\) lookup step in \d+\.\d\ds\.", messages[3][1])
+    assert re.fullmatch(r"Completed 'area' \(combine\) lookup step in \d+\.\d\ds\.", messages[5][1])
+    assert {level for level, _ in messages} == {"INFO"}
+
+
+def test_process_locations_logs_later_chunk_runs_at_debug(caplog):
+    """Steps are built once per lookup; later chunks log their runs at DEBUG so big portfolios don't flood INFO."""
+    lookup = Lookup(config=_step_logging_config())
+    lookup.process_locations(pd.DataFrame({"loc_id": [1, 2]}))
+
+    with caplog.at_level("DEBUG", logger="oasislmf.lookup.builtin"):
+        lookup.process_locations(pd.DataFrame({"loc_id": [3, 4, 5, 6]}))
+    messages = [(r.levelname, r.getMessage()) for r in caplog.records if "lookup step" in r.getMessage()]
+
+    assert not any(m.startswith("Creat") for _, m in messages)
+    assert messages[0] == ("DEBUG", "Running 'area' (combine) lookup step on 4 rows...")
+    assert messages[1][0] == "DEBUG" and messages[1][1].startswith("Completed 'area' (combine) lookup step in ")
