@@ -1,0 +1,2 @@
+ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPeril,ReinsInceptionDate,ReinsExpiryDate,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,ReinsCurrency,InuringPriority,ReinsType,RiskLevel,UseReinsDates,OEDVersion
+1,1,ABC SS,CSB,2026-01-01,2026-12-31,1,0,0,0,0,1,GBP,1,SS,ACC,N,5.0.0

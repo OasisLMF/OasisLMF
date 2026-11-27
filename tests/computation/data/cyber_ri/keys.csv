@@ -1,0 +1,5 @@
+LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
+1,CSB,10,2,2
+2,CSB,10,3,3
+3,CSB,10,5,5
+4,CSB,10,6,6
