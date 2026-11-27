@@ -507,10 +507,12 @@ class GenerateFiles(ComputationStep):
         # Write the RI input files, and write the returned RI layer info. as a
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
-        fm_summary_mapping['loc_id'] = fm_summary_mapping['loc_id'].astype(exposure_data.location.dataframe['loc_id'].dtype)
+        # location_df is the subject at risk source: the account file when there is no location
+        # file (e.g. cyber), so RI also works for account only portfolios
+        fm_summary_mapping['loc_id'] = fm_summary_mapping['loc_id'].astype(location_df['loc_id'].dtype)
         xref_descriptions_df = merge_oed_to_mapping(
             fm_summary_mapping,
-            exposure_data.location.dataframe,
+            location_df,
             ['loc_id'], {'LocGroup': '', 'ReinsTag': '', 'CountryCode': ''})
         xref_descriptions_df[['PortNumber', 'AccNumber', 'PolNumber']] = xref_descriptions_df[['PortNumber', 'AccNumber', 'PolNumber']].astype(str)
         xref_descriptions_df = merge_oed_to_mapping(
@@ -525,6 +527,9 @@ class GenerateFiles(ComputationStep):
                 'PolExpiryDate': '',
             }
         )
+        if 'LocNumber' not in xref_descriptions_df.columns:
+            # no location file: the RI levels still expect a LocNumber column
+            xref_descriptions_df['LocNumber'] = ''
         xref_descriptions_df = xref_descriptions_df.sort_values(by='agg_id', kind='stable')
 
         del fm_summary_mapping

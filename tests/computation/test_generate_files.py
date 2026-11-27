@@ -1,3 +1,4 @@
+import json
 import pathlib
 import os
 import io
@@ -25,6 +26,7 @@ from .test_computation import ComputationChecker
 TEST_DIR = pathlib.Path(os.path.realpath(__file__)).parent.parent
 LOOKUP_CONFIG = TEST_DIR.joinpath('model_preparation').joinpath('meta_data').joinpath('lookup_config.json')
 ISSUE_1989_DATA = pathlib.Path(os.path.realpath(__file__)).parent.joinpath('data', 'issue_1989')
+CYBER_RI_DATA = pathlib.Path(os.path.realpath(__file__)).parent.joinpath('data', 'cyber_ri')
 
 
 class TestGenFiles(ComputationChecker):
@@ -142,6 +144,27 @@ class TestGenFiles(ComputationChecker):
 
             mock_validate.assert_called_once()
             self.assertIsNone(mock_validate.call_args[0][0])
+
+    def test_files__cyber_class_of_business__no_location_file__ri_files_generated(self):
+        # Regression test: reinsurance on an account only portfolio (e.g. cyber, no location
+        # file) crashed reading exposure_data.location, and then on the missing LocNumber column.
+        with self.tmp_dir() as t_dir:
+            file_gen_return = self.manager.generate_files(
+                oed_accounts_csv=str(CYBER_RI_DATA.joinpath('account.csv')),
+                oed_info_csv=str(CYBER_RI_DATA.joinpath('ri_info.csv')),
+                oed_scope_csv=str(CYBER_RI_DATA.joinpath('ri_scope.csv')),
+                keys_data_path=str(CYBER_RI_DATA.joinpath('keys.csv')),
+                keys_errors_path=str(CYBER_RI_DATA.joinpath('keys-errors.csv')),
+                oasis_files_dir=t_dir,
+            )
+
+            self.assertTrue(os.path.isdir(file_gen_return['RI_1']))
+            with open(file_gen_return['ri_layers']) as f:
+                ri_layers = json.load(f)
+            self.assertEqual(list(ri_layers), ['1'])
+            self.assertEqual(ri_layers['1']['risk_level'], 'ACC')
+            for fname in ('fm_programme.bin', 'fm_profile.bin', 'fm_policytc.bin', 'fm_xref.bin'):
+                self.assertTrue(os.path.getsize(os.path.join(file_gen_return['RI_1'], fname)) > 0)
 
     def test_files__check_return__ri_args__given_output_dir(self):
         with self.tmp_dir() as t_dir:
