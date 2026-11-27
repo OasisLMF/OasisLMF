@@ -191,12 +191,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
     item_areaperil_ja_member_blocks = np.zeros(1, dtype=np.int32)                # vulnerability 0, single
     item_areaperil_haz_arr_i = np.zeros(1, dtype=oasis_int)                       # index into haz_arr_ptr
     item_areaperil_event_rp = np.array([event_rp], dtype=np.int32)
-    # a base areaperil: one placement, so no per-sample placements are stored
-    placement_item_ind = id_index_build(np.zeros(0, dtype=np.int32))   # no item reads a placement
-    placement_item_starts = np.zeros(0, dtype=np.int64)
-    location_placements = np.zeros(0, dtype=np.uint8)
-    blended_areaperil_placement_ja_offsets = np.array([0, 1], dtype=oasis_int)
-    blended_areaperil_placement_ja_areaperil_j = np.zeros(1, dtype=np.int32)
+    # a base areaperil: one placement, read by every sample
     blended_areaperil_ja_offsets = np.array([0, 1], dtype=oasis_int)
     blended_areaperil_ja_probabilities = np.ones(1, dtype=np.float64)
 
@@ -306,8 +301,6 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         compute_info, coverages, coverage_ids, items_event_data, items, item_mixed_cdf_groups,
         item_areaperil_ja_offsets, item_areaperil_ja_cell_groups, item_areaperil_ja_member_blocks,
         item_areaperil_haz_arr_i, item_areaperil_event_rp,
-        placement_item_ind, placement_item_starts, location_placements,
-        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_areaperil_j,
         blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
         np.full(item_mixed_cdf_groups.shape[0], -1, dtype=np.int64), np.empty((1, Ndamage_bins), dtype=oasis_float), np.zeros(1, dtype=np.int32),
         np.zeros((0, 2, HERMITE_TERMS)), 1,
@@ -568,11 +561,6 @@ def test_rp_protection_only_affects_protected_items():
     item_areaperil_haz_arr_i = np.zeros(2, dtype=oasis_int)
     # 12 < 25, so item 0 is protected; irrelevant for item 1, whose item_rp is 0
     item_areaperil_event_rp = np.full(2, EVENT_RP_BELOW, dtype=np.int32)
-    placement_item_ind = id_index_build(np.zeros(0, dtype=np.int32))   # no item reads a placement
-    placement_item_starts = np.zeros(0, dtype=np.int64)
-    location_placements = np.zeros(0, dtype=np.uint8)
-    blended_areaperil_placement_ja_offsets = np.array([0, 1], dtype=oasis_int)
-    blended_areaperil_placement_ja_areaperil_j = np.zeros(1, dtype=np.int32)
     blended_areaperil_ja_offsets = np.array([0, 1], dtype=oasis_int)
     blended_areaperil_ja_probabilities = np.ones(1, dtype=np.float64)
 
@@ -638,8 +626,6 @@ def test_rp_protection_only_affects_protected_items():
         compute_info, coverages, coverage_ids, items_event_data, items, item_mixed_cdf_groups,
         item_areaperil_ja_offsets, item_areaperil_ja_cell_groups, item_areaperil_ja_member_blocks,
         item_areaperil_haz_arr_i, item_areaperil_event_rp,
-        placement_item_ind, placement_item_starts, location_placements,
-        blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_areaperil_j,
         blended_areaperil_ja_offsets, blended_areaperil_ja_probabilities,
         np.full(item_mixed_cdf_groups.shape[0], -1, dtype=np.int64), np.empty((1, Ndamage_bins), dtype=oasis_float), np.zeros(1, dtype=np.int32),
         np.zeros((0, 2, HERMITE_TERMS)), 1,

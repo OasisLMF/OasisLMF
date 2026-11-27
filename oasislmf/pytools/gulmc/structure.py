@@ -82,8 +82,6 @@ ARRAY_FILES = [
     'blended_areaperil_ja_placement_offsets',
     'blended_areaperil_ja_placements',
     'placement_item_ind',
-    'placement_item_starts',
-    'location_placements',
     'placement_item_locations',
     'placement_item_code_starts',
     'placement_location_ja_offsets',

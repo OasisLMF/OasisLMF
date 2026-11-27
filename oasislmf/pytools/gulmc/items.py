@@ -64,6 +64,10 @@ def build_item_placements(items, item_location_keys, item_building_ids,
     areaperil it covers (``blended_areaperil_placement_ja_areaperil_j``). So they always agree on
     where the building stands, and the placement is stored once per location rather than per item.
 
+    It is stored inverted, as the samples standing on each placement, which is what the event loop
+    asks for (the samples on the event's live areaperils). Each (location, building, sample)'s
+    placement is drawn into a temporary array first, then sorted by placement.
+
     That needs one set of positions per location: every blended item of a location must name the
     same placement scheme, which is checked here.
 
@@ -87,21 +91,16 @@ def build_item_placements(items, item_location_keys, item_building_ids,
         building b and sample s (both 1-based).
 
         - ``placement_item_idxs`` (int32, ascending): the items that read a placement.
-        - ``placement_item_starts`` (int64): for each, where its first building's samples start in
-          ``location_placements``, building b and sample s being at ``start + (b - 1) * S + (s - 1)``.
-        - ``location_placements``: per (location, building, sample) the placement index, equal to
-          the number of placements when float weights leave the building unplaced. Its dtype is
-          the narrowest unsigned type that holds that index.
         - ``placement_item_locations`` (int32) and ``placement_item_code_starts`` (int64): for each
-          item that reads a placement, its location and the code of its first building's first
-          sample within that location.
-        - The inverse of ``location_placements``, which lists the samples that land on a given
-          placement: ``placement_location_ja_offsets`` (int64, per location plus one) delimits
-          each location's run of ``placement_location_ja_placements``, the placements its
-          samples land on (ascending, of ``location_placements``'s dtype; unplaced samples are
-          left out); ``placement_location_ja_code_offsets`` (int64, one past the last) delimits
-          each listed placement's run of ``placement_location_ja_codes``, the location codes on
-          it, ascending, in the narrowest unsigned type that holds them.
+          of them, its location and the code of its first building's first sample within that
+          location.
+        - The samples standing on each placement: ``placement_location_ja_offsets`` (int64, per
+          location plus one) delimits each location's run of ``placement_location_ja_placements``,
+          the placements its samples stand on (ascending, in the narrowest unsigned type that
+          holds a placement index; a sample left unplaced by float weights is not listed);
+          ``placement_location_ja_code_offsets`` (int64, one past the last) delimits each listed
+          placement's run of ``placement_location_ja_codes``, the location codes on it,
+          ascending, in the narrowest unsigned type that holds them.
     """
     blended_idx = items['blended_areaperil_idx']
     n_placements = (blended_areaperil_placement_ja_offsets[blended_idx + 1]
@@ -135,13 +134,14 @@ def build_item_placements(items, item_location_keys, item_building_ids,
     np.maximum.at(location_n_buildings, item_location, first_building - 1 + n_buildings)
     location_starts = np.zeros(n_locations + 1, dtype=np.int64)
     np.cumsum(location_n_buildings * sample_size, out=location_starts[1:])
-    placement_item_starts = location_starts[item_location] + (first_building - 1) * sample_size
 
     location_blended_idx = np.empty(n_locations, dtype=item_blended_idx.dtype)
     location_blended_idx[item_location] = item_blended_idx
     max_index = int(n_placements.max())  # the unplaced index equals the placement count
     placement_dtype = np.uint8 if max_index <= np.iinfo(np.uint8).max else (
         np.uint16 if max_index <= np.iinfo(np.uint16).max else np.int32)
+    # each (location, building, sample)'s placement, the placement count meaning unplaced; only
+    # until it is inverted below
     location_placements = np.empty(location_starts[-1], dtype=placement_dtype)
     _fill_location_placements(location_keys, location_n_buildings, location_starts, location_blended_idx,
                               blended_areaperil_placement_ja_offsets, blended_areaperil_placement_ja_cum_weights,
@@ -166,11 +166,10 @@ def build_item_placements(items, item_location_keys, item_building_ids,
                                    ja_placements, ja_code_offsets, ja_codes)
     logger.info(f"placements: {n_locations} locations, {location_placements.shape[0]} samples on "
                 f"{ja_placements.shape[0]} (location, placement) pairs")
+    del location_placements
 
     return {
         'placement_item_idxs': placement_item_idxs,
-        'placement_item_starts': placement_item_starts,
-        'location_placements': location_placements,
         'placement_item_locations': item_location.astype(np.int32),
         'placement_item_code_starts': (first_building - 1) * sample_size,
         'placement_location_ja_offsets': ja_offsets,
@@ -231,8 +230,6 @@ def empty_placements():
     """``build_item_placements``'s arrays when no item reads a placement."""
     return {
         'placement_item_idxs': np.zeros(0, dtype=np.int32),
-        'placement_item_starts': np.zeros(0, dtype=np.int64),
-        'location_placements': np.zeros(0, dtype=np.uint8),
         'placement_item_locations': np.zeros(0, dtype=np.int32),
         'placement_item_code_starts': np.zeros(0, dtype=np.int64),
         'placement_location_ja_offsets': np.zeros(1, dtype=np.int64),

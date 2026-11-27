@@ -273,8 +273,6 @@ def run(run_dir,
         mixed_cdf_group_areaperil_ja_cell_groups = structures['mixed_cdf_group_areaperil_ja_cell_groups']
         mixed_cdf_group_areaperil_ja_member_blocks = structures['mixed_cdf_group_areaperil_ja_member_blocks']
         placement_item_ind = structures['placement_item_ind']
-        placement_item_starts = structures['placement_item_starts']
-        location_placements = structures['location_placements']
         blended_areaperil_placement_ja_offsets = structures['blended_areaperil_placement_ja_offsets']
         blended_areaperil_placement_ja_areaperil_j = structures['blended_areaperil_placement_ja_areaperil_j']
         blended_areaperil_ja_placement_offsets = structures['blended_areaperil_ja_placement_offsets']
@@ -543,10 +541,10 @@ def run(run_dir,
         compute_info['debug'] = debug
         compute_info['do_coverage_dependency'] = do_coverage_dependency
 
-        # Under full Monte Carlo, an item of several placements computes only its samples on live
-        # areaperils (see prepare_event_samples); debug writes every sample's random values.
-        sample_live_only = (sample_size > 0 and not effective_damageability and not debug
-                            and placement_item_locations.shape[0] > 0)
+        # Under full Monte Carlo, an item of several placements computes the samples
+        # prepare_event_samples lists: its live ones, or every one in a debug run.
+        list_item_samples = (sample_size > 0 and not effective_damageability
+                             and placement_item_locations.shape[0] > 0)
         # A coverage's sample losses, held whole until write_losses emits it (it reduces across
         # items at a fixed building, then sums the buildings): each item's are a run, one after
         # another (see write_losses). An item computed for every sample takes N * S, so without
@@ -554,7 +552,7 @@ def run(run_dir,
         # and prepare_event_samples gives the size each event needs.
         coverage_buildings = np.zeros(coverages.shape[0], dtype=np.int64)
         np.add.at(coverage_buildings, items['coverage_id'], np.abs(items['packed_buildings']).astype(np.int64))
-        sample_losses = np.zeros(max(1, sample_size if sample_live_only else int(coverage_buildings.max()) * sample_size),
+        sample_losses = np.zeros(max(1, sample_size if list_item_samples else int(coverage_buildings.max()) * sample_size),
                                  dtype=oasis_float)
         del coverage_buildings
 
@@ -696,7 +694,7 @@ def run(run_dir,
                         haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                     damage_eps_ij = generate_rndm(damage_corr_seeds, sample_size, skip_seeds=1)
 
-                if sample_live_only:
+                if list_item_samples:
                     (event_sample_codes, event_sample_areaperil_j, event_sample_bins, event_sample_vuln,
                      event_sample_haz, event_sample_losses_size) = prepare_event_samples(
                         compute_info, coverages, compute, compute_depth, coverage_source_id,
@@ -705,6 +703,7 @@ def run(run_dir,
                         mixed_cdf_group_areaperil_ja_offsets, mixed_cdf_group_areaperil_haz_arr_i,
                         mixed_cdf_group_areaperil_event_rp, dynamic_footprint,
                         blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets,
+                        blended_areaperil_placement_ja_areaperil_j,
                         blended_areaperil_ja_placement_offsets, blended_areaperil_ja_placements,
                         placement_item_ind, placement_item_locations, placement_item_code_starts,
                         placement_location_ja_offsets, placement_location_ja_placements,
@@ -737,11 +736,6 @@ def run(run_dir,
                             mixed_cdf_group_areaperil_ja_member_blocks,
                             mixed_cdf_group_areaperil_haz_arr_i,
                             mixed_cdf_group_areaperil_event_rp,
-                            placement_item_ind,
-                            placement_item_starts,
-                            location_placements,
-                            blended_areaperil_placement_ja_offsets,
-                            blended_areaperil_placement_ja_areaperil_j,
                             blended_areaperil_ja_offsets,
                             blended_areaperil_ja_probabilities,
                             mixed_cdf_cache_tag,
@@ -1431,11 +1425,6 @@ def _compute_event_losses_core(compute_info,
                                mixed_cdf_group_areaperil_ja_member_blocks,
                                mixed_cdf_group_areaperil_haz_arr_i,
                                mixed_cdf_group_areaperil_event_rp,
-                               placement_item_ind,
-                               placement_item_starts,
-                               location_placements,
-                               blended_areaperil_placement_ja_offsets,
-                               blended_areaperil_placement_ja_areaperil_j,
                                blended_areaperil_ja_offsets,
                                blended_areaperil_ja_probabilities,
                                mixed_cdf_cache_tag,
@@ -1765,17 +1754,6 @@ def _compute_event_losses_core(compute_info,
                 # below it in the DFS
                 full_monte_carlo = not compute_info['effective_damageability']
                 store_source_bin = has_dependents_below and full_monte_carlo
-                # placements were drawn per (location, building) when the structure was built;
-                # this item reads them through its own blended areaperil's placement -> j map.
-                # Effective damageability samples the mixture and reads none.
-                item_placement_start = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx']]
-                n_placements = blended_areaperil_placement_ja_offsets[item['blended_areaperil_idx'] + 1] - item_placement_start
-                has_placements = n_placements > 1 and full_monte_carlo
-                if has_placements and item_event_data['sparse'] == 0:
-                    # read by the every-sample loop below only
-                    location_start = placement_item_starts[id_index_get_idx(placement_item_ind, item_idx)]
-                else:
-                    location_start = nb_int64(0)
                 # the damage random values of a single vulnerability are adjusted, an aggregate's not
                 # (its block's adjustment is 1)
                 damage_rval_adj = vuln_adj[mixed_cdf_group_areaperil_ja_member_blocks[group_start]]
@@ -1899,16 +1877,10 @@ def _compute_event_losses_core(compute_info,
                         else:
                             parent_bins = src_bin_out  # unused; keeps the argument type stable
 
-                        # which areaperil each sample of this building reads
-                        if has_placements:
-                            for sample_idx in range(sample_size):
-                                placement = location_placements[location_start + bin_off + sample_idx]
-                                areaperil_j_of_building[sample_idx] = (
-                                    blended_areaperil_placement_ja_areaperil_j[item_placement_start + placement]
-                                    if placement < n_placements else -1)
-                            areaperil_j_of_sample = areaperil_j_of_building[:sample_size]
-                        else:
-                            areaperil_j_of_sample = areaperil_j_single[:sample_size]
+                        # Every sample reads areaperil 0: an item of several placements is computed
+                        # by its listed samples above (see prepare_event_samples), and effective
+                        # damageability samples the mixture.
+                        areaperil_j_of_sample = areaperil_j_single[:sample_size]
 
                         if not is_dependent and full_monte_carlo:
                             haz_used = resolve_sample_areaperils(
@@ -1979,11 +1951,6 @@ def compute_event_losses(compute_info,
                          mixed_cdf_group_areaperil_ja_member_blocks,
                          mixed_cdf_group_areaperil_haz_arr_i,
                          mixed_cdf_group_areaperil_event_rp,
-                         placement_item_ind,
-                         placement_item_starts,
-                         location_placements,
-                         blended_areaperil_placement_ja_offsets,
-                         blended_areaperil_placement_ja_areaperil_j,
                          blended_areaperil_ja_offsets,
                          blended_areaperil_ja_probabilities,
                          mixed_cdf_cache_tag,
@@ -2067,15 +2034,6 @@ def compute_event_losses(compute_info,
           areaperil, -1 when its areaperil has no hazard this event.
         mixed_cdf_group_areaperil_event_rp (np.array[int32]): this event's return period per group areaperil
           (dynamic footprint only).
-        placement_item_ind (np.array): id_index from item_idx to its rank among the items that
-          read a placement; looked up only for an item whose blended areaperil has more than one.
-        placement_item_starts (np.array[int64]): per such item, where its first building's samples
-          start in ``location_placements``.
-        location_placements (np.array[uint8|uint16|int32]): per (location, building, sample) the
-          placement index, shared by the location's items; the placement count means unplaced.
-        blended_areaperil_placement_ja_offsets (np.array[oasis_int]): placements per blended areaperil.
-        blended_areaperil_placement_ja_areaperil_j (np.array[int32]): placement -> the areaperil_j
-          it reads, -1 when no areaperil covers it.
         blended_areaperil_ja_offsets (np.array[oasis_int]): per blended areaperil, its areaperils.
         blended_areaperil_ja_probabilities (np.array[float64]): probability the building is on
           each areaperil, the weights of the analytic mixture.
@@ -2237,11 +2195,6 @@ def compute_event_losses(compute_info,
                                       mixed_cdf_group_areaperil_ja_member_blocks,
                                       mixed_cdf_group_areaperil_haz_arr_i,
                                       mixed_cdf_group_areaperil_event_rp,
-                                      placement_item_ind,
-                                      placement_item_starts,
-                                      location_placements,
-                                      blended_areaperil_placement_ja_offsets,
-                                      blended_areaperil_placement_ja_areaperil_j,
                                       blended_areaperil_ja_offsets,
                                       blended_areaperil_ja_probabilities,
                                       mixed_cdf_cache_tag,
@@ -2779,6 +2732,7 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
                           mixed_cdf_group_areaperil_ja_offsets, mixed_cdf_group_areaperil_haz_arr_i,
                           mixed_cdf_group_areaperil_event_rp, dynamic_footprint,
                           blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets,
+                          blended_areaperil_placement_ja_areaperil_j,
                           blended_areaperil_ja_placement_offsets, blended_areaperil_ja_placements,
                           placement_item_ind, placement_item_locations, placement_item_code_starts,
                           placement_location_ja_offsets, placement_location_ja_placements,
@@ -2794,7 +2748,8 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
     then the placements that read them (``blended_areaperil_ja_placements``), then the samples of
     the item's buildings standing there (the inverted placements of its location).
 
-    An item of a single placement is not made sparse: it is live or dead whole. A dependent of
+    In a debug run, which writes every sample's random values, every sample of such an item is
+    listed, live or not. An item of a single placement is not made sparse: it is live or dead whole. A dependent of
     coverage dependency shares its source's areaperil, so both are sparse or neither: a sparse
     source records its live samples' damage bins (``event_sample_bins``), and its dependent reads
     the bin at each of its own live samples, "no damage" where its source has none.
@@ -2873,7 +2828,28 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
             areaperil_start = blended_areaperil_ja_offsets[blend]
             protection_rp = items_event_data[item_i]['return_period']
             item_first = n_codes
-            touched_i = np.searchsorted(touched, group_start)
+            if compute_info['debug']:
+                # a debug run writes every sample's random values: list them all, each with the
+                # areaperil its placement reads (-1 unplaced, or on a placement no areaperil covers)
+                n_samples = n_buildings * sample_size
+                if n_codes + n_samples > capacity:
+                    while n_codes + n_samples > capacity:
+                        capacity *= 2
+                    codes = _resized(codes, n_codes, capacity)
+                    codes_j = _resized(codes_j, n_codes, capacity)
+                    vuln_keys = _resized(vuln_keys, n_codes, capacity)
+                    haz_keys = _resized(haz_keys, n_codes, capacity)
+                for k in range(n_samples):
+                    codes[n_codes + k] = k
+                    codes_j[n_codes + k] = -1
+                placement_start = blended_areaperil_placement_ja_offsets[blend]
+                for d in range(location_start, location_end):
+                    run = placement_location_ja_codes[placement_location_ja_code_offsets[d]:placement_location_ja_code_offsets[d + 1]]
+                    areaperil_j = blended_areaperil_placement_ja_areaperil_j[placement_start + placement_location_ja_placements[d]]
+                    for c in range(np.searchsorted(run, code_start), np.searchsorted(run, code_end)):
+                        codes_j[n_codes + np.int64(run[c]) - code_start] = areaperil_j
+                n_codes += n_samples
+            touched_i = np.searchsorted(touched, group_start) if not compute_info['debug'] else n_touched
             while touched_i < n_touched and touched[touched_i] < group_end:
                 group_areaperil_idx = touched[touched_i]
                 touched_i += 1

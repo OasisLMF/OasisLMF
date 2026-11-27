@@ -134,30 +134,37 @@ intensity adjustment]).
 
 Placement is drawn once per run, when the structure is built: one Latin Hypercube block of S
 uniforms per (location, building), keyed on the location's OED identifiers and not on the event, so
-a building stands in the same place in every event of a sample. The placement index is stored once
-per (location, building, sample) in `location_placements` (uint8 up to 255 placements), shared by
-all the location's items, which is why every blended areaperil of a location must name the same
-placement scheme (checked when the structure is built). An item with more than one placement finds
-its run through `placement_item_ind` (an id_index over those items only) and `placement_item_starts`,
-and maps each placement to its own areaperil_j through `blended_areaperil_placement_ja_areaperil_j`
-(-1 when no areaperil covers it). Float weights falling short of 1 get one more placement, covered
-by no areaperil, so a shortfall is drawn even when a scheme has a single real placement. An item
-whose blended areaperil has one placement of weight 1, which is every item of a portfolio without
-blending, never looks one up and reads j = 0, so these arrays are empty there.
+a building stands in the same place in every event of a sample. One placement per (location,
+building, sample), shared by all the location's items, which is why every blended areaperil of a
+location must name the same placement scheme (checked when the structure is built). Each item maps
+a placement to its own areaperil_j through `blended_areaperil_placement_ja_areaperil_j` (-1 when no
+areaperil covers it). Float weights falling short of 1 get one more placement, covered by no
+areaperil, so a shortfall is drawn even when a scheme has a single real placement; a sample drawn
+there stands nowhere. An item whose blended areaperil has one placement of weight 1, which is every
+item of a portfolio without blending, never looks one up and reads j = 0, so these arrays are empty
+there.
 
-Size: one byte per (location, building, sample) of the blended locations, so it grows with S. At
-S = 1000, 250k single-building blended locations take 250 MB, memory-mapped and shared by the gulmc
-processes.
+The placements are kept inverted, as the samples standing on each one, because that is what the
+event loop asks: which samples are on the event's live areaperils. Per location, its placements
+with samples on them (`placement_location_ja_placements`) and per placement the codes
+`(building - 1) * S + sample` standing there (`placement_location_ja_codes`), ascending. An item
+finds its location and first code through `placement_item_ind` (an id_index over the items with
+more than one placement), `placement_item_locations` and `placement_item_code_starts`. The structure
+build draws every sample's placement into a temporary array and sorts it by placement.
+
+Size: one code per (location, building, sample) of the blended locations, in the narrowest unsigned
+type that holds the location's codes, so it grows with S, plus about two offsets per placement a
+location's samples stand on. Memory-mapped and shared by the gulmc processes.
 
 **Only the live samples are computed.** Under full Monte Carlo most samples of a blended item
 usually land on areaperils with no hazard in the event, and lose nothing. So, per event,
 `prepare_event_samples` lists each such item's live samples, starting from the footprint rather
 than from the samples: the group areaperils with hazard, the placements that read them
-(`blended_areaperil_ja_placements`), then the location's samples standing there (the inverse of
-`location_placements`, built with it). The item is then `sparse` and the event loop computes those
-samples only, a building's at a time; everything else stays at zero. The work follows the live
-samples, not buildings times S. Not made sparse: debug runs (they write every sample's random
-values), and items of a single placement, which are live or dead whole. Coverage dependency stays
+(`blended_areaperil_ja_placements`), then the location's samples standing there. The item is then
+`sparse` and the event loop computes those samples only, a building's at a time; everything else
+stays at zero. The work follows the live samples, not buildings times S. A debug run lists every
+sample instead, live or not, as it writes every sample's random values. Items of a single
+placement are not made sparse: they are live or dead whole. Coverage dependency stays
 sparse: a source and its dependent share an areaperil, hence their placements, so a sparse source
 records its live samples' damage bins (`event_sample_bins`, aligned with the sample codes) and its
 dependent reads the bin at each of its own live samples by merging the two sorted runs, "no damage"
@@ -196,10 +203,8 @@ location spans must be in sections.csv, which is the lookup's job, as for any lo
 | `items['blended_areaperil_idx']` | item | dense blended areaperil index |
 | `blended_areaperil_ja_offsets` / `_ja_probabilities` | blended areaperil | its K areaperils, and the probability the building is on each. Their footprint ids (`_ja_areaperil_ids`) are used while the structures are built and not kept: the event loop works with areaperil_j |
 | `blended_areaperil_placement_ja_offsets` / `_ja_cum_weights` / `_ja_areaperil_j` | blended areaperil | placements: running weight, and which areaperil j covers each (-1 none). The uniform is scaled by `max(1, total weight)`, which is 1 for float weights and the total for counts |
-| `location_placements` | (location, building, sample) | placement index, shared by the location's items; the placement count means unplaced |
-| `placement_item_ind` / `placement_item_starts` | item with more than one placement | where its first building's samples start in `location_placements` |
-| `placement_item_locations` / `placement_item_code_starts` | item with more than one placement | its location, and the code ``(building - 1) * S + sample`` of its first building's first sample within it |
-| `placement_location_ja_offsets` / `_ja_placements` / `_ja_code_offsets` / `_ja_codes` | location, then placement | the inverse of `location_placements`: the placements the location's samples stand on, and the codes on each, ascending |
+| `placement_item_ind` / `placement_item_locations` / `placement_item_code_starts` | item with more than one placement | its rank among those items, its location, and the code ``(building - 1) * S + sample`` of its first building's first sample within it |
+| `placement_location_ja_offsets` / `_ja_placements` / `_ja_code_offsets` / `_ja_codes` | location, then placement | the placements the location's samples stand on, and the codes on each, ascending; an unplaced sample is not listed |
 | `blended_areaperil_ja_placement_offsets` / `blended_areaperil_ja_placements` | blended areaperil and areaperil j | the placements that read it, the inverse of `blended_areaperil_placement_ja_areaperil_j` |
 | `item_mixed_cdf_groups` | item | its mixed cdf group |
 | `mixed_cdf_group_items_ja_offsets` / `mixed_cdf_group_items_ja_item_idxs` | mixed cdf group | its items, in item order |
