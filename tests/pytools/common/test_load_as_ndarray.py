@@ -43,3 +43,77 @@ def test_load_as_ndarray__parquet_missing_column():
         pd.DataFrame({'loc_id': [1], 'peril_id': ['WTC']}).to_parquet(os.path.join(tmp, 'map.parquet'))
         with pytest.raises(OasisException, match='item_id'):
             load_as_ndarray(tmp, 'map', summary_map_dtype)
+
+
+def _load_csv(text, dtype):
+    with TemporaryDirectory() as tmp:
+        with open(os.path.join(tmp, 'f.csv'), 'w') as f:
+            f.write(text)
+        return load_as_ndarray(tmp, 'f', dtype)
+
+
+def test_load_as_ndarray__csv_whole_float_ints__issue_2217():
+    from oasislmf.pytools.common.input_files import KEYS_DTYPE
+    keys = _load_csv("LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID\n"
+                     "1,OSF,1,367923277.0,20001\n"
+                     "2,OSF,3,367923278,20002.00\n", KEYS_DTYPE)
+    assert keys.dtype == KEYS_DTYPE
+    assert keys['AreaPerilID'].tolist() == [367923277, 367923278]
+    assert keys['VulnerabilityID'].tolist() == [20001, 20002]
+    assert keys['PerilID'].tolist() == ['OSF', 'OSF']
+    assert keys['LocID'].tolist() == [1, 2]
+
+
+def test_load_as_ndarray__csv_whole_float_ints__exact_beyond_float_precision():
+    dtype = np.dtype([('a', 'u8'), ('b', 'i8'), ('x', 'f4')])
+    result = _load_csv("a,b,x\n18446744073709551615.0,1e+16,0.5\n9007199254740993.0,-3.0,1\n", dtype)
+    assert result['a'].tolist() == [18446744073709551615, 9007199254740993]
+    assert result['b'].tolist() == [10 ** 16, -3]
+    assert result['x'].tolist() == [0.5, 1.0]
+
+
+@pytest.mark.parametrize('value, match', [
+    ('1.5', r"f.csv: a value '1.5' on line 3 is not a whole number"),
+    ('nan', r"value 'nan' on line 3 is not a whole number"),
+    ('4294967296.0', r"value '4294967296.0' on line 3 does not fit uint32 \(0 to 4294967295\)"),
+    ('-1.0', r"value '-1.0' on line 3 does not fit uint32"),
+])
+def test_load_as_ndarray__csv_bad_int__raises_with_value_and_line(value, match):
+    with pytest.raises(OasisException, match=match):
+        _load_csv(f"a\n1.0\n{value}\n", np.dtype([('a', 'u4')]))
+
+
+def test_load_as_ndarray__csv_out_of_range_int_without_float__still_raises():
+    with pytest.raises((OasisException, ValueError)):
+        _load_csv("a\n4294967296\n", np.dtype([('a', 'u4')]))
+
+
+@pytest.mark.parametrize('value, expected', [
+    ('9007199254740991.0', 9007199254740991),    # 2**53 - 1: the largest read exactly as a float
+    ('9007199254740992.0', 9007199254740992),    # 2**53: read as text, as larger values may round to it
+    ('-9007199254740993.0', -9007199254740993),
+    ('4294967295.0', 4294967295),
+])
+def test_load_as_ndarray__csv_whole_float_ints__exact_either_side_of_float_precision(value, expected):
+    assert _load_csv(f"a,b\n{value},1.0\n", np.dtype([('a', 'i8'), ('b', 'u4')]))['a'].tolist() == [expected]
+
+
+def test_load_as_ndarray__csv_whole_float_ints__mixed_with_text_and_float_columns():
+    dtype = np.dtype([('a', 'i4'), ('p', 'U3'), ('x', 'f8')])
+    result = _load_csv("a,p,x\n1.0,WTC,0.25\n-2,OSF,3\n", dtype)
+    assert result.tolist() == [(1, 'WTC', 0.25), (-2, 'OSF', 3.0)]
+
+
+def test_load_as_ndarray__csv_int_too_long_to_read__raises():
+    with pytest.raises(OasisException, match="a value on line 3 is 32 or more characters long"):
+        _load_csv("a\n1.0\n1" + "0" * 40 + ".5\n", np.dtype([('a', 'i8')]))
+
+
+def test_load_as_ndarray__csv_whole_float_ints__read_as_float_when_exact(monkeypatch):
+    """The text route is slow and memory hungry, so it is only for values a float64 can't hold exactly."""
+    from oasislmf.pytools.common import data
+
+    def fail(*args, **kwargs):
+        raise AssertionError('read as text')
+    monkeypatch.setattr(data, '_read_ints_as_text', fail)
+    assert _load_csv("a,b\n367923277.0,1\n2,1e+3\n", np.dtype([('a', 'u4'), ('b', 'i8')])).tolist() == [(367923277, 1), (2, 1000)]
