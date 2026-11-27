@@ -135,6 +135,9 @@ gulmc_compute_info_type = nb.from_dtype(np.dtype([
     ('item_j', oasis_int),
     ('building_b', oasis_int),
     ('mixed_cdf_cache_ctr', np.int64),
+    # the stamp of the last item computed, kept across calls and events: the per-areaperil scratch
+    # stamped with it lives as long as the run, so a stamp must never repeat
+    ('item_stamp', np.int64),
     ('max_bytes_per_item', np.int64),
     ('Ndamage_bins_max', oasis_int),
     ('sample_size', oasis_int),

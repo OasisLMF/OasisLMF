@@ -198,7 +198,8 @@ def get_corr_rval(x_unif, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
     norm_factor = (N - 1) / (cdf_max - cdf_min)
     Uses fast lookup for the middle values and interpolation for the tail values.
 
-    Previously `get_corr_rval_float` used by GulMC, now shared by both GULs
+    Used by gulpy. gulmc puts the shared values in normal space once per event and calls
+    ``get_corr_rval_norm`` instead.
     """
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
@@ -236,28 +237,19 @@ def fill_norm_row(unif, norm, x_min, inv_factor, norm_inv_cdf):
 
 
 @njit(cache=True, fastmath=True)
-def get_corr_rval_both_norm(x_norm, y_norm, rho, cdf_min, norm_cdf, norm_factor, Nsamples, z_unif):
-    """``get_corr_rval`` with both values already in normal space: only the combination's cdf is looked up."""
-    sqrt_rho = sqrt(rho)
-    sqrt_1_minus_rho = sqrt(1. - rho)
-    N = len(norm_cdf)
-
-    for i in range(Nsamples):
-        z_norm = sqrt_rho * x_norm[i] + sqrt_1_minus_rho * y_norm[i]
-
-        z_unif[i] = _interpolate_lookup(z_norm, cdf_min, norm_factor, norm_cdf, N)
-
-
-@njit(cache=True, fastmath=True)
-def get_corr_rval_norm(x_norm, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
+def get_corr_rval_norm(x_norm, y, y_is_norm, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
                        norm_cdf, norm_factor, Nsamples, z_unif):
-    """``get_corr_rval`` with the shared values already in normal space (``to_norm_space``)."""
+    """``get_corr_rval`` with the shared values already in normal space (``to_norm_space``).
+
+    The item's own values ``y`` are uniforms, or already their normal quantiles when ``y_is_norm``
+    (``fill_norm_row``), in which case only the combination's cdf is looked up.
+    """
     sqrt_rho = sqrt(rho)
     sqrt_1_minus_rho = sqrt(1. - rho)
     N = len(norm_inv_cdf)
 
     for i in range(Nsamples):
-        y_norm = norm_inv_cdf_lookup(y_unif[i], x_min, inv_factor, norm_inv_cdf, N)
+        y_norm = y[i] if y_is_norm else norm_inv_cdf_lookup(y[i], x_min, inv_factor, norm_inv_cdf, N)
 
         z_norm = sqrt_rho * x_norm[i] + sqrt_1_minus_rho * y_norm
 

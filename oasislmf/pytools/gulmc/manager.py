@@ -34,7 +34,7 @@ from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_ID
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, accumulate_hermite_coeffs_into, loss_correlation, HERMITE_TERMS)
 from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
-                                         generate_hash_hazard, fill_norm_row, get_corr_rval_both_norm, get_corr_rval_norm,
+                                         generate_hash_hazard, fill_norm_row, get_corr_rval_norm,
                                          get_random_generator, to_norm_space,
                                          _lh_philox_block, _lh_philox_partial_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
 from oasislmf.pytools.gul.utils import binary_search
@@ -562,6 +562,16 @@ def run(run_dir,
                                  dtype=oasis_float)
         del coverage_buildings
 
+        # per-call scratch of compute_event_losses that does not depend on the event, allocated once:
+        # the per-areaperil arrays are sized by the most areaperils one item reads, which can be
+        # large, and are stamped rather than cleared (see compute_event_losses)
+        bin_slot = np.full(intensity_bins.max() + 1 if intensity_bins.size > 0 else 1, -1, dtype=np.int64)
+        areaperil_j_live = np.empty(max_areaperils_per_item, dtype=np.bool_)
+        areaperil_j_stamp = np.full(max_areaperils_per_item, -1, dtype=np.int64)
+        areaperil_j_to_haz_start = np.empty(max_areaperils_per_item, dtype=np.int64)
+        areaperil_j_to_Nhaz_bins = np.empty(max_areaperils_per_item, dtype=np.int64)
+        areaperil_j_to_member_block = np.empty(max_areaperils_per_item, dtype=np.int32)
+
         # what an event without any sparse item passes
         event_sample_codes = np.zeros(0, dtype=np.int64)
         event_sample_areaperil_j = np.zeros(0, dtype=np.int32)
@@ -809,6 +819,12 @@ def run(run_dir,
                             event_sample_bins,
                             event_sample_vuln,
                             event_sample_haz,
+                            bin_slot,
+                            areaperil_j_live,
+                            areaperil_j_stamp,
+                            areaperil_j_to_haz_start,
+                            areaperil_j_to_Nhaz_bins,
+                            areaperil_j_to_member_block,
                             coverage_has_dependents,
                             compute_depth,
                             source_damage_bin_stack,
@@ -1097,6 +1113,15 @@ def damage_bin_scaling_tiv_part(damage_bins, Neff_damage_bins):
 
 
 @nb.njit(cache=True, fastmath=True, inline='always')
+def group_norm_row(rows, norm_rows, norm_done, row, x_min, inv_factor, norm_inv_cdf):
+    """Row ``row`` of ``rows`` in normal space: ``norm_rows[row]``, filled on its first use this event."""
+    if not norm_done[row]:
+        fill_norm_row(rows[row], norm_rows[row], x_min, inv_factor, norm_inv_cdf)
+        norm_done[row] = True
+    return norm_rows[row]
+
+
+@nb.njit(cache=True, fastmath=True, inline='always')
 def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_index, n_samples, sample_idxs,
                              haz_rndms_item, vuln_rndms_item, haz_rndms_is_norm, vuln_rndms_is_norm, haz_eps_ij, damage_eps_ij,
                              norm_inv_parameters, norm_inv_cdf, norm_cdf, eps_buf,
@@ -1144,17 +1169,12 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
             group = item['peril_correlation_group']
             for sample_i in range(n_samples):
                 eps_buf[sample_i] = haz_eps_ij[group, sample_idxs[sample_i]]
-            if haz_rndms_is_norm:
-                get_corr_rval_both_norm(eps_buf, haz_rndms_item, item['hazard_correlation_value'],
-                                        norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
-                                        n_samples, haz_z_unif)
-            else:
-                get_corr_rval_norm(
-                    eps_buf, haz_rndms_item, item['hazard_correlation_value'],
-                    norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
-                    norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
-                    n_samples, haz_z_unif
-                )
+            get_corr_rval_norm(
+                eps_buf, haz_rndms_item, haz_rndms_is_norm, item['hazard_correlation_value'],
+                norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
+                norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
+                n_samples, haz_z_unif
+            )
         else:
             for sample_i in range(n_samples):
                 haz_z_unif[sample_i] = haz_rndms_item[sample_i]
@@ -1164,17 +1184,12 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
         group = item['peril_correlation_group']
         for sample_i in range(n_samples):
             eps_buf[sample_i] = damage_eps_ij[group, sample_idxs[sample_i]]
-        if vuln_rndms_is_norm:
-            get_corr_rval_both_norm(eps_buf, vuln_rndms_item, item['damage_correlation_value'],
-                                    norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
-                                    n_samples, vuln_z_unif)
-        else:
-            get_corr_rval_norm(
-                eps_buf, vuln_rndms_item, item['damage_correlation_value'],
-                norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
-                norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
-                n_samples, vuln_z_unif
-            )
+        get_corr_rval_norm(
+            eps_buf, vuln_rndms_item, vuln_rndms_is_norm, item['damage_correlation_value'],
+            norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
+            norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
+            n_samples, vuln_z_unif
+        )
     else:
         # do not use correlation
         for sample_i in range(n_samples):
@@ -1568,7 +1583,8 @@ def _compute_event_losses_core(compute_info,
     mixed_cdf_cache_mask = nb_int64(mixed_cdf_cache.shape[0] - 1)
     Ndamage_bins_max = vuln_cdf.shape[2]
     damage_bins_interpolation = damage_bins['interpolation']  # one field view per call, not per item
-    item_stamp = nb_int64(0)
+    # continues from the previous call: the per-areaperil scratch persists across calls (see run)
+    item_stamp = compute_info['item_stamp']
     n_source_bins = cond_cdf.shape[1]
 
     # we process at least one full coverage at a time, so when we write to stream, we write the whole buffer
@@ -1594,6 +1610,7 @@ def _compute_event_losses_core(compute_info,
         # bytes out, and the stacks a dependent reads (source_damage_bin_stack,
         # source_eff_damage_cdf_stack) are caller-owned and outlive the call.
         if compute_info['cursor'] + Nitems * compute_info['max_bytes_per_item'] > byte_mv.shape[0]:
+            compute_info['item_stamp'] = item_stamp
             return False
 
         coverage_is_dependent = compute_info['do_coverage_dependency'] == 1 and depth > 0
@@ -1870,11 +1887,9 @@ def _compute_event_losses_core(compute_info,
                             vuln_base = vuln_rndms_base[rng_index]
                             if compute_info['do_correlation'] and item['damage_correlation_value'] > 0:
                                 # the group's row in normal space, filled by its first correlated item
-                                if not vuln_rndms_norm_done[rng_index]:
-                                    fill_norm_row(vuln_rndms_base[rng_index], vuln_rndms_norm[rng_index],
-                                                  norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'], norm_inv_cdf)
-                                    vuln_rndms_norm_done[rng_index] = True
-                                vuln_base = vuln_rndms_norm[rng_index]
+                                vuln_base = group_norm_row(vuln_rndms_base, vuln_rndms_norm, vuln_rndms_norm_done, rng_index,
+                                                           norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'],
+                                                           norm_inv_cdf)
                                 vuln_is_norm = True
                         else:
                             vs = np.uint64(vuln_seeds[rng_index])
@@ -1886,11 +1901,9 @@ def _compute_event_losses_core(compute_info,
                         elif building_i == 0:
                             haz_base = haz_rndms_base[hazard_rng_index]
                             if compute_info['do_haz_correlation'] and item['hazard_correlation_value'] > 0:
-                                if not haz_rndms_norm_done[hazard_rng_index]:
-                                    fill_norm_row(haz_rndms_base[hazard_rng_index], haz_rndms_norm[hazard_rng_index],
-                                                  norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'], norm_inv_cdf)
-                                    haz_rndms_norm_done[hazard_rng_index] = True
-                                haz_base = haz_rndms_norm[hazard_rng_index]
+                                haz_base = group_norm_row(haz_rndms_base, haz_rndms_norm, haz_rndms_norm_done, hazard_rng_index,
+                                                          norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'],
+                                                          norm_inv_cdf)
                                 haz_is_norm = True
                         else:
                             hs = np.uint64(haz_seeds[hazard_rng_index])
@@ -1973,6 +1986,7 @@ def _compute_event_losses_core(compute_info,
         # register that another `coverage_id` has been processed
         compute_info['coverage_i'] += 1
 
+    compute_info['item_stamp'] = item_stamp
     return True
 
 
@@ -2038,6 +2052,12 @@ def compute_event_losses(compute_info,
                          event_sample_bins,
                          event_sample_vuln,
                          event_sample_haz,
+                         bin_slot,
+                         areaperil_j_live,
+                         areaperil_j_stamp,
+                         areaperil_j_to_haz_start,
+                         areaperil_j_to_Nhaz_bins,
+                         areaperil_j_to_member_block,
                          coverage_has_dependents,
                          compute_depth,
                          source_damage_bin_stack,
@@ -2140,6 +2160,16 @@ def compute_event_losses(compute_info,
         vuln_draw_scratch (numpy.array[float64]): length-S buffer for one building's damage block.
         haz_draw_scratch (numpy.array[float64]): the same for hazard.
         perm_scratch (numpy.array[float64]): length-S scratch the block generator permutes in.
+        bin_slot (np.array[int64]): per intensity bin id, -1: scratch of fill_haz_bins, which puts
+          back the -1 of every entry it uses. Allocated once per run.
+        areaperil_j_live (np.array[bool]): per item areaperil, whether it can take a loss this event.
+        areaperil_j_stamp (np.array[int64]): per item areaperil, the stamp of the item it was last
+          resolved for (``compute_info['item_stamp']`` never repeats). The arrays from here are
+          sized by the most areaperils one item reads and allocated once per run: only an entry
+          stamped for the current item is read, so none is ever reset.
+        areaperil_j_to_haz_start (np.array[int64]): per item areaperil, its first hazard row.
+        areaperil_j_to_Nhaz_bins (np.array[int64]): per item areaperil, its number of hazard rows.
+        areaperil_j_to_member_block (np.array[int32]): per item areaperil, its vulnerability member block.
         coverage_has_dependents (np.array[int8]): per coverage_id, 1 if any coverage names it as
           its source. Only those coverages' sampled damage bins are stored, and the bin stack is
           sized on that basis, so storing for any other coverage would write past its width.
@@ -2167,10 +2197,7 @@ def compute_event_losses(compute_info,
     """
     # scratch buffers for _compute_event_losses_core, which cannot allocate (compiled without NRT)
     Ndamage_bins_max = vuln_cdf.shape[2]
-    # a dynamic footprint's records merged per intensity bin (see fill_haz_bins)
-    n_bin_ids = intensity_bins.max() + 1 if intensity_bins.size > 0 else 1
-    bin_slot = np.full(n_bin_ids, -1, dtype=np.int64)
-    max_haz_bins = max(vuln_cdf.shape[1], n_bin_ids)
+    max_haz_bins = max(vuln_cdf.shape[1], bin_slot.shape[0])
     haz_pdf_prob_buf = np.empty(max_haz_bins, dtype=oasis_float)
     # Per item areaperil its samples land on, its hazard rows stay resident until the item's samples
     # are drawn, packed one after another (areaperil_j_to_haz_start): at most S per building, or K.
@@ -2188,13 +2215,6 @@ def compute_event_losses(compute_info,
     row_cdf_buf = np.empty((n_rows, vuln_cdf.shape[2]), dtype=oasis_float)
     row_lengths = np.zeros(n_rows, dtype=np.int64)
     row_stamp = np.full(n_rows, -1, dtype=np.int64)
-    areaperil_j_live = np.zeros(max_areaperils_per_item, dtype=np.bool_)
-    # an areaperil is resolved for an item's samples when one first lands there: resolved for this
-    # item when its stamp is the item's
-    areaperil_j_stamp = np.full(max_areaperils_per_item, -1, dtype=np.int64)
-    areaperil_j_to_haz_start = np.zeros(max_areaperils_per_item, dtype=np.int64)
-    areaperil_j_to_Nhaz_bins = np.zeros(max_areaperils_per_item, dtype=np.int64)
-    areaperil_j_to_member_block = np.zeros(max_areaperils_per_item, dtype=np.int32)
     # an areaperil's cdf and a group's mixture are summed here, in float64, over the whole damage axis
     cdf_acc = np.empty(Ndamage_bins_max, dtype=np.float64)
     mix_acc = np.empty(Ndamage_bins_max, dtype=np.float64)
@@ -2777,6 +2797,13 @@ if __name__ == '__main__':
     run(**kwargs)
 
 
+@nb.njit(cache=True, inline='always')
+def group_bucket(groups, group):
+    """The position of ``group`` in the ascending ``groups``, or -1 when it is not there."""
+    bucket = np.searchsorted(groups, group)
+    return bucket if bucket < groups.shape[0] and groups[bucket] == group else -1
+
+
 @nb.njit(cache=True)
 def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, coverage_source_id,
                           items_event_data, items, item_mixed_cdf_groups,
@@ -2827,8 +2854,8 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
     for ap_i in range(Nhaz_arr_this_event):
         ap_ind = ap_inds[ap_i]
         for item_pos in range(item_map_ja_offsets[ap_ind], item_map_ja_offsets[ap_ind + 1]):
-            bucket = np.searchsorted(placement_mixed_cdf_groups, item_map_ja_mixed_cdf_group_idxs[item_pos])
-            if bucket < n_groups and placement_mixed_cdf_groups[bucket] == item_map_ja_mixed_cdf_group_idxs[item_pos]:
+            bucket = group_bucket(placement_mixed_cdf_groups, item_map_ja_mixed_cdf_group_idxs[item_pos])
+            if bucket >= 0:
                 bucket_offsets[bucket + 1] += 1
     for bucket in range(n_groups):
         bucket_offsets[bucket + 1] += bucket_offsets[bucket]
@@ -2837,8 +2864,8 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
     for ap_i in range(Nhaz_arr_this_event):
         ap_ind = ap_inds[ap_i]
         for item_pos in range(item_map_ja_offsets[ap_ind], item_map_ja_offsets[ap_ind + 1]):
-            bucket = np.searchsorted(placement_mixed_cdf_groups, item_map_ja_mixed_cdf_group_idxs[item_pos])
-            if bucket < n_groups and placement_mixed_cdf_groups[bucket] == item_map_ja_mixed_cdf_group_idxs[item_pos]:
+            bucket = group_bucket(placement_mixed_cdf_groups, item_map_ja_mixed_cdf_group_idxs[item_pos])
+            if bucket >= 0:
                 touched[bucket_fill[bucket]] = item_map_ja_mixed_cdf_group_areaperil_idxs[item_pos]
                 bucket_fill[bucket] += 1
 
@@ -2912,7 +2939,7 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
                         codes_j[n_codes + np.int64(run[c]) - code_start] = areaperil_j
                 n_codes += n_samples
             # its group's bucket (none to read in a debug run, which listed every sample)
-            bucket = np.searchsorted(placement_mixed_cdf_groups, mixed_cdf_group)
+            bucket = group_bucket(placement_mixed_cdf_groups, mixed_cdf_group)
             touched_i = bucket_offsets[bucket] if not compute_info['debug'] else 0
             touched_end = bucket_offsets[bucket + 1] if not compute_info['debug'] else 0
             while touched_i < touched_end:
