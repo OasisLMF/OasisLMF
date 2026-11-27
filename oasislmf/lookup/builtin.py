@@ -63,7 +63,7 @@ from contextlib import contextmanager
 
 import psutil
 
-from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin
+from oasislmf.lookup.base import AbstractBasicKeyLookup, MultiprocLookupMixin, alias_area_peril_id
 from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.peril import get_peril_groups_df
@@ -995,6 +995,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
 
+        locations = alias_area_peril_id(locations)
         key_columns = [
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
             'vulnerability_id', 'status', 'message'

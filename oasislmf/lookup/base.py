@@ -2,6 +2,7 @@ __all__ = [
     'AbstractBasicKeyLookup',
     'MultiprocLookupMixin',
     'OasisBaseLookup',
+    'alias_area_peril_id',
 ]
 
 
@@ -21,6 +22,18 @@ from ..utils.exceptions import OasisException
 from oasis_data_manager.filestore.config import get_storage_from_config, LocalStorage
 
 UNKNOWN_ID = -1
+
+
+def alias_area_peril_id(df):
+    """Accept ``areaperil_id`` as a lookup output column for ``area_peril_id``.
+
+    Dynamic footprint files such as ``hazard_case.parquet`` spell it ``areaperil_id``, so a
+    model can use that spelling in its lookup data too (#2216). If a lookup returns both,
+    ``area_peril_id`` is used. The keys file column (``AreaPerilID``) is unchanged.
+    """
+    if 'areaperil_id' in df.columns and 'area_peril_id' not in df.columns:
+        return df.rename(columns={'areaperil_id': 'area_peril_id'})
+    return df
 
 
 ''' Basic abstract classes that facilitate the implementation of KeyLookupInterface

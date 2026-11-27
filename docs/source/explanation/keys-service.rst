@@ -60,6 +60,10 @@ The return JSON should subscribe to the following definition:
     "message": <message to accompany status>
     }
 
+``area_peril_id`` can also be returned as ``areaperil_id``, the spelling used by dynamic footprint files such as
+``hazard_case.parquet``, by both built-in and custom lookups. It is written to the keys file as ``AreaPerilID`` either
+way. If a lookup returns both, ``area_peril_id`` is used.
+
 |
 
 Perils Covered

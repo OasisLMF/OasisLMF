@@ -26,6 +26,7 @@ from ..utils.parallel import resolve_partition_count
 from ..utils.path import import_from_string, get_custom_module, as_path
 from ..utils.status import OASIS_KEYS_STATUS
 
+from .base import alias_area_peril_id
 from .builtin import PerilCoveredDeterministicLookup
 from .builtin import Lookup as NewLookup
 
@@ -507,6 +508,7 @@ class BasicKeyServer:
         if output_format not in self.valid_format:
             raise OasisException(f"Unrecognised lookup file output format {output_format} - valid formats are {self.valid_format}")
         write = getattr(self, f'write_{output_format}_keys_file')
+        results = (alias_area_peril_id(result) for result in results)
         successes_count, error_count = write(results, keys_success_msg, successes_fp, errors_fp)
 
         if errors_fp:
