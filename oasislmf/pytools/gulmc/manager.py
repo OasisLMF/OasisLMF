@@ -1764,142 +1764,114 @@ def _compute_event_losses_core(compute_info,
                 item_stamp += 1
                 haz_used = 0
 
-                if item_event_data['sparse'] == 1:
-                    # Only the item's live samples, listed by prepare_event_samples in code order
-                    # ((building - 1) * S + sample), one building's run at a time. A sample on a dead
-                    # areaperil loses nothing, so the rest of the item's buildings stay at 0.
-                    sample_k = item_event_data['sample_start']
-                    sample_end = item_event_data['sample_end']
+                # One run of a building's samples at a time, each drawn, resolved and sampled alike.
+                # A sparse item's runs are its listed samples (prepare_event_samples), in code order
+                # ((building - 1) * S + sample) and with their base random values; its other samples
+                # lost nothing. Any other item's runs are every sample of each of its buildings, with
+                # the building's Latin Hypercube block: building 1 is the group's shared row, drawn once
+                # for the event; 2..N are drawn here, which reaching at all means the item is packed,
+                # so on generator 2, the block generator (check_packing_supported).
+                sparse = item_event_data['sparse'] == 1
+                sample_k = item_event_data['sample_start']
+                sample_end = item_event_data['sample_end']
+                if sparse:
                     run_code_starts[item_j] = sample_k
                     run_lengths[item_j] = sample_end - sample_k
                     if is_dependent:
-                        # its source's live samples, ascending like its own, with their damage bins
+                        # its source's listed samples, ascending like its own, with their damage bins
                         source_k = items_event_data[item_event_data['source_item_i']]['sample_start']
                         source_end = items_event_data[item_event_data['source_item_i']]['sample_end']
-                    while sample_k < sample_end:
+                else:
+                    run_lengths[item_j] = n_buildings * sample_size
+                building_i = 0
+                while (sample_k < sample_end) if sparse else (building_i < n_buildings):
+                    if sparse:
                         building_i = event_sample_codes[sample_k] // sample_size
-                        # this building's run of samples: where its losses go
-                        building_run = run_offset + sample_k - item_event_data['sample_start']
-                        n_live = 0
+                        run_start = sample_k
+                        n_samples = 0
                         while sample_k < sample_end and event_sample_codes[sample_k] // sample_size == building_i:
-                            sample_idx = event_sample_codes[sample_k] - building_i * sample_size
-                            sample_idx_buf[n_live] = sample_idx
-                            areaperil_j_of_building[n_live] = event_sample_areaperil_j[sample_k]
-                            vuln_draw_scratch[n_live] = event_sample_vuln[sample_k]
-                            haz_draw_scratch[n_live] = event_sample_haz[sample_k]
+                            sample_idx_buf[n_samples] = event_sample_codes[sample_k] - building_i * sample_size
+                            areaperil_j_of_building[n_samples] = event_sample_areaperil_j[sample_k]
+                            vuln_draw_scratch[n_samples] = event_sample_vuln[sample_k]
+                            haz_draw_scratch[n_samples] = event_sample_haz[sample_k]
                             if is_dependent:
                                 # the source's bin at the same building and sample, none where it lost nothing
                                 while source_k < source_end and event_sample_codes[source_k] < event_sample_codes[sample_k]:
                                     source_k += 1
-                                parent_bin_buf[n_live] = (event_sample_bins[source_k] if source_k < source_end
-                                                          and event_sample_codes[source_k] == event_sample_codes[sample_k]
-                                                          else 0)
-                            n_live += 1
+                                parent_bin_buf[n_samples] = (event_sample_bins[source_k] if source_k < source_end
+                                                             and event_sample_codes[source_k] == event_sample_codes[sample_k]
+                                                             else 0)
+                            n_samples += 1
                             sample_k += 1
-                        draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_index, n_live,
-                                                 sample_idx_buf, haz_draw_scratch, vuln_draw_scratch, haz_eps_ij,
-                                                 damage_eps_ij, norm_inv_parameters, norm_inv_cdf, norm_cdf, eps_buf,
-                                                 haz_z_unif, vuln_z_unif)
-                        if not is_dependent:
-                            # a dependent's areaperils were resolved with its cdf above
-                            haz_used = resolve_sample_areaperils(
-                                n_live, areaperil_j_of_building, item_stamp, areaperil_j_stamp, areaperil_j_live,
-                                areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
-                                group_start, mixed_cdf_group_areaperil_haz_arr_i, mixed_cdf_group_areaperil_event_rp,
-                                mixed_cdf_group_areaperil_ja_member_blocks, protection_rp, dynamic_footprint,
-                                haz_pdf, haz_arr_ptr, item, intensity_adjustment, intensity_bin_peril_ids, intensity_bins,
-                                bin_slot, haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf, haz_used)
-                        # a source keeps its live samples' bins for its dependents; anything else's go to scratch
-                        building_k = sample_k - n_live
-                        sample_item_losses(compute_info, n_live, hazard_rng_index,
-                                           haz_z_unif, vuln_z_unif, areaperil_j_of_building, areaperil_j_live,
-                                           areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
-                                           haz_cdf_buf, haz_bin_id_buf, row_cdf_buf, row_lengths, row_stamp, item_stamp,
-                                           table, table_lengths, vuln_member_ja_offsets, vuln_member_ja_rows,
-                                           vuln_member_ja_weights, mixed_eff_damage_cdf, n_mixed, damage_bin_scaling,
-                                           damage_bins, sample_losses[building_run:building_run + n_live], is_dependent,
-                                           event_sample_bins[building_k:sample_k] if store_source_bin else sample_bin_buf,
-                                           parent_bin_buf)
-
-                else:
-                    run_lengths[item_j] = n_buildings * sample_size
-                    # One block per building; an unpacked item is the N == 1 case, whose single block
-                    # is the legacy draw. The two routines below take the random values and the output
-                    # column as views, so a building is just a different pair.
-
-                    for b in range(1, n_buildings + 1):
-                        # Building 1 is the group's shared row, already drawn once for the event.
-                        # Only 2..N are per item, and reaching them at all means the item is packed,
-                        # which check_packing_supported allows on generator 2 alone -- so the block
-                        # generator is always the right one here.
-                        if b == 1:
-                            vuln_base_b = vuln_rndms_base[rng_index]
+                        samples = sample_idx_buf
+                        areaperil_j_of_sample = areaperil_j_of_building
+                        vuln_base = vuln_draw_scratch
+                        haz_base = haz_draw_scratch
+                        out_start = run_offset + run_start - item_event_data['sample_start']
+                        # a source keeps its listed samples' bins for its dependents; anything else's go to scratch
+                        src_bin_out = event_sample_bins[run_start:sample_k] if store_source_bin else sample_bin_buf
+                        parent_bins = parent_bin_buf
+                    else:
+                        n_samples = sample_size
+                        samples = every_sample
+                        # every sample reads areaperil 0: an item of several placements is sparse, and
+                        # effective damageability samples the mixture
+                        areaperil_j_of_sample = areaperil_j_single
+                        if building_i == 0:
+                            vuln_base = vuln_rndms_base[rng_index]
                         else:
                             vs = np.uint64(vuln_seeds[rng_index])
-                            _lh_philox_block(np.uint32(vs & PHILOX_U32_MASK),
-                                             np.uint32(vs >> PHILOX_SHIFT32), b - 1, sample_size,
-                                             perm_scratch[:sample_size], vuln_draw_scratch[:sample_size])
-                            vuln_base_b = vuln_draw_scratch[:sample_size]
-                        if hazard_rng_index >= 0:
-                            if b == 1:
-                                haz_base_b = haz_rndms_base[hazard_rng_index]
-                            else:
-                                hs = np.uint64(haz_seeds[hazard_rng_index])
-                                _lh_philox_block(np.uint32(hs & PHILOX_U32_MASK),
-                                                 np.uint32(hs >> PHILOX_SHIFT32), b - 1, sample_size,
-                                                 perm_scratch[:sample_size], haz_draw_scratch[:sample_size])
-                                haz_base_b = haz_draw_scratch[:sample_size]
+                            _lh_philox_block(np.uint32(vs & PHILOX_U32_MASK), np.uint32(vs >> PHILOX_SHIFT32), building_i,
+                                             sample_size, perm_scratch, vuln_draw_scratch)
+                            vuln_base = vuln_draw_scratch
+                        if hazard_rng_index < 0:
+                            haz_base = vuln_base  # unused; keeps the argument type stable
+                        elif building_i == 0:
+                            haz_base = haz_rndms_base[hazard_rng_index]
                         else:
-                            haz_base_b = vuln_base_b  # unused; keeps the argument type stable
-
-                        draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_index, sample_size,
-                                                 every_sample, haz_base_b, vuln_base_b, haz_eps_ij, damage_eps_ij,
-                                                 norm_inv_parameters, norm_inv_cdf, norm_cdf, eps_buf,
-                                                 haz_z_unif, vuln_z_unif)
-
-                        # this building's slice of the bin stack, same (b - 1) * S + (s - 1) encoding
-                        # as a packed sidx. A dependent reads its source's slice for the SAME building,
-                        # so building b of the dependent is driven by building b of the source.
-                        bin_off = (b - 1) * sample_size
+                            hs = np.uint64(haz_seeds[hazard_rng_index])
+                            _lh_philox_block(np.uint32(hs & PHILOX_U32_MASK), np.uint32(hs >> PHILOX_SHIFT32), building_i,
+                                             sample_size, perm_scratch, haz_draw_scratch)
+                            haz_base = haz_draw_scratch
+                        # this building's slice of the bin stack, same (b - 1) * S + (s - 1) encoding as a
+                        # packed sidx: building b of a dependent is driven by building b of its source
+                        out_start = run_offset + building_i * sample_size
+                        bin_off = building_i * sample_size
                         if store_source_bin:
                             src_bin_out = source_damage_bin_stack[depth, item_j, bin_off: bin_off + sample_size]
                         else:
                             # The sampler stores the bin unconditionally, to keep the branch out of its
                             # per-sample loop, so it needs somewhere in bounds to put a value nothing
                             # will read. bin_off can run past the stack's width, which is only as wide
-                            # as a SOURCE item's buildings; the first building's slot never does, and
-                            # this item's slice is read only when it IS a source, which is the branch
-                            # above.
+                            # as a SOURCE item's buildings; the first building's slot never does.
                             src_bin_out = source_damage_bin_stack[depth, item_j, 0: sample_size]
                         if is_dependent:
                             parent_bins = source_damage_bin_stack[depth - 1, item_event_data['source_item_j'],
                                                                   bin_off: bin_off + sample_size]
                         else:
                             parent_bins = src_bin_out  # unused; keeps the argument type stable
+                        building_i += 1
 
-                        # Every sample reads areaperil 0: an item of several placements is computed
-                        # by its listed samples above (see prepare_event_samples), and effective
-                        # damageability samples the mixture.
-                        areaperil_j_of_sample = areaperil_j_single[:sample_size]
-
-                        if not is_dependent and full_monte_carlo:
-                            haz_used = resolve_sample_areaperils(
-                                sample_size, areaperil_j_of_sample, item_stamp, areaperil_j_stamp, areaperil_j_live,
-                                areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
-                                group_start, mixed_cdf_group_areaperil_haz_arr_i, mixed_cdf_group_areaperil_event_rp,
-                                mixed_cdf_group_areaperil_ja_member_blocks, protection_rp, dynamic_footprint,
-                                haz_pdf, haz_arr_ptr, item, intensity_adjustment, intensity_bin_peril_ids, intensity_bins,
-                                bin_slot, haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf, haz_used)
-
-                        sample_item_losses(compute_info, sample_size, hazard_rng_index,
-                                           haz_z_unif, vuln_z_unif, areaperil_j_of_sample, areaperil_j_live,
-                                           areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
-                                           haz_cdf_buf, haz_bin_id_buf, row_cdf_buf, row_lengths, row_stamp, item_stamp,
-                                           table, table_lengths, vuln_member_ja_offsets, vuln_member_ja_rows, vuln_member_ja_weights,
-                                           mixed_eff_damage_cdf, n_mixed, damage_bin_scaling,
-                                           damage_bins,
-                                           sample_losses[run_offset + (b - 1) * sample_size:run_offset + b * sample_size],
-                                           is_dependent, src_bin_out, parent_bins)
+                    draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_index, n_samples, samples,
+                                             haz_base, vuln_base, haz_eps_ij, damage_eps_ij, norm_inv_parameters,
+                                             norm_inv_cdf, norm_cdf, eps_buf, haz_z_unif, vuln_z_unif)
+                    if not is_dependent and full_monte_carlo:
+                        # a dependent's areaperils were resolved with its cdf above
+                        haz_used = resolve_sample_areaperils(
+                            n_samples, areaperil_j_of_sample, item_stamp, areaperil_j_stamp, areaperil_j_live,
+                            areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
+                            group_start, mixed_cdf_group_areaperil_haz_arr_i, mixed_cdf_group_areaperil_event_rp,
+                            mixed_cdf_group_areaperil_ja_member_blocks, protection_rp, dynamic_footprint,
+                            haz_pdf, haz_arr_ptr, item, intensity_adjustment, intensity_bin_peril_ids, intensity_bins,
+                            bin_slot, haz_bin_id_buf, haz_pdf_prob_buf, haz_cdf_buf, haz_used)
+                    sample_item_losses(compute_info, n_samples, hazard_rng_index,
+                                       haz_z_unif, vuln_z_unif, areaperil_j_of_sample, areaperil_j_live,
+                                       areaperil_j_to_haz_start, areaperil_j_to_Nhaz_bins, areaperil_j_to_member_block,
+                                       haz_cdf_buf, haz_bin_id_buf, row_cdf_buf, row_lengths, row_stamp, item_stamp,
+                                       table, table_lengths, vuln_member_ja_offsets, vuln_member_ja_rows,
+                                       vuln_member_ja_weights, mixed_eff_damage_cdf, n_mixed, damage_bin_scaling,
+                                       damage_bins, sample_losses[out_start:out_start + n_samples], is_dependent,
+                                       src_bin_out, parent_bins)
 
             # effective damageability: record the eff-damage CDF instead, for a dependent below
             # to build its damage pmf from; a blended source records its mixed cdf
