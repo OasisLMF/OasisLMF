@@ -21,6 +21,12 @@ from ..utils.deprecation import warn_deprecated
 from typing import Dict, Any
 import json
 
+# Extra command line names for computation parameters, matching `ods_tools check` (#2228)
+PARAM_ALIASES = {
+    'oed_info_csv': ['--ri-info'],
+    'oed_scope_csv': ['--ri-scope'],
+}
+
 
 class OasisBaseCommand(BaseCommand):
     """The base command to inherit from for each command.
@@ -257,12 +263,9 @@ class OasisComputationCommand(OasisBaseCommand):
             # If 'Help' is not set then this is a function only paramter, skip
             if "help" in add_argument_kwargs:
                 arg_name = f"--{param['name'].replace('_', '-')}"
-                if param.get("flag"):
-                    parser.add_argument(
-                        param.get("flag"), arg_name, **add_argument_kwargs
-                    )
-                else:
-                    parser.add_argument(arg_name, **add_argument_kwargs)
+                option_strings = [param["flag"]] if param.get("flag") else []
+                option_strings += [arg_name] + PARAM_ALIASES.get(param["name"], [])
+                parser.add_argument(*option_strings, **add_argument_kwargs)
 
     @classmethod
     def get_arguments(cls, args, manager_method):
