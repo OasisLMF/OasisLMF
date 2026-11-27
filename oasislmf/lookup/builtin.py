@@ -1511,7 +1511,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 logger.debug("rtree: joining locations for peril %s", peril_id)
                 res.append(get_geometry(locations.loc[locations['peril_id'] == peril_id], geometries))
 
-            return pd.concat(res).reset_index()
+            return pd.concat(res, ignore_index=True)
         return fct
 
     def _rtree_settings(self, file_path, file_type, area_peril_read_params=None, file_read_params=None,
