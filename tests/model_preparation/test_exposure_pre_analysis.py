@@ -719,3 +719,65 @@ def test_exposure_pre_analysis_account_only(lookup_multiprocessing):
         account_df = pd.read_parquet(os.path.join(d, 'account.parquet'))
         assert account_df['LayerLimit'].astype(float).tolist() == expected_limit.astype(float).tolist()
         assert 'loc_id' not in account_df.columns
+
+
+def write_renumbering_epa_module(module_path):
+    """A hook that renumbers some locations with ints and passes the rest through with their
+    OED string values, leaving LocNumber an object column of mixed int and str (#2191)."""
+    with open(module_path, 'w') as f:
+        f.write('''
+import pandas as pd
+
+
+class ExposurePreAnalysis:
+    def __init__(self, exposure_data, exposure_pre_analysis_setting, **kwargs):
+        self.exposure_data = exposure_data
+
+    def run(self):
+        loc_df = self.exposure_data.location.dataframe
+        renumbered = loc_df.iloc[:3].copy()
+        renumbered['LocNumber'] = pd.Series([1, 2, 3], index=renumbered.index, dtype=object)
+        passed_through = loc_df.iloc[3:].copy()
+        passed_through['LocNumber'] = passed_through['LocNumber'].astype(object)
+        loc_df = pd.concat([renumbered, passed_through], ignore_index=True)
+        assert loc_df['LocNumber'].dtype == object
+        self.exposure_data.location.dataframe = loc_df
+''')
+
+
+def test_exposure_pre_analysis_saves_mixed_type_hook_output_as_parquet():
+    """A hook leaving an object column of mixed int/str no longer fails the parquet snapshot save
+    with ArrowInvalid; the column is saved as text, as the csv snapshot did before (#2191)."""
+    with TemporaryDirectory() as d:
+        kwargs = {'oasis_files_dir': d,
+                  'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_renumber.py'),
+                  'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
+                  'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),
+                  'check_oed': False}
+        write_renumbering_epa_module(kwargs['exposure_pre_analysis_module'])
+        write_oed_location(kwargs['oed_location_csv'])
+        write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
+
+        OasisManager().exposure_pre_analysis(**kwargs)
+
+        saved = pd.read_parquet(os.path.join(d, 'location.parquet'))
+        assert saved['LocNumber'].astype(str).tolist() == ['1', '2', '3', '10002082049', '10002082050']
+
+
+def test_mixed_object_columns_as_text():
+    from oasislmf.computation.hooks.pre_analysis import mixed_object_columns_as_text
+
+    df = pd.DataFrame({
+        'mixed': pd.Series([1, '12', None], dtype=object),
+        'ints': pd.Series([1, 2, None], dtype=object),
+        'text': pd.Series(['a', 'b', None], dtype=object),
+        'numbers': [1.0, 2.0, 3.0],
+    })
+    out, mixed = mixed_object_columns_as_text(df)
+    assert mixed == ['mixed']
+    assert out['mixed'].tolist()[:2] == ['1', '12'] and pd.isna(out['mixed'].iloc[2])
+    assert df['mixed'].tolist()[:2] == [1, '12']  # input not modified
+    out.to_parquet(io.BytesIO())  # ArrowInvalid before
+
+    unchanged, mixed = mixed_object_columns_as_text(df[['ints', 'text', 'numbers']])
+    assert mixed == []

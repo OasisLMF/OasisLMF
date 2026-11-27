@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 import json
+import logging
 import pathlib
 from collections import defaultdict
 
@@ -17,6 +18,39 @@ from ...utils.inputs import str2bool
 from ...utils.parallel import resolve_partition_count
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
+
+logger = logging.getLogger(__name__)
+
+
+def mixed_object_columns_as_text(df):
+    """Return df with object columns that mix text and other values (e.g. 1 and '12') cast to text.
+
+    A pre-analysis hook can leave such columns behind, for example by renumbering some
+    locations with ints while passing others through with their OED string values. CSV
+    writes them as is, but parquet cannot (ArrowInvalid). Casting to text, keeping nulls,
+    gives the same file content a CSV save did; the snapshot is read back with OED dtypes.
+
+    Args:
+        df (pd.DataFrame): dataframe to save
+
+    Returns:
+        tuple(pd.DataFrame, list): df itself if no column needs casting, otherwise a shallow
+                                   copy with those columns cast; and the cast column names
+    """
+    mixed = []
+    for column in df.columns:
+        values = df[column]
+        if values.dtype != object:
+            continue
+        is_text = values.dropna().map(lambda value: isinstance(value, str))
+        if is_text.any() and not is_text.all():
+            mixed.append(column)
+    if not mixed:
+        return df, mixed
+    df = df.copy(deep=False)
+    for column in mixed:
+        df[column] = df[column].where(df[column].isna(), df[column].astype(str))
+    return df, mixed
 
 
 def get_source_compression(oed_source):
@@ -83,16 +117,29 @@ def save_exposure_data(exposure_data, path, version_name, save_config, unknown_c
         if oed_source:
             sources_by_compression[get_source_compression(oed_source)].append(oed_name)
 
+    original_dataframes = {}
     try:
         for compression, oed_names in sources_by_compression.items():
             for oed_name, oed_source in original_sources.items():
                 setattr(exposure_data, oed_name, oed_source if oed_name in oed_names else None)
+            if compression == 'parquet':
+                # the hook's own dataframe is restored below, so only the saved file is changed
+                for oed_name in oed_names:
+                    oed_source = original_sources[oed_name]
+                    text_df, mixed = mixed_object_columns_as_text(oed_source.dataframe)
+                    if mixed:
+                        logger.warning(f"{oed_name}: saving columns {mixed} as text for parquet, "
+                                       "as they mix text with other values")
+                        original_dataframes[oed_name] = oed_source.dataframe
+                        oed_source.dataframe = text_df
             # save_config also makes OedExposure.save() record each filepath relative to the
             # config file rather than absolute; the partial config each call writes is
             # overwritten below once all sources are restored.
             exposure_data.save(path=path, version_name=version_name, compression=compression,
                                save_config=save_config, unknown_columns=unknown_columns)
     finally:
+        for oed_name, dataframe in original_dataframes.items():
+            original_sources[oed_name].dataframe = dataframe
         for oed_name, oed_source in original_sources.items():
             setattr(exposure_data, oed_name, oed_source)
 
