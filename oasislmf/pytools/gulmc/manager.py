@@ -23,7 +23,8 @@ from numba.types import int32 as nb_int32
 from numba.types import int64 as nb_int64
 
 from oasis_data_manager.filestore.config import get_storage_from_config_path
-from oasislmf.pytools.common.data import nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype
+from oasislmf.pytools.common.data import (nb_areaperil_int, oasis_float, nb_oasis_int, oasis_int, correlations_dtype, items_dtype,
+                                          unique_sorted)
 from oasislmf.pytools.common.event_stream import (PIPE_CAPACITY, ITEM_PACKED_STREAM, ITEM_STREAM, LOSS_STREAM_ID,
                                                   check_packed_item_fits, check_packing_supported,
                                                   max_emitted_blocks, stream_info_to_bytes, write_mv_to_stream)
@@ -546,6 +547,10 @@ def run(run_dir,
         # prepare_event_samples lists: its live ones, or every one in a debug run.
         list_item_samples = (sample_size > 0 and not effective_damageability
                              and placement_item_locations.shape[0] > 0)
+        # the mixed cdf groups of the items of several placements, ascending: the touched group
+        # areaperils prepare_event_samples buckets per event
+        n_item_placements = np.diff(blended_areaperil_placement_ja_offsets)[items['blended_areaperil_idx']]
+        placement_mixed_cdf_groups = unique_sorted(item_mixed_cdf_groups[n_item_placements > 1]).astype(np.int64)
         # A coverage's sample losses, held whole until write_losses emits it (it reduces across
         # items at a fixed building, then sums the buildings): each item's are a run, one after
         # another (see write_losses). An item computed for every sample takes N * S, so without
@@ -716,7 +721,8 @@ def run(run_dir,
                      event_sample_haz, event_sample_losses_size) = prepare_event_samples(
                         compute_info, coverages, compute, compute_depth, coverage_source_id,
                         items_event_data, items, item_mixed_cdf_groups,
-                        fp_ap_inds, Nhaz_arr_this_event, item_map_ja_offsets, item_map_ja_mixed_cdf_group_areaperil_idxs,
+                        fp_ap_inds, Nhaz_arr_this_event, item_map_ja_offsets, item_map_ja_mixed_cdf_group_idxs,
+                        item_map_ja_mixed_cdf_group_areaperil_idxs, placement_mixed_cdf_groups,
                         mixed_cdf_group_areaperil_ja_offsets, mixed_cdf_group_areaperil_haz_arr_i,
                         mixed_cdf_group_areaperil_event_rp, dynamic_footprint,
                         blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets,
@@ -2774,7 +2780,8 @@ if __name__ == '__main__':
 @nb.njit(cache=True)
 def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, coverage_source_id,
                           items_event_data, items, item_mixed_cdf_groups,
-                          ap_inds, Nhaz_arr_this_event, item_map_ja_offsets, item_map_ja_mixed_cdf_group_areaperil_idxs,
+                          ap_inds, Nhaz_arr_this_event, item_map_ja_offsets, item_map_ja_mixed_cdf_group_idxs,
+                          item_map_ja_mixed_cdf_group_areaperil_idxs, placement_mixed_cdf_groups,
                           mixed_cdf_group_areaperil_ja_offsets, mixed_cdf_group_areaperil_haz_arr_i,
                           mixed_cdf_group_areaperil_event_rp, dynamic_footprint,
                           blended_areaperil_ja_offsets, blended_areaperil_placement_ja_offsets,
@@ -2812,19 +2819,28 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
         losses one coverage of the event holds, its sparse items' live samples and N * S for each
         of its other items.
     """
-    # the group areaperils with hazard this event, ascending, so that a group's are one run
-    n_touched = 0
-    for ap_i in range(Nhaz_arr_this_event):
-        ap_ind = ap_inds[ap_i]
-        n_touched += item_map_ja_offsets[ap_ind + 1] - item_map_ja_offsets[ap_ind]
-    touched = np.empty(n_touched, dtype=np.int64)
-    n_touched = 0
+    # The group areaperils with hazard this event, bucketed by mixed cdf group (a counting sort):
+    # only the groups of items of several placements, which are the only ones read below. A
+    # bucket's order does not matter, an item's samples being sorted once collected.
+    n_groups = placement_mixed_cdf_groups.shape[0]
+    bucket_offsets = np.zeros(n_groups + 1, dtype=np.int64)
     for ap_i in range(Nhaz_arr_this_event):
         ap_ind = ap_inds[ap_i]
         for item_pos in range(item_map_ja_offsets[ap_ind], item_map_ja_offsets[ap_ind + 1]):
-            touched[n_touched] = item_map_ja_mixed_cdf_group_areaperil_idxs[item_pos]
-            n_touched += 1
-    touched.sort()
+            bucket = np.searchsorted(placement_mixed_cdf_groups, item_map_ja_mixed_cdf_group_idxs[item_pos])
+            if bucket < n_groups and placement_mixed_cdf_groups[bucket] == item_map_ja_mixed_cdf_group_idxs[item_pos]:
+                bucket_offsets[bucket + 1] += 1
+    for bucket in range(n_groups):
+        bucket_offsets[bucket + 1] += bucket_offsets[bucket]
+    touched = np.empty(bucket_offsets[n_groups], dtype=np.int64)
+    bucket_fill = bucket_offsets[:n_groups].copy()
+    for ap_i in range(Nhaz_arr_this_event):
+        ap_ind = ap_inds[ap_i]
+        for item_pos in range(item_map_ja_offsets[ap_ind], item_map_ja_offsets[ap_ind + 1]):
+            bucket = np.searchsorted(placement_mixed_cdf_groups, item_map_ja_mixed_cdf_group_idxs[item_pos])
+            if bucket < n_groups and placement_mixed_cdf_groups[bucket] == item_map_ja_mixed_cdf_group_idxs[item_pos]:
+                touched[bucket_fill[bucket]] = item_map_ja_mixed_cdf_group_areaperil_idxs[item_pos]
+                bucket_fill[bucket] += 1
 
     # per live sample: its code, areaperil, and the keys of its damage and hazard draws,
     # (rng group, building, sample) as rng_index * B * S + code (-1 for no hazard draw)
@@ -2895,8 +2911,11 @@ def prepare_event_samples(compute_info, coverages, coverage_ids, compute_depth, 
                     for c in range(np.searchsorted(run, code_start), np.searchsorted(run, code_end)):
                         codes_j[n_codes + np.int64(run[c]) - code_start] = areaperil_j
                 n_codes += n_samples
-            touched_i = np.searchsorted(touched, group_start) if not compute_info['debug'] else n_touched
-            while touched_i < n_touched and touched[touched_i] < group_end:
+            # its group's bucket (none to read in a debug run, which listed every sample)
+            bucket = np.searchsorted(placement_mixed_cdf_groups, mixed_cdf_group)
+            touched_i = bucket_offsets[bucket] if not compute_info['debug'] else 0
+            touched_end = bucket_offsets[bucket + 1] if not compute_info['debug'] else 0
+            while touched_i < touched_end:
                 group_areaperil_idx = touched[touched_i]
                 touched_i += 1
                 if not group_areaperil_is_live(mixed_cdf_group_areaperil_haz_arr_i, mixed_cdf_group_areaperil_event_rp,
