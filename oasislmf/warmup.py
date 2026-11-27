@@ -38,6 +38,11 @@ from tempfile import TemporaryDirectory
 
 from numba.core.caching import IndexDataCacheFile
 
+if os.name == 'nt':
+    import msvcrt
+else:
+    import fcntl
+
 
 # ---------------------------------------------------------------------------
 # Locate bundled warmup assets inside the installed package.
@@ -99,6 +104,47 @@ def _init_worker(lock):
     global _cache_lock
     _cache_lock = lock
     IndexDataCacheFile.save = _locked_cache_save
+
+
+@contextlib.contextmanager
+def _index_file_lock(index_path):
+    """Hold an exclusive lock on ``<index_path>.lock``, across processes that share nothing but the file system."""
+    with open(f'{index_path}.lock', 'a+b') as lock_file:
+        if os.name == 'nt':
+            lock_file.seek(0)
+            while True:
+                try:
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+                    break
+                except OSError:
+                    continue
+            try:
+                yield
+            finally:
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
+def _file_locked_cache_save(self, key, data):
+    """``IndexDataCacheFile.save`` holding a lock file next to the function's index."""
+    with _index_file_lock(self._index_path):
+        _unlocked_cache_save(self, key, data)
+
+
+def lock_cache_saves():
+    """Make this process's Numba cache saves take a lock file next to each function's ``.nbi`` index.
+
+    For processes started independently, which cannot share the warmup's ``multiprocessing`` lock: the
+    orchestrator's pool workers, which run the same jitted functions with different argument types at the same
+    time (katpy jobs over memory-mapped and empty files, for example).
+    """
+    IndexDataCacheFile.save = _file_locked_cache_save
 
 
 def _copy_rel_path(src, dest):

@@ -45,6 +45,7 @@ import traceback
 from multiprocessing.connection import Client
 
 from oasislmf.pytools.utils import pytool_logging
+from oasislmf.warmup import lock_cache_saves
 
 from .chain import Chain, ChainSpec, import_factories
 from .chunks import ChunkWriter
@@ -243,6 +244,7 @@ def serve(conn, config):
 
 def main():
     """Read the configuration from stdin, set up logging, connect to the orchestrator and serve it."""
+    lock_cache_saves()
     config = json.loads(sys.stdin.read())
     for path in config.get('sys_path', []):
         if path not in sys.path:
