@@ -63,6 +63,37 @@ def test_progress_reporter_pings_new_events_and_retries_failures():
     assert reporter.sent == 10
 
 
+def test_progress_reporter_sends_milestones_in_order_after_the_events_and_retries_them():
+    sent = []
+    answers = iter([True, False, True, True, True])
+
+    def ping(data):
+        sent.append(dict(data))
+        return next(answers)
+
+    reporter = ProgressReporter(analysis_pk=7, interval=3600, ping=ping)
+    reporter.milestone('gul_ready')
+    reporter.update(4)
+    reporter.milestone('outputs_complete')
+    assert not reporter._send()
+    reporter.close()
+    assert sent == [{'events_complete': 4, 'analysis_pk': 7}, {'gul_ready': 1, 'analysis_pk': 7},
+                    {'gul_ready': 1, 'analysis_pk': 7}, {'outputs_complete': 1, 'analysis_pk': 7}]
+
+
+def test_progress_reporter_ignores_milestones_without_analysis_pk():
+    calls = []
+    with ProgressReporter(ping=calls.append) as reporter:
+        reporter.milestone('gul_ready')
+    assert calls == []
+
+
+@pytest.mark.parametrize('mode, expected', [('all', {'gul_processes': 1, 'outputs_total': 3}), ('analysis', {'gul_processes': 1}),
+                                            ('outputs', {'outputs_total': 3})])
+def test_progress_totals_of_an_orchestrated_run(mode, expected):
+    assert ProgressReporter.totals(None, mode, 3) == expected
+
+
 def test_progress_reporter_bar_or_nothing_without_analysis_pk(capsys):
     calls = []
     with ProgressReporter(bar_total=4, ping=lambda data: calls.append(data)) as reporter:

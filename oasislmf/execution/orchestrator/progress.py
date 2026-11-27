@@ -6,6 +6,12 @@ In a bash run ``gulmc --socket-server`` sends the number of events it has comple
 has an ``analysis_pk``, else to the local ``socket-server`` the script starts, which draws a progress bar. The
 orchestrator knows how many events are done (the pool's ``progress`` callback), so it reports them itself:
 ``ProgressReporter`` sends the same messages to the platform, or draws the same bar in-process when the run is local.
+
+The platform also follows the run's two stages: each gul process sends ``{"gul_ready": 1}`` once it has loaded the
+model, and each output process ``{"outputs_complete": 1}`` when it finishes, against the ``gul_processes`` and
+``outputs_total`` the runner announces. An orchestrated run has one pool rather than a gul process per partition, so
+it announces ``gul_processes`` 1 and one output per output job (``totals``), and sends ``gul_ready`` when the first
+worker has built its chain and ``outputs_complete`` per job done (``milestone``).
 """
 import logging
 import threading
@@ -48,6 +54,7 @@ class ProgressReporter:
         self._ping = ping or oasis_ping
         self._done = 0
         self._sent = 0
+        self._milestones = []
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread = None
@@ -73,21 +80,42 @@ class ProgressReporter:
         if self._bar is not None:
             self._bar.update(new)
 
-    def _send(self):
-        """Ping the events done since the last ping that got through; returns False if this one did not."""
+    def milestone(self, name):
+        """Queue a ``{name: 1}`` message (``gul_ready``, ``outputs_complete``) for the platform; nothing for a local run."""
+        if self.analysis_pk is None:
+            return
         with self._lock:
-            new = self._done - self._sent
-        if new <= 0:
-            return True
+            self._milestones.append(name)
+
+    def _deliver(self, data):
+        """Ping one message; True when it got through."""
         try:
-            delivered = self._ping({'events_complete': new, 'analysis_pk': self.analysis_pk})
+            return self._ping({**data, 'analysis_pk': self.analysis_pk})
         except Exception as exc:
             logger.warning('progress ping failed: %s', exc)
-            delivered = False
-        if delivered:
+            return False
+
+    def _send(self):
+        """Ping the events done since the last ping that got through, then the queued milestones in order.
+
+        Returns False when a ping did not get through; what it carried is sent again next time.
+        """
+        with self._lock:
+            new = self._done - self._sent
+        if new > 0:
+            if not self._deliver({'events_complete': new}):
+                return False
             with self._lock:
                 self._sent += new
-        return delivered
+        while True:
+            with self._lock:
+                if not self._milestones:
+                    return True
+                name = self._milestones[0]
+            if not self._deliver({name: 1}):
+                return False
+            with self._lock:
+                self._milestones.pop(0)
 
     def _loop(self):
         while not self._stop.wait(self.interval):
@@ -103,6 +131,25 @@ class ProgressReporter:
         if self._bar is not None:
             self._bar.close()
             self._bar = None
+
+    @staticmethod
+    def totals(plan, mode, n_output_jobs):
+        """The ``gul_processes`` and ``outputs_total`` the runner announces to the platform for an orchestrated run.
+
+        Args:
+            plan (Plan): the plan run.
+            mode (str): ``all``, ``analysis`` or ``outputs``.
+            n_output_jobs (int): the output jobs the run makes, each sending one ``outputs_complete``.
+
+        Returns:
+            dict: ``gul_processes`` (1) when the run computes chunks, ``outputs_total`` when it runs the output jobs.
+        """
+        totals = {}
+        if mode in ('all', 'analysis'):
+            totals['gul_processes'] = 1
+        if mode in ('all', 'outputs'):
+            totals['outputs_total'] = n_output_jobs
+        return totals
 
     def __enter__(self):
         return self

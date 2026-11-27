@@ -308,7 +308,7 @@ def run(analysis_settings,
 
     # Calls run_analysis + run_outputs in a single script
     progress_totals = genbash(number_of_processes, analysis_settings, **genbash_args)
-    if has_platform_progress(kwargs.get('analysis_pk')):
+    if plan is None and has_platform_progress(kwargs.get('analysis_pk')):
         oasis_ping({'analysis_pk': kwargs['analysis_pk'], **progress_totals})
     monitor = ResourceMonitor(
         output_dir='log',
@@ -418,7 +418,7 @@ def run_analysis(**params):
                       log_sub_dir=params.get("process_number", None),
                       process_number=params.get("process_number", None)):
         gul_processes = create_bash_analysis(**params)
-    if has_platform_progress(params.get('analysis_pk')):
+    if plan is None and has_platform_progress(params.get('analysis_pk')):
         oasis_ping({'analysis_pk': params['analysis_pk'], 'gul_processes': gul_processes})
 
     process_number = params.get('process_number')
@@ -479,7 +479,7 @@ def run_outputs(**params):
     with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard'],
                       log_sub_dir='out'):
         outputs_total = create_bash_outputs(**params)
-    if has_platform_progress(params.get('analysis_pk')):
+    if plan is None and has_platform_progress(params.get('analysis_pk')):
         oasis_ping({'analysis_pk': params['analysis_pk'], 'outputs_total': outputs_total})
 
     run_dir = os.path.dirname(params['filename'])

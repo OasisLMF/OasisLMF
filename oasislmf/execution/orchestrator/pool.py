@@ -202,7 +202,7 @@ class WorkerPool:
 
     def __init__(self, spec, chunks, out_dir, taps, factories=None, policy=None, progress=None, python=None, env=None,
                  kill_grace=KILL_GRACE, output_jobs=None, job_workers=0, chunk_numbers=None, log_dir=None, progress_interval=None,
-                 stderr_guard=False):
+                 stderr_guard=False, milestone=None):
         """Open the listener; no worker is started yet.
 
         Args:
@@ -232,6 +232,8 @@ class WorkerPool:
             progress_interval (float, optional): workers report the events done in their current chunk at most every
                 this many seconds, and ``progress`` is called with them; by default they report whole chunks only.
             stderr_guard (bool): fail the run when a worker writes to its stderr anything ``stderr_errors`` keeps.
+            milestone (callable, optional): ``milestone(name)`` called with ``'gul_ready'`` when the first worker has built
+                its chain, and with ``'outputs_complete'`` each time an output job is done.
         """
         if factories is not None:
             not_strings = sorted(key for key, value in factories.items() if not isinstance(value, str))
@@ -244,6 +246,8 @@ class WorkerPool:
         self.factories = dict(factories) if factories is not None else None
         self.policy = policy
         self.progress = progress
+        self.milestone = milestone
+        self._gul_ready = False
         self.python = python or sys.executable
         self.env = env
         self.kill_grace = kill_grace
@@ -490,6 +494,10 @@ class WorkerPool:
             if worker.setup_seconds is None:
                 worker.setup_seconds = time.perf_counter() - worker.t_spawn
                 worker.chain_seconds = message.get('chain_seconds')
+                if not worker.jobs_only and not self._gul_ready:
+                    self._gul_ready = True
+                    if self.milestone is not None:
+                        self.milestone('gul_ready')
             self._dispatch(worker)
         elif kind == 'done' and 'job' in message:
             i = message['job']
@@ -500,6 +508,8 @@ class WorkerPool:
             worker.job = None
             if len(self.job_stats) == len(self.output_jobs):
                 self.t_jobs_end = time.perf_counter()
+            if self.milestone is not None:
+                self.milestone('outputs_complete')
         elif kind == 'done':
             k = message['chunk']
             self.chunk_stats[k] = {'chunk': k, 'events': message['events'], 'seconds': message['seconds'], 'worker': worker.number}
@@ -713,7 +723,7 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
         n_workers (int): maximum number of workers.
         **options: ``factories`` (``{'gul'|'fm'|'summary'|'elt'|'plt': 'package.module:attribute'}``), ``policy``, ``progress``,
             ``python``, ``env``, ``kill_grace``, ``output_jobs`` (Sequence[OutputJob | dict]), ``chunk_numbers``, ``log_dir``,
-            ``progress_interval`` and ``stderr_guard``, see ``WorkerPool``; ``resource_manager`` (a
+            ``progress_interval``, ``stderr_guard`` and ``milestone``, see ``WorkerPool``; ``resource_manager`` (a
             ``ResourceManager``, or True for one with the defaults and n_workers as maximum; exclusive with ``policy``);
             other options are ignored.
 
@@ -742,7 +752,7 @@ def run_chunks(spec, chunks, out_dir, taps, n_workers=1, **options):
     n = min(n_workers, len(chunks) if chunk_numbers is None else len(chunk_numbers))
     prepare_output_dirs(output_jobs, spec.run_dir)
     pool_options = {key: options[key] for key in ('factories', 'policy', 'progress', 'python', 'env', 'kill_grace', 'chunk_numbers',
-                                                  'log_dir', 'progress_interval', 'stderr_guard') if key in options}
+                                                  'log_dir', 'progress_interval', 'stderr_guard', 'milestone') if key in options}
     pool_options['output_jobs'] = output_jobs
     manager = options.get('resource_manager')
     if manager is True:

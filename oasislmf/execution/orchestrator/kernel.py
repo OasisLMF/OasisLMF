@@ -34,7 +34,9 @@ events are split into ``max_process_id`` chunks as bash's partitions, so the fil
 ``chunk_factor`` splits a whole run more finely.
 
 Progress is reported while the chunks run as ``gulmc --socket-server`` reports it in the script: pings to the platform
-when bash_params has an ``analysis_pk``, else the local progress bar (``progress.ProgressReporter``).
+when bash_params has an ``analysis_pk``, else the local progress bar (``progress.ProgressReporter``). With a platform
+target configured, the run also announces its ``gul_processes`` and ``outputs_total`` and sends ``gul_ready`` and one
+``outputs_complete`` per output job, as the script's tools do.
 """
 import fnmatch
 import glob
@@ -44,6 +46,7 @@ import subprocess
 import time
 
 from oasislmf.utils.defaults import SERVER_UPDATE_TIME
+from oasislmf.utils.ping import oasis_ping, platform_progress_configured
 
 from . import inline, pool
 from .chunks import read_events
@@ -260,13 +263,18 @@ def run_plan(plan, bash_params, mode, log_dir, script, executor='pool', n_worker
         options['resource_manager'] = manager
     run_log_path = os.path.join(log_dir, RUN_LOG)
     analysis_pk = bash_params.get('analysis_pk')
+    platform = analysis_pk is not None and platform_progress_configured()
     bar_total = bash_params.get('socket_server_size') if run_chunks else None
+    if platform:
+        oasis_ping({'analysis_pk': analysis_pk, **ProgressReporter.totals(plan, mode, len(output_jobs))})
     t_start = time.perf_counter()
     if monitor is not None:
         monitor.start(os.getpid())
     try:
-        with ProgressReporter(analysis_pk=analysis_pk if run_chunks else None, bar_total=bar_total) as reporter:
+        with ProgressReporter(analysis_pk=analysis_pk if run_chunks or platform else None, bar_total=bar_total) as reporter:
             options['progress'] = lambda done, _total: reporter.update(done)
+            if platform:
+                options['milestone'] = reporter.milestone
             stats = EXECUTORS[executor].run_chunks(plan.spec, chunks, log_dir, [], max(n_workers, 1), **options)
     except Exception as exc:
         if stderr_guard:

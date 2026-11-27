@@ -202,6 +202,15 @@ def test_jobs_run_after_the_chunks_with_stats(tmp_path, run_dir, executor, n_wor
     check_job_stats(stats, SELT_JOBS, n_workers)
 
 
+@pytest.mark.parametrize('chunks, n_workers', [([[1], [2]], 2), ([], 2)])
+def test_pool_milestones_one_gul_ready_and_one_per_output_job(tmp_path, run_dir, chunks, n_workers):
+    milestones = []
+    run_pool(make_spec(str(run_dir)), chunks, tmp_path / 'out', TAPS, n_workers, factories=FAKE_FACTORIES,
+             output_jobs=[job.to_dict() for job in SELT_JOBS], milestone=milestones.append)
+    gul_ready = ['gul_ready'] if chunks else []
+    assert milestones == gul_ready + ['outputs_complete'] * len(SELT_JOBS)
+
+
 def test_pool_without_jobs_reports_empty_job_stats(tmp_path, run_dir):
     stats = run_pool(make_spec(str(run_dir)), [[1], [2]], tmp_path / 'out', TAPS, 2, factories=FAKE_FACTORIES)
     assert stats['jobs'] == [] and stats['output_seconds'] == 0.0
