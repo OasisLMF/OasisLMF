@@ -33,7 +33,8 @@ from oasislmf.pytools.gul.common import MAX_LOSS_IDX, CHANCE_OF_LOSS_IDX, TIV_ID
 from oasislmf.pytools.gul.core import (compute_mean_loss, get_gul, accumulate_hermite_coeffs_into, loss_correlation, HERMITE_TERMS)
 from oasislmf.pytools.gul.manager import write_losses, adjust_byte_mv_size
 from oasislmf.pytools.gul.random import (generate_correlated_hash_vector, generate_hash,
-                                         generate_hash_hazard, get_corr_rval_norm, get_random_generator, to_norm_space,
+                                         generate_hash_hazard, fill_norm_row, get_corr_rval_both_norm, get_corr_rval_norm,
+                                         get_random_generator, to_norm_space,
                                          _lh_philox_block, _lh_philox_partial_block, PHILOX_U32_MASK, PHILOX_SHIFT32)
 from oasislmf.pytools.gul.utils import binary_search
 from oasislmf.pytools.common.damage_cdf import (add_cdf_row, add_member_cdfs, add_no_loss_mass, cdf_length, convolve_damage_cdf,
@@ -571,6 +572,9 @@ def run(run_dir,
         # each building's block where it is used
         vuln_rndms_base = np.empty((1, 1), dtype='float64')
         haz_rndms_base = np.empty((1, 1), dtype='float64')
+        # the rows in normal space, filled lazily by a group's first correlated item (see the core)
+        vuln_rndms_norm, vuln_rndms_norm_done = np.empty((1, 1), dtype='float64'), np.zeros(1, dtype=np.bool_)
+        haz_rndms_norm, haz_rndms_norm_done = np.empty((1, 1), dtype='float64'), np.zeros(1, dtype=np.bool_)
 
         # Pre-allocate per-event footprint arrays (reused across events, no per-event allocation)
         # fp_ap_inds stores dense areaperil indices (from item_map_ja_id_ind) rather than raw
@@ -690,6 +694,12 @@ def run(run_dir,
                     # item of the group, and only buildings 2..N are drawn per item below.
                     vuln_rndms_base = generate_rndm(vuln_seeds[:rng_index], sample_size)
                     haz_rndms_base = generate_rndm(haz_seeds[:hazard_rng_index], sample_size)
+                    # their normal quantiles, for correlated items: filled per row, by its group's first
+                    # correlated item, so a row no correlated item reads is never transformed
+                    vuln_rndms_norm = np.empty_like(vuln_rndms_base)
+                    vuln_rndms_norm_done = np.zeros(vuln_rndms_base.shape[0], dtype=np.bool_)
+                    haz_rndms_norm = np.empty_like(haz_rndms_base)
+                    haz_rndms_norm_done = np.zeros(haz_rndms_base.shape[0], dtype=np.bool_)
                     if hazard_rng_index > 0:
                         haz_eps_ij = generate_rndm(haz_corr_seeds, sample_size, skip_seeds=1)
                         if do_haz_correlation:
@@ -779,6 +789,10 @@ def run(run_dir,
                             hermite_coeffs,
                             vuln_rndms_base,
                             haz_rndms_base,
+                            vuln_rndms_norm,
+                            vuln_rndms_norm_done,
+                            haz_rndms_norm,
+                            haz_rndms_norm_done,
                             vuln_seeds,
                             haz_seeds,
                             vuln_draw_scratch,
@@ -1078,7 +1092,7 @@ def damage_bin_scaling_tiv_part(damage_bins, Neff_damage_bins):
 
 @nb.njit(cache=True, fastmath=True, inline='always')
 def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_index, n_samples, sample_idxs,
-                             haz_rndms_item, vuln_rndms_item, haz_eps_ij, damage_eps_ij,
+                             haz_rndms_item, vuln_rndms_item, haz_rndms_is_norm, vuln_rndms_is_norm, haz_eps_ij, damage_eps_ij,
                              norm_inv_parameters, norm_inv_cdf, norm_cdf, eps_buf,
                              haz_z_unif, vuln_z_unif):
     """Draw the (optionally correlated) hazard and damage random values of some samples of one item.
@@ -1102,6 +1116,9 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
         haz_rndms_item (np.array[float64]): the item's hazard base random values of those samples,
             in the same order. Under building packing they are one building's.
         vuln_rndms_item (np.array[float64]): the same for damage.
+        haz_rndms_is_norm (bool): ``haz_rndms_item`` already holds the values' normal quantiles,
+            which only a correlated item is given.
+        vuln_rndms_is_norm (bool): the same for ``vuln_rndms_item``.
         haz_eps_ij (np.array[float]): correlated random values for hazard sampling, per sample,
             already in normal space (``to_norm_space``).
         damage_eps_ij (np.array[float]): the same for damage sampling.
@@ -1121,12 +1138,17 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
             group = item['peril_correlation_group']
             for sample_i in range(n_samples):
                 eps_buf[sample_i] = haz_eps_ij[group, sample_idxs[sample_i]]
-            get_corr_rval_norm(
-                eps_buf, haz_rndms_item, item['hazard_correlation_value'],
-                norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
-                norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
-                n_samples, haz_z_unif
-            )
+            if haz_rndms_is_norm:
+                get_corr_rval_both_norm(eps_buf, haz_rndms_item, item['hazard_correlation_value'],
+                                        norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
+                                        n_samples, haz_z_unif)
+            else:
+                get_corr_rval_norm(
+                    eps_buf, haz_rndms_item, item['hazard_correlation_value'],
+                    norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
+                    norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
+                    n_samples, haz_z_unif
+                )
         else:
             for sample_i in range(n_samples):
                 haz_z_unif[sample_i] = haz_rndms_item[sample_i]
@@ -1136,12 +1158,17 @@ def draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_ind
         group = item['peril_correlation_group']
         for sample_i in range(n_samples):
             eps_buf[sample_i] = damage_eps_ij[group, sample_idxs[sample_i]]
-        get_corr_rval_norm(
-            eps_buf, vuln_rndms_item, item['damage_correlation_value'],
-            norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
-            norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
-            n_samples, vuln_z_unif
-        )
+        if vuln_rndms_is_norm:
+            get_corr_rval_both_norm(eps_buf, vuln_rndms_item, item['damage_correlation_value'],
+                                    norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
+                                    n_samples, vuln_z_unif)
+        else:
+            get_corr_rval_norm(
+                eps_buf, vuln_rndms_item, item['damage_correlation_value'],
+                norm_inv_parameters['x_min'], norm_inv_cdf, norm_inv_parameters['inv_factor'],
+                norm_inv_parameters['cdf_min'], norm_cdf, norm_inv_parameters['norm_factor'],
+                n_samples, vuln_z_unif
+            )
     else:
         # do not use correlation
         for sample_i in range(n_samples):
@@ -1469,6 +1496,10 @@ def _compute_event_losses_core(compute_info,
                                hermite_coeffs,
                                vuln_rndms_base,
                                haz_rndms_base,
+                               vuln_rndms_norm,
+                               vuln_rndms_norm_done,
+                               haz_rndms_norm,
+                               haz_rndms_norm_done,
                                vuln_seeds,
                                haz_seeds,
                                vuln_draw_scratch,
@@ -1815,6 +1846,8 @@ def _compute_event_losses_core(compute_info,
                         areaperil_j_of_sample = areaperil_j_of_building
                         vuln_base = vuln_draw_scratch
                         haz_base = haz_draw_scratch
+                        vuln_is_norm = False
+                        haz_is_norm = False
                         out_start = run_offset + run_start - item_event_data['sample_start']
                         # a source keeps its listed samples' bins for its dependents; anything else's go to scratch
                         src_bin_out = event_sample_bins[run_start:sample_k] if store_source_bin else sample_bin_buf
@@ -1825,8 +1858,18 @@ def _compute_event_losses_core(compute_info,
                         # every sample reads areaperil 0: an item of several placements is sparse, and
                         # effective damageability samples the mixture
                         areaperil_j_of_sample = areaperil_j_single
+                        vuln_is_norm = False
+                        haz_is_norm = False
                         if building_i == 0:
                             vuln_base = vuln_rndms_base[rng_index]
+                            if compute_info['do_correlation'] and item['damage_correlation_value'] > 0:
+                                # the group's row in normal space, filled by its first correlated item
+                                if not vuln_rndms_norm_done[rng_index]:
+                                    fill_norm_row(vuln_rndms_base[rng_index], vuln_rndms_norm[rng_index],
+                                                  norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'], norm_inv_cdf)
+                                    vuln_rndms_norm_done[rng_index] = True
+                                vuln_base = vuln_rndms_norm[rng_index]
+                                vuln_is_norm = True
                         else:
                             vs = np.uint64(vuln_seeds[rng_index])
                             _lh_philox_block(np.uint32(vs & PHILOX_U32_MASK), np.uint32(vs >> PHILOX_SHIFT32), building_i,
@@ -1836,6 +1879,13 @@ def _compute_event_losses_core(compute_info,
                             haz_base = vuln_base  # unused; keeps the argument type stable
                         elif building_i == 0:
                             haz_base = haz_rndms_base[hazard_rng_index]
+                            if compute_info['do_haz_correlation'] and item['hazard_correlation_value'] > 0:
+                                if not haz_rndms_norm_done[hazard_rng_index]:
+                                    fill_norm_row(haz_rndms_base[hazard_rng_index], haz_rndms_norm[hazard_rng_index],
+                                                  norm_inv_parameters['x_min'], norm_inv_parameters['inv_factor'], norm_inv_cdf)
+                                    haz_rndms_norm_done[hazard_rng_index] = True
+                                haz_base = haz_rndms_norm[hazard_rng_index]
+                                haz_is_norm = True
                         else:
                             hs = np.uint64(haz_seeds[hazard_rng_index])
                             _lh_philox_block(np.uint32(hs & PHILOX_U32_MASK), np.uint32(hs >> PHILOX_SHIFT32), building_i,
@@ -1861,7 +1911,8 @@ def _compute_event_losses_core(compute_info,
                         building_i += 1
 
                     draw_correlation_samples(compute_info, item, damage_rval_adj, hazard_rng_index, n_samples, samples,
-                                             haz_base, vuln_base, haz_eps_ij, damage_eps_ij, norm_inv_parameters,
+                                             haz_base, vuln_base, haz_is_norm, vuln_is_norm, haz_eps_ij, damage_eps_ij,
+                                             norm_inv_parameters,
                                              norm_inv_cdf, norm_cdf, eps_buf, haz_z_unif, vuln_z_unif)
                     if not is_dependent and full_monte_carlo:
                         # a dependent's areaperils were resolved with its cdf above
@@ -1967,6 +2018,10 @@ def compute_event_losses(compute_info,
                          hermite_coeffs,
                          vuln_rndms_base,
                          haz_rndms_base,
+                         vuln_rndms_norm,
+                         vuln_rndms_norm_done,
+                         haz_rndms_norm,
+                         haz_rndms_norm_done,
                          vuln_seeds,
                          haz_seeds,
                          vuln_draw_scratch,
@@ -2066,6 +2121,13 @@ def compute_event_losses(compute_info,
         vuln_rndms_base (numpy.array[float64]): 2d (damage rng groups, S) random draws, one row
           per group, which is also every packed item's first building.
         haz_rndms_base (numpy.array[float64]): the same for the hazard rng groups.
+        vuln_rndms_norm (numpy.array[float64]): like ``vuln_rndms_base``, its values' normal
+          quantiles; a row is valid once ``vuln_rndms_norm_done`` says so. Filled by the row's first
+          correlated item (building 1), so that the items of a group transform it once.
+        vuln_rndms_norm_done (numpy.array[bool]): per row of ``vuln_rndms_norm``, whether it is filled
+          this event; False on entry to an event.
+        haz_rndms_norm (numpy.array[float64]): the same for ``haz_rndms_base``.
+        haz_rndms_norm_done (numpy.array[bool]): the same for ``haz_rndms_norm``.
         vuln_seeds (numpy.array[int]): per damage rng group, the Philox key. Read for a packed
           item's buildings 2..N, which are drawn per item rather than shared.
         haz_seeds (numpy.array[int]): the same for the hazard rng groups.
@@ -2211,6 +2273,10 @@ def compute_event_losses(compute_info,
                                       hermite_coeffs,
                                       vuln_rndms_base,
                                       haz_rndms_base,
+                                      vuln_rndms_norm,
+                                      vuln_rndms_norm_done,
+                                      haz_rndms_norm,
+                                      haz_rndms_norm_done,
                                       vuln_seeds,
                                       haz_seeds,
                                       vuln_draw_scratch,

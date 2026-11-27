@@ -227,6 +227,27 @@ def to_norm_space(unif, x_min, inv_factor, norm_inv_cdf):
             unif[row, col] = norm_inv_cdf_lookup(unif[row, col], x_min, inv_factor, norm_inv_cdf, N)
 
 
+@njit(cache=True, fastmath=True, inline='always')
+def fill_norm_row(unif, norm, x_min, inv_factor, norm_inv_cdf):
+    """Write the standard normal quantile of each uniform of the 1d ``unif`` into ``norm``."""
+    N = len(norm_inv_cdf)
+    for i in range(unif.shape[0]):
+        norm[i] = norm_inv_cdf_lookup(unif[i], x_min, inv_factor, norm_inv_cdf, N)
+
+
+@njit(cache=True, fastmath=True)
+def get_corr_rval_both_norm(x_norm, y_norm, rho, cdf_min, norm_cdf, norm_factor, Nsamples, z_unif):
+    """``get_corr_rval`` with both values already in normal space: only the combination's cdf is looked up."""
+    sqrt_rho = sqrt(rho)
+    sqrt_1_minus_rho = sqrt(1. - rho)
+    N = len(norm_cdf)
+
+    for i in range(Nsamples):
+        z_norm = sqrt_rho * x_norm[i] + sqrt_1_minus_rho * y_norm[i]
+
+        z_unif[i] = _interpolate_lookup(z_norm, cdf_min, norm_factor, norm_cdf, N)
+
+
 @njit(cache=True, fastmath=True)
 def get_corr_rval_norm(x_norm, y_unif, rho, x_min, norm_inv_cdf, inv_factor, cdf_min,
                        norm_cdf, norm_factor, Nsamples, z_unif):

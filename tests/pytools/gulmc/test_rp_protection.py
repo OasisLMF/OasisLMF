@@ -124,6 +124,12 @@ _NO_SPARSE_SAMPLES = (np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int32), 
                       np.zeros(0, dtype=np.float64), np.zeros(0, dtype=np.float64))
 
 
+def _no_norm_rows(vuln_rndms_base, haz_rndms_base):
+    """The base rows' normal-space copies and their flags, none filled yet."""
+    return (np.empty_like(vuln_rndms_base), np.zeros(vuln_rndms_base.shape[0], dtype=np.bool_),
+            np.empty_like(haz_rndms_base), np.zeros(haz_rndms_base.shape[0], dtype=np.bool_))
+
+
 def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment=0,
                                     sample_size=0, n_haz_records=1, dependent=False):
     """
@@ -310,7 +316,7 @@ def _make_compute_event_losses_args(event_rp, item_rp, item_intensity_adjustment
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, dynamic_footprint, intensity_bin_peril_ids, intensity_bins,
         sample_losses, loss_correlation_by_item, hermite_coeffs,
-        vuln_rndms_base, haz_rndms_base,
+        vuln_rndms_base, haz_rndms_base, *_no_norm_rows(vuln_rndms_base, haz_rndms_base),
         vuln_seeds, haz_seeds, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
         *_NO_SPARSE_SAMPLES,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
@@ -635,7 +641,7 @@ def test_rp_protection_only_affects_protected_items():
         norm_inv_parameters, norm_inv_cdf, norm_cdf, vuln_z_unif, haz_z_unif,
         byte_mv, True, intensity_bin_peril_ids, intensity_bins,
         sample_losses, loss_correlation_by_item, hermite_coeffs,
-        vuln_rndms_base, haz_rndms_base,
+        vuln_rndms_base, haz_rndms_base, *_no_norm_rows(vuln_rndms_base, haz_rndms_base),
         vuln_seeds, haz_seeds, vuln_draw_scratch, haz_draw_scratch, perm_scratch,
         *_NO_SPARSE_SAMPLES,
         coverage_has_dependents, compute_depth, source_damage_bin_stack, source_eff_damage_cdf_stack,
