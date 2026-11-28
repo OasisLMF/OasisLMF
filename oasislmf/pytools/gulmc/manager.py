@@ -245,6 +245,7 @@ def run(run_dir,
         norm_inv_parameters = structures['norm_inv_parameters']
         intensity_bin_peril_ids = structures['intensity_bin_peril_ids']
         intensity_bins = structures['intensity_bins']
+        intensity_bins_start = structures['intensity_bins_start']
         coverage_source_id = structures['coverage_source_id']
         coverage_dependents_ja_offsets = structures['coverage_dependents_ja_offsets']
         coverage_dependents_ja_data = structures['coverage_dependents_ja_data']
@@ -637,6 +638,7 @@ def run(run_dir,
                             dynamic_footprint,
                             intensity_bin_peril_ids,
                             intensity_bins,
+                            intensity_bins_start,
                             building_losses,
                             loss_correlation_by_item,
                             hermite_coeffs,
@@ -848,12 +850,15 @@ def compute_damage_bin_scaling(damage_bins, Neff_damage_bins, tiv):
 
 @nb.njit(cache=True, fastmath=True, inline='always')
 def merge_dynamic_haz_records_per_bin(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment,
-                                      intensity_bin_peril_ids, intensity_bins, bin_slot, haz_bin_id_out, haz_prob_out):
+                                      intensity_bin_peril_ids, intensity_bins, intensity_bins_start,
+                                      bin_slot, haz_bin_id_out, haz_prob_out):
     """Bin a dynamic footprint areaperil's records for one item, summing the probability of the
     records that fall in the same intensity bin.
 
     A dynamic footprint record holds a raw intensity, binned here because the item's
-    intensity_adjustment shifts it first. An areaperil lying in several sections of an event can
+    intensity_adjustment shifts it first. Intensities, raw or adjusted, can be negative: the column
+    of an intensity in intensity_bins is its offset from intensity_bins_start, and one outside the
+    table takes the bin of its first or last column. An areaperil lying in several sections of an event can
     hold many more records than the model has intensity bins, but all the per-hazard-bin work that
     follows (vulnerability rows, their CDFs, the CDF cache, sampling) depends on the bin alone. So
     the hazard axis is the bins the records fall in, never longer than the number of intensity bins,
@@ -870,7 +875,9 @@ def merge_dynamic_haz_records_per_bin(haz_pdf, haz_start, Nhaz_records, item, in
         item (np.void): the item record (uses peril_id).
         intensity_adjustment (int): intensity shift applied before binning.
         intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids.
-        intensity_bins (np.array[int32, 2d]): [peril_idx, intensity_value] -> intensity_bin_id.
+        intensity_bins (np.array[int32, 2d]): [peril_idx, intensity_value - intensity_bins_start]
+          -> intensity_bin_id.
+        intensity_bins_start (int): the intensity of the first column of intensity_bins.
         bin_slot (np.array[int64]): scratch indexed by bin id, -1 everywhere on entry and on return.
         haz_bin_id_out (np.array[int32]): receives the bin id of each entry.
         haz_prob_out (np.array[oasis_float]): receives the summed probability of each entry.
@@ -885,16 +892,18 @@ def merge_dynamic_haz_records_per_bin(haz_pdf, haz_start, Nhaz_records, item, in
         if intensity_bin_peril_ids[pi] == peril_id:
             peril_idx = nb_int32(pi)
             break
-    max_intensity = nb_int32(intensity_bins.shape[1] - 1)
+    last_col = nb_int64(intensity_bins.shape[1] - 1)
     n_entries = 0
     for record_i in range(haz_start, haz_start + Nhaz_records):
-        intensity_val = haz_pdf[record_i]['intensity'] - intensity_adjustment
-        if intensity_val < 0:
-            intensity_val = nb_int32(0)
-        elif intensity_val > max_intensity:
+        # int64 so that an adjustment can't wrap an int32 intensity
+        col = nb_int64(haz_pdf[record_i]['intensity']) - nb_int64(intensity_adjustment) - nb_int64(intensity_bins_start)
+        if col < 0:
+            # below the table, its first intensity stands for that little or less
+            col = nb_int64(0)
+        elif col > last_col:
             # past the table, its last intensity stands for that much or more
-            intensity_val = max_intensity
-        bin_id = intensity_bins[peril_idx, intensity_val]
+            col = last_col
+        bin_id = intensity_bins[peril_idx, col]
         entry = bin_slot[bin_id]
         if entry < 0:
             entry = n_entries
@@ -910,7 +919,7 @@ def merge_dynamic_haz_records_per_bin(haz_pdf, haz_start, Nhaz_records, item, in
 
 @nb.njit(cache=True, fastmath=True, inline='always')
 def fill_haz_bins(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment, dynamic_footprint,
-                  intensity_bin_peril_ids, intensity_bins, bin_slot, haz_bin_id, haz_pdf_prob):
+                  intensity_bin_peril_ids, intensity_bins, intensity_bins_start, bin_slot, haz_bin_id, haz_pdf_prob):
     """Copy an item's hazard intensity bin ids and probabilities into the per-item scratch buffers.
 
     The item's records are ``haz_pdf[haz_start:haz_start + Nhaz_records]``, read by index and copied
@@ -926,7 +935,9 @@ def fill_haz_bins(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment, 
         intensity_adjustment (int): intensity shift to apply under a dynamic footprint.
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
         intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids.
-        intensity_bins (np.array[int32, 2d]): [peril_idx, intensity_value] -> intensity_bin_id.
+        intensity_bins (np.array[int32, 2d]): [peril_idx, intensity_value - intensity_bins_start]
+          -> intensity_bin_id.
+        intensity_bins_start (int): the intensity of the first column of intensity_bins.
         bin_slot (np.array[int64]): scratch for merge_dynamic_haz_records_per_bin.
         haz_bin_id (np.array[int32]): output, intensity bin id per hazard entry.
         haz_pdf_prob (np.array[float]): output, probability per hazard entry.
@@ -936,7 +947,7 @@ def fill_haz_bins(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment, 
     """
     if dynamic_footprint is not None:
         return merge_dynamic_haz_records_per_bin(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment,
-                                                 intensity_bin_peril_ids, intensity_bins, bin_slot,
+                                                 intensity_bin_peril_ids, intensity_bins, intensity_bins_start, bin_slot,
                                                  haz_bin_id, haz_pdf_prob)
     for haz_i in range(Nhaz_records):
         record = haz_pdf[haz_start + haz_i]
@@ -1292,6 +1303,7 @@ def _compute_event_losses_core(compute_info,
                                dynamic_footprint,
                                intensity_bin_peril_ids,
                                intensity_bins,
+                               intensity_bins_start,
                                building_losses,
                                loss_correlation_by_item,
                                hermite_coeffs,
@@ -1404,7 +1416,8 @@ def _compute_event_losses_core(compute_info,
             # copy this item's (possibly intensity-adjusted) hazard bins and probabilities out of
             # the array containing all hazard pdfs
             Nhaz_entries = fill_haz_bins(haz_pdf, haz_start, Nhaz_records, item, intensity_adjustment, dynamic_footprint,
-                                         intensity_bin_peril_ids, intensity_bins, bin_slot, haz_bin_id, haz_pdf_prob)
+                                         intensity_bin_peril_ids, intensity_bins, intensity_bins_start,
+                                         bin_slot, haz_bin_id, haz_pdf_prob)
 
             cdf_group = nb_int64(item_event_data['eff_cdf_id'])
 
@@ -1623,6 +1636,7 @@ def compute_event_losses(compute_info,
                          dynamic_footprint,
                          intensity_bin_peril_ids,
                          intensity_bins,
+                         intensity_bins_start,
                          building_losses,
                          loss_correlation_by_item,
                          hermite_coeffs,
@@ -1688,8 +1702,10 @@ def compute_event_losses(compute_info,
         byte_mv (numpy.array[byte]): output byte buffer for the binary stream.
         dynamic_footprint (None or object): None if no dynamic footprint, otherwise truthy.
         intensity_bin_peril_ids (np.array[int32]): sorted unique encoded peril_ids (length n_perils).
-        intensity_bins (np.array[int32, 2d]): shape (n_perils, max_intensity + 1) mapping
-          [peril_idx, intensity_value] -> intensity_bin_id.
+        intensity_bins (np.array[int32, 2d]): shape (n_perils, max_intensity - intensity_bins_start + 1)
+          mapping [peril_idx, intensity_value - intensity_bins_start] -> intensity_bin_id.
+        intensity_bins_start (int): the intensity of the first column of intensity_bins, 0 unless
+          the model's intensity_bin_dict has negative intensities.
         conditional_vuln_array (np.array[oasis_float]): damage-transition matrices, indexed
           [cond_idx, dependent damage bin - 1, source damage bin - 1]. Empty when no dependency.
         vuln_idx_to_cond_idx (np.array[int64]): dense vuln index -> conditional row, or -1.
@@ -1779,6 +1795,7 @@ def compute_event_losses(compute_info,
                                       dynamic_footprint,
                                       intensity_bin_peril_ids,
                                       intensity_bins,
+                                      intensity_bins_start,
                                       building_losses,
                                       loss_correlation_by_item,
                                       hermite_coeffs,

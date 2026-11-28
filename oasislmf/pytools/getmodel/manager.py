@@ -206,16 +206,32 @@ def get_intensity_bin_dict(input_path):
     """Loads the intensity bin dictionary file and creates arrays to map intensities to bins.
     Used in the dynamic footprint generation as intensities can be adjusted for defences at runtime.
 
+    The lookup table is dense, one column per integer intensity from ``intensity_min`` to the
+    largest intensity of the file (or 0 if they are all negative), so that gulmc finds a bin with
+    one array read: the column of an intensity is ``intensity - intensity_min``. ``intensity_min``
+    is the lowest intensity of the file, or 0 if none is negative, so the table of a model without
+    negative intensities is the same as before they were supported, indexed from intensity 0.
+    Intensities can be negative, for instance flood depths below a datum.
+
+    Each peril's row is filled from its own rows of the file:
+
+    - an intensity listed in the file takes its bin;
+    - one above the peril's largest intensity takes that intensity's bin: the last intensity of
+      the table stands for that much or more;
+    - a negative one below the peril's lowest intensity takes that intensity's bin, as the lowest
+      intensity stands for that little or less (for a peril listed from 0, the bin of intensity 0);
+    - any other one, missing between two listed intensities, takes the bin of intensity 0 of the
+      peril (see #2239).
+
     Args:
         input_path (str): the path pointing to the file
 
     Returns:
-        Tuple[np.array[int32], np.array[int32, 2d]]: intensity_bin_peril_ids, a 1-d array of
-            unique encoded peril_ids (length n_perils), and intensity_bins, a 2-d array of shape
-            (n_perils, max_intensity + 1) mapping [peril_idx, intensity_value] ->
-            intensity_bin_id. Slots not present in the CSV are pre-filled with the fallback bin
-            for intensity=0 of that peril, except those above the peril's largest intensity, which
-            take its bin: the last intensity of the table stands for that much or more.
+        Tuple[np.array[int32], np.array[int32, 2d], int]: intensity_bin_peril_ids, a 1-d array of
+            unique encoded peril_ids (length n_perils); intensity_bins, a 2-d array of shape
+            (n_perils, max_intensity - intensity_min + 1) mapping
+            [peril_idx, intensity_value - intensity_min] -> intensity_bin_id; and intensity_min,
+            the intensity of the table's first column.
     """
     input_files = set(os.listdir(input_path))
     if "intensity_bin_dict.csv" not in input_files:
@@ -231,28 +247,41 @@ def get_intensity_bin_dict(input_path):
     # unique peril_ids (typically 1-3)
     unique_perils = np.unique(data[:, 0])
     n_perils = len(unique_perils)
-    max_intensity = int(data[:, 1].max())
+    # the table always holds intensity 0, and starts there unless the file has negative intensities,
+    # so that the table of a model without them is unchanged
+    max_intensity = max(0, int(data[:, 1].max()))
+    intensity_min = min(0, int(data[:, 1].min()))
+    n_intensities = max_intensity - intensity_min + 1
 
     # build peril_id -> peril_idx mapping (small linear scan is fine)
     intensity_bin_peril_ids = unique_perils.astype(np.int32)
 
-    # allocate and pre-fill with fallback (bin for intensity=0 per peril)
-    intensity_bins = np.zeros((n_perils, max_intensity + 1), dtype=np.int32)
+    intensity_bins = np.zeros((n_perils, n_intensities), dtype=np.int32)
+    # which slots are set: a bin id of 0 in the table can't tell them apart
+    filled = np.zeros((n_perils, n_intensities), dtype=np.bool_)
     for d in data:
         peril_id, intensity_val, bin_id = d[0], d[1], d[2]
         peril_idx = np.searchsorted(intensity_bin_peril_ids, peril_id)
-        intensity_bins[peril_idx, intensity_val] = bin_id
+        intensity_bins[peril_idx, intensity_val - intensity_min] = bin_id
+        filled[peril_idx, intensity_val - intensity_min] = True
 
-    # pre-fill missing slots with the fallback value (bin for intensity=0), and those above a
-    # peril's largest intensity with its bin, as gulmc clamps any larger intensity to the last slot
+    # fill the slots the file doesn't set (see the docstring); gulmc clamps any intensity outside
+    # the table to its first or last slot
+    zero_slot = -intensity_min
     for pi in range(n_perils):
-        fallback = intensity_bins[pi, 0]
-        peril_max = int(data[data[:, 0] == intensity_bin_peril_ids[pi], 1].max())
-        for i in range(max_intensity + 1):
-            if intensity_bins[pi, i] == 0 and i != 0:
-                intensity_bins[pi, i] = fallback if i < peril_max else intensity_bins[pi, peril_max]
+        peril_intensities = data[data[:, 0] == intensity_bin_peril_ids[pi], 1]
+        peril_min_slot = int(peril_intensities.min()) - intensity_min
+        peril_max_slot = int(peril_intensities.max()) - intensity_min
+        # past the peril's range first, as it can hold intensity 0 for a peril with only
+        # negative intensities
+        for i in range(n_intensities):
+            if not filled[pi, i] and (i > peril_max_slot or i < min(peril_min_slot, zero_slot)):
+                intensity_bins[pi, i] = intensity_bins[pi, peril_max_slot if i > peril_max_slot else peril_min_slot]
+                filled[pi, i] = True
+        # then the gaps
+        intensity_bins[pi, ~filled[pi]] = intensity_bins[pi, zero_slot]
 
-    return intensity_bin_peril_ids, intensity_bins
+    return intensity_bin_peril_ids, intensity_bins, intensity_min
 
 
 def encode_peril_id(peril_id):

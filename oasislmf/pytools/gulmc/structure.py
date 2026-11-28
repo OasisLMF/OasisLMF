@@ -50,7 +50,7 @@ DYNAMIC_FOOTPRINT_DIR = 'dynamic_footprint'
 
 # (variable_name, filename) pairs for all arrays that are saved/loaded.
 # number of scalars load_gulmc_structure reads out of metadata.npy
-N_METADATA_FIELDS = 3
+N_METADATA_FIELDS = 4
 
 ARRAY_FILES = [
     'items',
@@ -642,10 +642,11 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
 
     # --- dynamic footprint intensity bins --------------------------------------
     if dynamic_footprint:
-        intensity_bin_peril_ids, intensity_bins = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
+        intensity_bin_peril_ids, intensity_bins, intensity_bins_start = get_intensity_bin_dict(os.path.join(run_dir, 'static'))
     else:
         intensity_bin_peril_ids = np.empty(0, dtype=np.int32)
         intensity_bins = np.empty((0, 0), dtype=np.int32)
+        intensity_bins_start = 0
 
     # --- pack everything into a dict -------------------------------------------
     # Only include arrays used at runtime (event loop). Build-time intermediaries
@@ -680,6 +681,8 @@ def build_structures(run_dir, ignore_file_type, peril_filter, dynamic_footprint,
         'n_cdf_groups': n_cdf_groups,
         'n_unique_groups': n_unique_groups,
         'n_unique_haz_groups': n_unique_haz_groups,
+        # intensity of the first column of intensity_bins
+        'intensity_bins_start': intensity_bins_start,
     }
 
 
@@ -712,6 +715,7 @@ def create_gulmc_structure(run_dir, ignore_file_type, peril_filter,
         structures['n_cdf_groups'],
         structures['n_unique_groups'],
         structures['n_unique_haz_groups'],
+        structures['intensity_bins_start'],
     ], dtype=np.int64)
     np.save(os.path.join(structure_path, 'metadata'), metadata)
 
@@ -744,5 +748,6 @@ def load_gulmc_structure(run_dir):
     result['n_cdf_groups'] = int(metadata[0])
     result['n_unique_groups'] = int(metadata[1])
     result['n_unique_haz_groups'] = int(metadata[2])
+    result['intensity_bins_start'] = int(metadata[3])
 
     return result
