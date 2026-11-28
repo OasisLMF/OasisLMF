@@ -31,7 +31,8 @@ loss_dtype, loss_dtype_size = def_to_type_and_size("loss")
 class ELTReader(EventReader):
     """Read an event loss stream and compute the ELT outputs (SELT, MELT, QELT)."""
 
-    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals, n_files=1):
+    def __init__(self, len_sample, compute_selt, compute_melt, compute_qelt, unique_event_ids, event_rates, intervals, n_files=1,
+                 melt_exclude_zero_loss=False):
         self.logger = logger
 
         # Buffer for SELT data
@@ -53,6 +54,7 @@ class ELTReader(EventReader):
             ('compute_selt', np.bool_),
             ('compute_melt', np.bool_),
             ('compute_qelt', np.bool_),
+            ('melt_exclude_zero_loss', np.bool_),
             ('current_event_id', event_id_dtype),
             ('summary_id', summary_id_dtype),
             ('impacted_exposure', oasis_float),
@@ -72,6 +74,7 @@ class ELTReader(EventReader):
         self.state["compute_selt"] = compute_selt
         self.state["compute_melt"] = compute_melt
         self.state["compute_qelt"] = compute_qelt
+        self.state["melt_exclude_zero_loss"] = melt_exclude_zero_loss
         self.unique_event_ids = unique_event_ids.astype(oasis_int)
         self.event_rates = event_rates.astype(oasis_float)
         self.intervals = intervals
@@ -270,39 +273,46 @@ def read_buffer(
                         else:
                             event_rate = np.nan
 
+                        # With melt_exclude_zero_loss, drop zero-loss rows using the same rules as
+                        # pltpy's MPLT: analytical row only if its mean > 0, sample row only if
+                        # its mean > 0 or its standard deviation > 0.
+                        exclude_zero = state["melt_exclude_zero_loss"]
+
                         # Update MELT data (analytical mean)
-                        _update_melt_data(
-                            melt_data, mi,
-                            event_id=event_id,
-                            summary_id=state["summary_id"],
-                            sample_type=MEAN_TYPE_ANALYTICAL,
-                            event_rate=event_rate,
-                            chance_of_loss=0,
-                            meanloss=state["analytical_mean"],
-                            sdloss=0,
-                            maxloss=state["max_loss"],
-                            footprint_exposure=state["impacted_exposure"],
-                            mean_impacted_exposure=state["impacted_exposure"],
-                            max_impacted_exposure=state["impacted_exposure"]
-                        )
-                        mi += 1
+                        if not exclude_zero or state["analytical_mean"] > 0:
+                            _update_melt_data(
+                                melt_data, mi,
+                                event_id=event_id,
+                                summary_id=state["summary_id"],
+                                sample_type=MEAN_TYPE_ANALYTICAL,
+                                event_rate=event_rate,
+                                chance_of_loss=0,
+                                meanloss=state["analytical_mean"],
+                                sdloss=0,
+                                maxloss=state["max_loss"],
+                                footprint_exposure=state["impacted_exposure"],
+                                mean_impacted_exposure=state["impacted_exposure"],
+                                max_impacted_exposure=state["impacted_exposure"]
+                            )
+                            mi += 1
 
                         # Update MELT data (sample mean)
-                        _update_melt_data(
-                            melt_data, mi,
-                            event_id=event_id,
-                            summary_id=state["summary_id"],
-                            sample_type=MEAN_TYPE_SAMPLE,
-                            event_rate=event_rate,
-                            chance_of_loss=chance_of_loss,
-                            meanloss=meanloss,
-                            sdloss=sdloss,
-                            maxloss=state["max_loss"],
-                            footprint_exposure=state["impacted_exposure"],
-                            mean_impacted_exposure=mean_imp_exp,
-                            max_impacted_exposure=state["impacted_exposure"] if state["non_zero_samples"] > 0 else 0
-                        )
-                        mi += 1
+                        if not exclude_zero or meanloss > 0 or sdloss > 0:
+                            _update_melt_data(
+                                melt_data, mi,
+                                event_id=event_id,
+                                summary_id=state["summary_id"],
+                                sample_type=MEAN_TYPE_SAMPLE,
+                                event_rate=event_rate,
+                                chance_of_loss=chance_of_loss,
+                                meanloss=meanloss,
+                                sdloss=sdloss,
+                                maxloss=state["max_loss"],
+                                footprint_exposure=state["impacted_exposure"],
+                                mean_impacted_exposure=mean_imp_exp,
+                                max_impacted_exposure=state["impacted_exposure"] if state["non_zero_samples"] > 0 else 0
+                            )
+                            mi += 1
 
                 # Update QELT data
                 if state["compute_qelt"]:
@@ -401,6 +411,7 @@ def run(
     qelt_output_file=None,
     noheader=False,
     output_format="csv",
+    melt_exclude_zero_loss=False,
 ):
     """Runs ELT calculations
 
@@ -412,6 +423,9 @@ def run(
         qelt_output_file (str, optional): Path to QELT output file. Defaults to None.
         noheader (bool): Boolean value to skip header in output file. Defaults to False.
         output_format (str): Output format extension. Defaults to "csv".
+        melt_exclude_zero_loss (bool): Leave out MELT rows with zero loss, using the same rules as
+            pltpy's MPLT (analytical mean row only when its mean loss > 0, sample mean row only when
+            its mean loss > 0 or its standard deviation > 0). Defaults to False (all rows written).
     """
     outmap = {
         "selt": {
@@ -477,7 +491,8 @@ def run(
             file_data["unique_event_ids"],
             file_data["event_rates"],
             file_data["intervals"],
-            n_files=len(streams_in)
+            n_files=len(streams_in),
+            melt_exclude_zero_loss=melt_exclude_zero_loss,
         )
 
         # Initialise output files ELT
@@ -528,7 +543,7 @@ def run(
 
 
 @redirect_logging(exec_name='eltpy')
-def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, noheader=False, ext="csv", **kwargs):
+def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, noheader=False, ext="csv", melt_exclude_zero_loss=False, **kwargs):
     run(
         run_dir,
         files_in,
@@ -537,4 +552,5 @@ def main(run_dir='.', files_in=None, selt=None, melt=None, qelt=None, noheader=F
         qelt_output_file=qelt,
         noheader=noheader,
         output_format=ext,
+        melt_exclude_zero_loss=melt_exclude_zero_loss,
     )

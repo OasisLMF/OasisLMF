@@ -154,6 +154,12 @@ summarycalc stream and output to file. The analytical mean is also output as a s
 
 The EventRate column requires the prescence of a event_rates.csv file which contains the mapping from EventId to EventRate.
 
+By default MELT has both records for every SummaryId and EventId with a non-zero exposure, even when the loss is zero.
+MPLT leaves out zero-loss records: the analytical mean record only if its mean loss is greater than zero, and the sample
+mean record only if its mean loss or its standard deviation is greater than zero. To apply the same rule to MELT, set
+``"melt_exclude_zero_loss": true`` in the summary set's ``ord_output`` block in ``analysis_settings.json`` (this passes
+``--melt_exclude_zero_loss`` to ``eltpy``). It only changes MELT; SELT and QELT are not affected.
+
 |
 
 * **QELT**

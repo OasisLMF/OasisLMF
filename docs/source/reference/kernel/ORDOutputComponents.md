@@ -60,6 +60,11 @@ and `rl_inuring_priorities` add outputs for intermediate inuring priorities (see
 instead of CSV) and `return_period_file` (use `input/returnperiods.bin` for the EP curve
 return periods).
 
+`melt_exclude_zero_loss` (default `false`) leaves zero-loss rows out of MELT using the same rule as
+MPLT: the analytical mean row is written only if its mean loss is greater than zero, and the sample
+mean row only if its mean loss or standard deviation is greater than zero. Without it, MELT has both
+rows for every event and summary with non-zero exposure, even when the loss is zero.
+
 ## How they are produced in a run
 
 `oasislmf model run` generates a `run_kernel.sh` pipeline that streams `summarypy` output

@@ -436,3 +436,123 @@ def test_multifile_current_event_id_not_leaked_across_files():
         expected = sorted([(999, 101), (999, 101), (999, 102), (999, 102),
                            (1000, 201), (1000, 201), (1000, 202), (1000, 202)])
         assert sorted(zip(melt["EventId"], melt["SummaryId"])) == expected
+
+
+# Summaries covering every case of the MPLT zero-loss rules (issue #2168), all with exposure > 0:
+#   101: all losses zero, analytical mean zero        -> both MELT rows are zero-loss
+#   102: analytical mean > 0, all samples zero        -> only the sample mean row is zero-loss
+#   103: analytical mean zero, samples > 0            -> only the analytical mean row is zero-loss
+#   104: non-zero analytical mean and samples         -> neither row is zero-loss
+#   105: no analytical mean record, samples > 0       -> analytical mean row is zero-loss
+_ZERO_LOSS_SUMMARIES = [
+    (1, 101, 1000.0, [(MEAN_IDX, 0.0), (1, 0.0), (2, 0.0)]),
+    (1, 102, 1000.0, [(MEAN_IDX, 5.0), (1, 0.0), (2, 0.0)]),
+    (1, 103, 1000.0, [(MEAN_IDX, 0.0), (1, 10.0), (2, 0.0)]),
+    (1, 104, 1000.0, [(MEAN_IDX, 5.0), (1, 10.0), (2, 20.0)]),
+    (2, 105, 1000.0, [(1, 0.0), (2, 4.0)]),
+]
+
+
+def _run_melt(tmp_dir, **kwargs):
+    stream_file = _build_summary_stream(tmp_dir, 2, _ZERO_LOSS_SUMMARIES)
+    melt_out = tmp_dir / "melt.csv"
+    with patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+        main(run_dir=tmp_dir, files_in=stream_file, melt=melt_out, ext="csv", **kwargs)
+    return pd.read_csv(melt_out)
+
+
+def test_melt_keeps_zero_loss_rows_by_default():
+    with TemporaryDirectory() as tmp_dir_str:
+        melt = _run_melt(Path(tmp_dir_str))
+    assert len(melt) == 2 * len(_ZERO_LOSS_SUMMARIES)
+    assert (melt["MeanLoss"] == 0).sum() == 5
+
+
+def test_melt_exclude_zero_loss_matches_mplt_rules():
+    with TemporaryDirectory() as tmp_dir_str:
+        melt = _run_melt(Path(tmp_dir_str), melt_exclude_zero_loss=True)
+    rows = sorted(zip(melt["EventId"], melt["SummaryId"], melt["SampleType"]))
+    assert rows == [
+        (1, 102, 1),  # analytical mean row: mean loss 5 > 0
+        (1, 103, 2),  # sample mean row: mean loss 5 > 0
+        (1, 104, 1),
+        (1, 104, 2),
+        (2, 105, 2),
+    ]
+    assert (melt["MeanLoss"] > 0).all()
+
+
+def test_melt_exclude_zero_loss_sample_row_kept_for_sd_only():
+    """MPLT keeps the sample mean row when the mean is not > 0 but the standard deviation is
+    (possible with negative sample losses); MELT must follow the same rule."""
+    summaries = [(1, 101, 1000.0, [(MEAN_IDX, 0.0), (1, -3.0), (2, 3.0)])]
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = _build_summary_stream(tmp_dir, 2, summaries)
+        melt_out = tmp_dir / "melt.csv"
+        with patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            main(run_dir=tmp_dir, files_in=stream_file, melt=melt_out, ext="csv", melt_exclude_zero_loss=True)
+        melt = pd.read_csv(melt_out)
+    assert list(melt["SampleType"]) == [2]
+    assert melt["MeanLoss"].iloc[0] == 0
+    assert melt["SDLoss"].iloc[0] > 0
+
+
+def test_melt_exclude_zero_loss_does_not_change_selt_or_qelt():
+    intervals = _make_intervals([0.5], 2)
+    outputs = {}
+    for exclude in (False, True):
+        with TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            stream_file = _build_summary_stream(tmp_dir, 2, _ZERO_LOSS_SUMMARIES)
+            with patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))), \
+                    patch('oasislmf.pytools.elt.manager.read_quantile', return_value=intervals):
+                main(run_dir=tmp_dir, files_in=stream_file, selt=tmp_dir / "selt.csv", melt=tmp_dir / "melt.csv",
+                     qelt=tmp_dir / "qelt.csv", ext="csv", melt_exclude_zero_loss=exclude)
+            outputs[exclude] = {name: pd.read_csv(tmp_dir / f"{name}.csv") for name in ("selt", "qelt")}
+    for name in ("selt", "qelt"):
+        pd.testing.assert_frame_equal(outputs[False][name], outputs[True][name])
+
+
+@pytest.mark.parametrize("argv, expected", [
+    ([], False),
+    (["--melt_exclude_zero_loss"], True),
+])
+def test_cli_melt_exclude_zero_loss_flag(monkeypatch, argv, expected):
+    from oasislmf.pytools.elt import cli
+    monkeypatch.setattr(sys, "argv", ["eltpy", "-m", "melt.csv"] + argv)
+    with patch.object(cli.manager, "main") as mock_main:
+        cli.main()
+    assert mock_main.call_args.kwargs["melt_exclude_zero_loss"] is expected
+
+
+def test_melt_exclude_zero_loss_keeps_same_rows_as_mplt():
+    """With the option on, MELT has a row for exactly the (event, summary, sample type)
+    combinations that pltpy writes to MPLT for the same stream, with the same losses."""
+    from oasislmf.pytools.plt.manager import main as plt_main
+    from tests.pytools.pltpy.test_pltpy import _make_occ_csr
+
+    summaries = _ZERO_LOSS_SUMMARIES + [(3, 106, 1000.0, [(MEAN_IDX, 0.0), (1, -3.0), (2, 3.0)])]
+    event_ids = sorted({s[0] for s in summaries})
+    occ_csr = _make_occ_csr({eid: [eid] for eid in event_ids})  # one occurrence per event
+    period_weights = np.array([(eid, 1.0) for eid in event_ids], dtype=np.dtype([("period_no", np.int32), ("weighting", "f4")]))
+
+    with TemporaryDirectory() as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        stream_file = _build_summary_stream(tmp_dir, 2, summaries)
+        melt_out = tmp_dir / "melt.csv"
+        mplt_out = tmp_dir / "mplt.csv"
+        with patch('oasislmf.pytools.elt.manager.read_event_rates', return_value=(np.array([], dtype=oasis_int), np.array([], dtype=oasis_float))):
+            main(run_dir=tmp_dir, files_in=stream_file, melt=melt_out, ext="csv", melt_exclude_zero_loss=True)
+        with patch('oasislmf.pytools.plt.manager.read_occurrence', return_value=(occ_csr, 1, False, 1)), \
+                patch('oasislmf.pytools.plt.manager.read_periods', return_value=period_weights):
+            plt_main(run_dir=tmp_dir, files_in=stream_file, mplt=mplt_out, ext="csv")
+        melt = pd.read_csv(melt_out)
+        mplt = pd.read_csv(mplt_out)
+
+    cols = ["EventId", "SummaryId", "SampleType", "MeanLoss", "SDLoss"]
+    melt = melt[cols].sort_values(cols[:3]).reset_index(drop=True)
+    mplt = mplt[cols].sort_values(cols[:3]).reset_index(drop=True)
+    assert len(mplt) > 0
+    # MPLT CSV writes losses to 2 decimal places, MELT to 6
+    pd.testing.assert_frame_equal(melt, mplt, check_dtype=False, check_exact=False, atol=0.01)

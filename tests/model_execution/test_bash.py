@@ -674,3 +674,45 @@ def test_gulmc_accepts_the_section_merge_flag():
     assert parser.parse_args([]).section_merge == SECTION_MERGE_DEFAULT
     with pytest.raises(SystemExit):
         parser.parse_args(['--section-merge', 'maximum'])
+
+
+def _ord_eltpy_lines(tmp_path, ord_output, process_id=1):
+    """eltpy lines that do_ord writes for one gul summary set with the given ord_output settings."""
+    from oasislmf.execution.bash import do_ord
+    script = tmp_path / f'ord_{process_id}.sh'
+    script.touch()
+    do_ord('gul', {'gul_summaries': [{'id': 1, 'ord_output': ord_output}]}, process_id, str(script),
+           {'pid_monitor_count': 0}, stderr_guard=False)
+    return [line for line in script.read_text().splitlines() if line.startswith('eltpy')]
+
+
+@pytest.mark.parametrize('process_id', [1, 2])
+def test_melt_exclude_zero_loss_passed_to_eltpy(tmp_path, process_id):
+    lines = _ord_eltpy_lines(tmp_path, {'elt_moment': True, 'elt_quantile': True, 'melt_exclude_zero_loss': True}, process_id)
+    assert len(lines) == 1
+    assert lines[0].startswith('eltpy -E bin --melt_exclude_zero_loss ')
+    assert ' -m ' in lines[0] and ' -q ' in lines[0]
+
+
+@pytest.mark.parametrize('ord_output', [
+    {'elt_moment': True},  # default: no flag, scripts unchanged
+    {'elt_moment': True, 'melt_exclude_zero_loss': False},
+    {'elt_quantile': True, 'melt_exclude_zero_loss': True},  # no MELT asked for, so nothing to filter
+    {'elt_sample': True, 'melt_exclude_zero_loss': True},
+])
+def test_melt_exclude_zero_loss_not_passed_to_eltpy(tmp_path, ord_output):
+    lines = _ord_eltpy_lines(tmp_path, ord_output)
+    assert len(lines) == 1
+    assert '--melt_exclude_zero_loss' not in lines[0]
+
+
+def test_melt_exclude_zero_loss_not_passed_to_pltpy(tmp_path):
+    from oasislmf.execution.bash import do_ord
+    script = tmp_path / 'ord.sh'
+    script.touch()
+    ord_output = {'elt_moment': True, 'plt_moment': True, 'melt_exclude_zero_loss': True}
+    do_ord('gul', {'gul_summaries': [{'id': 1, 'ord_output': ord_output}]}, 1, str(script),
+           {'pid_monitor_count': 0}, stderr_guard=False)
+    pltpy_lines = [line for line in script.read_text().splitlines() if line.startswith('pltpy')]
+    assert len(pltpy_lines) == 1
+    assert '--melt_exclude_zero_loss' not in pltpy_lines[0]

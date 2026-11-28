@@ -18,6 +18,9 @@ def main():
                         help='logging level (debug:10, info:20, warning:30, error:40, critical:50)')
     parser.add_argument('-H', '--noheader', action='store_true', help='Suppress header in output files')
     parser.add_argument('-E', '--ext', type=str, default='csv', choices=VALID_EXT, help='Output data format')
+    parser.add_argument('--melt_exclude_zero_loss', action='store_true',
+                        help='Leave out MELT rows with zero loss, matching pltpy MPLT: the analytical mean row is written only '
+                             'if its mean loss > 0, the sample mean row only if its mean loss > 0 or its standard deviation > 0')
 
     args = parser.parse_args()
     kwargs = vars(args)
