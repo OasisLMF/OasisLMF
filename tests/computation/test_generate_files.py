@@ -372,6 +372,24 @@ class TestGenFiles(ComputationChecker):
                          'keys_errors_path': keys_err_file}
             file_gen_return = self.manager.generate_files(**call_args)
 
+    def test_files__keys_ids_out_of_range__raise__issue_2197(self):
+        # areaperil 4294967298 used to be written to items.bin as uint32 2, and vulnerability
+        # 3000000000 as int32 -1294967296, with no error
+        for areaperil_id, vulnerability_id, message in (
+            (4294967298, 2, 'areaperil_id value 4294967298'),
+            (54, 3000000000, 'vulnerability_id value 3000000000'),
+        ):
+            with self.subTest(areaperil_id=areaperil_id, vulnerability_id=vulnerability_id):
+                keys = MIN_KEYS.replace('1,WTC,1,54,2', f'1,WTC,1,{areaperil_id},{vulnerability_id}')
+                self.write_str(self.tmp_files.get('keys_data_path'), keys)
+                with self.tmp_dir() as t_dir:
+                    call_args = {**self.min_args,
+                                 'oasis_files_dir': t_dir,
+                                 'keys_data_path': self.tmp_files.get('keys_data_path').name,
+                                 'keys_errors_path': self.tmp_files.get('keys_errors_path').name}
+                    with self.assertRaisesRegex(OasisException, message):
+                        self.manager.generate_files(**call_args)
+
     def test_files__level_with_no_matching_terms__acc_idx_populated__issue_1989(self):
         # Regression test for issue #1989: check that file generation succeeds
         # when an FM level has policy terms defined but none of them apply to the

@@ -33,6 +33,7 @@ from .common import (
 from oasislmf.pytools.common.data import (
     footprint_event_dtype, areaperil_int, memmap_or_empty, is_first_entry_zlib_compressed
 )
+from oasislmf.utils.integer_narrowing import raise_if_out_of_range, widen_int_dtypes
 from oasislmf.pytools.getmodel.dynamic_footprint import (
     LEVEL_SCALE, MERGE_MAX, MERGE_MAX_INDEPENDENT, MERGE_SUM, collapse, interpolate_brackets, is_sorted, merge_sections)
 
@@ -92,13 +93,16 @@ def has_number_in_range(sorted_areaperil_ids, min_areaperil_id, max_areaperil_id
     return j < sorted_areaperil_ids.shape[0] and sorted_areaperil_ids[j] <= max_areaperil_id
 
 
-def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
+def df_to_numpy(dataframe, dtype, columns={}, source=None) -> np.array:
     """Convert a pandas DataFrame to a numpy structured array.
+
+    Integer values that don't fit their field raise instead of being silently wrapped (#2197).
 
     Args:
         dataframe: DataFrame to convert to numpy
         dtype: numpy dtype of the output ndarray
         columns: optional dict-like object (with get method) mapping np_column => dataframe_column if they are different
+        source: file the data comes from, for error messages
 
     Returns:
         numpy nd array
@@ -111,7 +115,9 @@ def df_to_numpy(dataframe, dtype, columns={}) -> np.array:
     """
     numpy_data = np.empty(len(dataframe), dtype=dtype)
     for np_column in dtype.fields.keys():
-        numpy_data[:][np_column] = dataframe[columns.get(np_column, np_column)].to_numpy()
+        values = dataframe[columns.get(np_column, np_column)].to_numpy()
+        raise_if_out_of_range(values, numpy_data.dtype[np_column], np_column, source)
+        numpy_data[:][np_column] = values
     return numpy_data
 
 
@@ -276,8 +282,10 @@ class Footprint:
         """Reads footprint data from a parquet file.
 
         Returns: (np.array) footprint data loaded from the parquet file
+
+        Raises: OasisException if an integer value doesn't fit its Event field
         """
-        return df_to_numpy(data_frame, Event)
+        return df_to_numpy(data_frame, Event, source="footprint")
 
     def areaperil_in_range(self, event_id, events_dict):
         if self.areaperil_ids is None:
@@ -302,7 +310,9 @@ class FootprintCsv(Footprint):
     footprint_filenames = [csvfootprint_filename]
 
     def __enter__(self):
-        self.reader = self.get_df_reader("footprint.csv", dtype=footprint_event_dtype)
+        # integers are read as 64 bits and range-checked when narrowed to Event in
+        # prepare_df_data, as pandas may wrap them when read straight into 32 bits (#2197)
+        self.reader = self.get_df_reader("footprint.csv", dtype=widen_int_dtypes(footprint_event_dtype))
 
         self.num_intensity_bins = self.reader.query(lambda df: df['intensity_bin_id'].max())
 
@@ -553,7 +563,9 @@ class FootprintParquet(Footprint):
                     table = table.filter(pc.is_in(table['areaperil_id'], value_set=value_set))
                     part = np.empty(table.num_rows, dtype=Event)
                     for column in Event.fields:
-                        part[column] = table[column].to_numpy()
+                        values = table[column].to_numpy()
+                        raise_if_out_of_range(values, part.dtype[column], column, file_path)
+                        part[column] = values
                     parts.append(part)
         if not parts:
             return np.empty(0, dtype=Event)
@@ -1128,6 +1140,13 @@ def not_whole_numbers(values):
     return ~np.isfinite(values) | (values != np.floor(values))
 
 
+def outside_int32(values):
+    """Flag the values a cast to int32 would wrap; return periods are int32 from the footprint on (#2197)."""
+    values = values.to_numpy(np.float64)
+    int32 = np.iinfo(np.int32)
+    return (values < int32.min) | (values >= int32.max + 1.0)
+
+
 def validate_event_definition(df_event_definition):
     """Refuse event definition values the footprint build cannot use.
 
@@ -1139,6 +1158,9 @@ def validate_event_definition(df_event_definition):
         bad = not_whole_numbers(df_event_definition[rp_col])
         if bad.any():
             refuse_rows(event_defintion_filename, df_event_definition, f"an {rp_col} that is missing or not a whole number", bad)
+        bad = outside_int32(df_event_definition[rp_col])
+        if bad.any():
+            refuse_rows(event_defintion_filename, df_event_definition, f"an {rp_col} outside the int32 range", bad)
     bad = ~np.isfinite(df_event_definition['interpolation'].to_numpy(np.float64))
     if bad.any():
         refuse_rows(event_defintion_filename, df_event_definition, "an interpolation that is missing or not finite", bad)
@@ -1158,6 +1180,9 @@ def validate_hazard_case(df_hazard_case):
     bad = not_whole_numbers(df_hazard_case['return_period'])
     if bad.any():
         refuse("a return_period that is missing or not a whole number", bad)
+    bad = outside_int32(df_hazard_case['return_period'])
+    if bad.any():
+        refuse("a return_period outside the int32 range", bad)
     intensity = df_hazard_case['intensity'].to_numpy(np.float64)
     int32 = np.iinfo(np.int32)
     bad = ~np.isfinite(intensity) | (intensity < int32.min) | (intensity > int32.max)

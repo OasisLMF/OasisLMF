@@ -64,6 +64,7 @@ from oasislmf.utils.deprecation import warn_deprecated
 from oasislmf.utils.defaults import (SOURCE_IDX, SAR_ID, DISAGGREGATION_MODES, DISAGGREGATION_NONE,
                                      DISAGGREGATION_ITEMS, DISAGGREGATION_SAMPLES)
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.integer_narrowing import astype_in_range, widen_int_dtypes
 
 
 logger = logging.getLogger(__name__)
@@ -440,7 +441,9 @@ def get_dataframe(
                         low_memory=low_memory,
                         keep_default_na=False,
                         na_values=na_values,
-                        dtype=col_dtypes,
+                        # integers are read as 64 bits and narrowed with a range check by
+                        # set_dataframe_column_dtypes below, as pandas may wrap them (#2197)
+                        dtype=widen_int_dtypes(col_dtypes),
                         encoding=use_encoding,
                         quotechar='"',
                         skipinitialspace=True,
@@ -521,7 +524,7 @@ def get_dataframe(
 
     if col_dtypes:
         _col_dtypes = {k.lower(): v for k, v in col_dtypes.items()} if lowercase_cols else col_dtypes
-        df = set_dataframe_column_dtypes(df, _col_dtypes)
+        df = set_dataframe_column_dtypes(df, _col_dtypes, source=src_fp)
 
     if sort_cols:
         _sort_cols = (
@@ -789,7 +792,7 @@ def prepare_account_df(accounts_df):
                                     ).astype('uint32')
         accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + ['PolNumber', 'LayerNumber'])
     else:
-        accounts_df['layer_id'] = accounts_df['layer_id'].astype('uint32')
+        accounts_df['layer_id'] = astype_in_range(accounts_df['layer_id'], 'uint32', source='account file')
     return accounts_df
 
 
@@ -937,7 +940,7 @@ def print_dataframe(
         end=end)
 
 
-def set_dataframe_column_dtypes(df, dtypes):
+def set_dataframe_column_dtypes(df, dtypes, source=None):
     """A method to set column datatypes for a Pandas dataframe
 
     Args:
@@ -945,16 +948,21 @@ def set_dataframe_column_dtypes(df, dtypes):
         dtypes (dict): A dict of column names and corresponding Numpy datatypes -
             Python built-in datatypes can be passed in but they will be
             mapped to the corresponding Numpy datatypes
+        source (str): file the dataframe was read from, for error messages
 
     Returns:
         pandas.DataFrame: The processed dataframe with column datatypes set
+
+    Raises:
+        OasisException: if an integer value doesn't fit its column's integer dtype, rather
+            than letting ``astype`` silently wrap it (#2197)
     """
     existing_cols = list(set(dtypes).intersection(df.columns))
     _dtypes = {
         col: PANDAS_BASIC_DTYPES[getattr(builtins, dtype) if dtype in ('int', 'bool', 'float', 'object', 'str',) else dtype]
         for col, dtype in [(_col, dtypes[_col]) for _col in existing_cols]
     }
-    df = df.astype(_dtypes)
+    df = astype_in_range(df, _dtypes, source=source)
 
     return df
 
