@@ -29,6 +29,7 @@ from oasislmf.utils.defaults import (CORRELATION_GROUP_ID, DISAGGREGATION_ITEMS,
                                      get_default_exposure_profile)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import SUPPORTED_FM_LEVELS
+from oasislmf.utils.integer_narrowing import astype_in_range
 from oasislmf.utils.log import oasis_log
 from oasislmf.utils.path import as_path
 from oasislmf.utils.profiles import get_grouped_fm_profile_by_level_and_term_group, get_oed_hierarchy
@@ -197,7 +198,7 @@ def coverages_write_gul_bin(data, file_path, dtype):
     tiv and nothing else -- the building count goes to coverage_buildings, see
     write_coverage_buildings.
     """
-    df_to_ndarray(data, dtype)['tiv'].tofile(file_path)
+    df_to_ndarray(data, dtype, source=file_path)['tiv'].tofile(file_path)
 
 
 def write_coverage_buildings(gul_inputs_df, target_dir, intermediary_csv=False, chunksize=WRITE_CHUNKSIZE):
@@ -229,7 +230,7 @@ def write_coverage_buildings(gul_inputs_df, target_dir, intermediary_csv=False, 
         return None
 
     file_path = os.path.join(target_dir, f'{COVERAGE_BUILDINGS_FILE}.bin')
-    df_to_ndarray(data, coverage_buildings_dtype).tofile(file_path)
+    df_to_ndarray(data, coverage_buildings_dtype, source=file_path).tofile(file_path)
     if intermediary_csv:
         write_file(data, os.path.join(target_dir, f'{COVERAGE_BUILDINGS_FILE}.csv'),
                    structured_dtype_to_pandas(coverage_buildings_dtype), chunksize=chunksize)
@@ -243,11 +244,11 @@ def complex_items_write_gul_bin(data, file_path, dtype):
 
 def amplifications_write_gul_bin(data, file_path, dtype):
     with open(file_path, 'wb') as f:
-        amplifications_write_bin(df_to_ndarray(data, dtype), f)
+        amplifications_write_bin(df_to_ndarray(data, dtype, source=file_path), f)
 
 
 def default_write_gul_bin(data, file_path, dtype):
-    df_to_ndarray(data, dtype).tofile(file_path)
+    df_to_ndarray(data, dtype, source=file_path).tofile(file_path)
 
 
 files_write_info = {
@@ -900,7 +901,7 @@ def get_gul_input_items(
 @oasis_log
 def write_file(gul_inputs_df, file_path, file_dtype, chunksize=100000):
     try:
-        gul_inputs_df[file_dtype.keys()].astype(file_dtype).drop_duplicates().to_csv(
+        astype_in_range(gul_inputs_df[file_dtype.keys()], file_dtype, source=file_path).drop_duplicates().to_csv(
             path_or_buf=file_path,
             encoding='utf-8',
             mode=('w' if os.path.exists(file_path) else 'a'),
@@ -969,7 +970,7 @@ def write_gul_input_files(
     # write the correlations to a binary file
     if correlations_df is None:
         correlations_df = pd.DataFrame(columns=correlations_headers)
-    df_to_ndarray(correlations_df, correlations_dtype).tofile(f"{output_dir}/correlations.bin")
+    df_to_ndarray(correlations_df, correlations_dtype, source=f"{output_dir}/correlations.bin").tofile(f"{output_dir}/correlations.bin")
     if intermediary_csv:
         correlations_df.to_csv(f"{output_dir}/correlations.csv", index=False)
 
