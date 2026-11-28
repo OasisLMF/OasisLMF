@@ -2070,8 +2070,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         return h3_lookup
 
+    MERGE_INDICATOR = '_oasis_merge_matched'
+
     def build_merge(self, file_path, id_columns=[], file_type='csv', join_columns=None, allow_duplicate_keys=False,
-                    **kwargs):
+                    on_missing='null', **kwargs):
         """Merges the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
 
@@ -2090,6 +2092,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         intended key columns, so that the merge joins on fewer columns than it should. Set
         ``allow_duplicate_keys`` to ``True`` for a merge meant to give several rows per location.
 
+        ``on_missing`` sets what happens to the locations that match no row of the file, named like
+        ``geog_lookup``'s option: ``'null'`` (default) leaves their merged columns null (and their
+        ``id_columns`` -1), ``'error'`` raises, and a dict ``{'status': ..., 'message': ...}`` also
+        sets their status (a key of OASIS_KEYS_STATUS, e.g. ``'notmodelled'``) and message (by
+        default "no match in <file_path>"). Only locations still at ``success`` get it, so a status
+        an earlier step set (e.g. ``notmodelled`` from split_loc_perils_covered) is kept.
+
         If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
 
         Memory: the file is read once per lookup, and indexed by its join columns. When keys are
@@ -2100,6 +2109,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         abs_path, file_type, read_kwargs, join_columns = self._merge_settings(
             file_path, id_columns, file_type, join_columns, **kwargs)
+        on_missing = self._merge_on_missing(on_missing, file_path)
+        indicator = self.MERGE_INDICATOR if on_missing is not None else False
         table = _SHARED_STEP_DATA.get(_shared_data_key('merge', abs_path, file_type, read_kwargs))
         if table is None:
             table = self._read_merge_table(abs_path, file_type, read_kwargs)
@@ -2128,6 +2139,27 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"the same names (and that the step lists them in its 'columns'), or remove the duplicated "
                     f"rows. Set 'allow_duplicate_keys': true if several rows per location are intended.")
 
+        def set_missing(locations, on):
+            """Apply on_missing to the locations the merge didn't match, and drop the merge indicator."""
+            if on_missing is None:
+                return locations
+            missing = (locations[indicator] == 'left_only').to_numpy()
+            locations = locations.drop(columns=indicator)
+            if not missing.any():
+                return locations
+            if on_missing == 'error':
+                raise OasisException(
+                    f"merge step: {missing.sum()} location(s) match no row of '{file_path}' on {on}, e.g. "
+                    f"{locations.loc[missing, on].drop_duplicates().head(5).to_dict('records')}")
+            if 'status' not in locations.columns:
+                locations['status'] = OASIS_KEYS_STATUS['success']['id']
+            if 'message' not in locations.columns:
+                locations['message'] = ''
+            missing = missing & (locations['status'] == OASIS_KEYS_STATUS['success']['id']).to_numpy()
+            locations.loc[missing, 'status'] = on_missing['status']
+            locations.loc[missing, 'message'] = on_missing['message']
+            return locations
+
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
             if not rename_map:
@@ -2143,7 +2175,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 rows = table.rows_matching(file_keys, locations[[rename_map[col] for col in file_keys]])
                 logger.debug("merge step: %d locations, %d of the table's %d rows can match",
                              len(locations), len(rows), len(df_to_merge))
-                locations = locations.merge(rows.rename(columns=rename_map), how='left')
+                locations = locations.merge(rows.rename(columns=rename_map), how='left', indicator=indicator)
+                locations = set_missing(locations, [rename_map[col] for col in file_keys])
                 return self.set_id_columns(locations, self._resolve_column_case(locations, id_columns))
 
             missing_in_locations = [col for col in join_columns if col not in rename_map]
@@ -2165,16 +2198,17 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             logger.debug("merge step: %d locations, %d of the table's %d rows can match",
                          len(locations), len(rows), len(df_to_merge))
             locations = locations.drop(columns=[rename_map[col] for col in from_file]).merge(
-                rows.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
+                rows.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left', indicator=indicator)
+            locations = set_missing(locations, on)
             return self.set_id_columns(locations, self._resolve_column_case(locations, id_columns))
         merge.table_columns = frozenset(df_to_merge.columns)
         return merge
 
     def _merge_settings(self, file_path, id_columns=[], file_type='csv', join_columns=None, allow_duplicate_keys=False,
-                        **kwargs):
+                        on_missing='null', **kwargs):
         """Resolve build_merge's parameters.
 
-        The step options that don't affect how the file is read (allow_duplicate_keys) are left
+        The step options that don't affect how the file is read (allow_duplicate_keys, on_missing) are left
         out of read_kwargs, so they are neither passed to the read function nor part of the key
         of the data shared with the lookup workers.
 
@@ -2186,6 +2220,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if join_columns is not None:
             join_columns = [col.lower() for col in join_columns]
         return self.to_abs_filepath(file_path), file_type, kwargs, join_columns
+
+    @staticmethod
+    def _merge_on_missing(on_missing, file_path):
+        """Check build_merge's on_missing: None for 'null', 'error', or {'status': status id, 'message': str}."""
+        if on_missing is None or on_missing == 'null':
+            return None
+        if on_missing == 'error':
+            return on_missing
+        if not isinstance(on_missing, dict) or 'status' not in on_missing or set(on_missing) - {'status', 'message'}:
+            raise OasisException(
+                f"merge step: on_missing must be 'null', 'error' or a dict with a 'status' and optionally a "
+                f"'message', got {on_missing!r}")
+        if on_missing['status'] not in OASIS_KEYS_STATUS:
+            raise OasisException(
+                f"merge step: on_missing status {on_missing['status']!r} is not a valid status, must be one of "
+                f"{sorted(OASIS_KEYS_STATUS)}")
+        return {'status': OASIS_KEYS_STATUS[on_missing['status']]['id'],
+                'message': str(on_missing.get('message', f"no match in {file_path}"))}
 
     @staticmethod
     def _read_merge_table(abs_path, file_type, read_kwargs):

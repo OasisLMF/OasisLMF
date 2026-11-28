@@ -618,6 +618,32 @@ Config example::
 
 |
 
+* **geog_lookup**
+
+Resolves an OED value held by scheme in the ``GeogScheme{N}``/``GeogName{N}`` column pairs into a single column, so a
+later ``merge`` step can join on it. Where ``GeogScheme{N}`` equals ``geog_scheme``, ``GeogName{N}`` is copied into
+``output_column``; the lowest-numbered matching slot wins. The slots are kept automatically and are optional.
+
+``geog_scheme``: the OED ``GeogScheme`` value to resolve (e.g. ``W3W``).
+
+``output_column``: the column to write the resolved value into.
+
+``slots``: highest slot number ``N`` to scan. Defaults to 30.
+
+``case_insensitive``: match the scheme ignoring case and surrounding whitespace. Defaults to ``true``.
+
+``on_missing``: what to do with locations that have no slot with that scheme: ``'null'`` (default) leaves
+``output_column`` null, ``'error'`` raises an error. See also ``merge``'s ``on_missing``, which also accepts a status.
+
+.. code-block:: JSON
+
+   "w3w": {
+       "type": "geog_lookup",
+       "parameters": {"geog_scheme": "W3W", "output_column": "w3w", "on_missing": "null"}
+   }
+
+|
+
 * **merge**
 
 This method will merge the locations Dataframe with the Dataframe present in ``file_path``.
@@ -645,6 +671,30 @@ keys. For example, a dict holding both ``FR`` and ``IT`` rows for the same peril
 joined without ``CountryCode``. The check also catches a file that lacks one of the key columns (or names it
 differently from the locations), which would otherwise make the merge join on fewer columns than intended and give
 wrong ids. Set ``allow_duplicate_keys`` to ``true`` only for a merge that is meant to give several rows per location.
+
+``on_missing`` (optional): what to do with locations that match no row of the file. The name and the first two values
+are the same as ``geog_lookup``'s ``on_missing``:
+
+   * ``'null'`` (default): their columns from the file stay null and their ``id_columns`` are set to -1.
+   * ``'error'``: raise an error naming some of the unmatched keys.
+   * ``{"status": ..., "message": ...}``: as ``'null'``, and also set their status (one of the statuses listed in the
+     Status section above, e.g. ``notmodelled``) and message. ``message`` is optional and defaults to
+     ``no match in <file_path>``. Only locations still at ``success`` are changed, so a status an earlier step set
+     (for example ``notmodelled`` from ``split_loc_perils_covered``) is kept.
+
+For example, to mark the locations in a country the model doesn't cover, without a ``set_status`` step or a table of
+every other country:
+
+.. code-block:: JSON
+
+   "modelled_countries": {
+       "type": "merge",
+       "columns": ["countrycode"],
+       "parameters": {
+           "file_path": "%%KEYS_DATA_PATH%%/modelled_countries.csv",
+           "on_missing": {"status": "notmodelled", "message": "country not covered by the model"}
+       }
+   }
 
 A column listed in the step's ``columns`` that the file doesn't have is not joined on. This is not an error, since a
 step can list a column for another reason, but it is logged (at ``INFO`` level) when the step is built.

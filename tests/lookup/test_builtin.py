@@ -1836,6 +1836,96 @@ def test_merge_step_column_not_in_file_is_only_logged(vulnerability_dict_path, g
     assert "its file has no column ['constructioncode']" in caplog.text
 
 
+# --- merge on_missing (#2329) ------------------------------------------------
+
+
+@pytest.fixture
+def modelled_countries_path(tmp_path):
+    path = tmp_path / "modelled_countries.csv"
+    pd.DataFrame({"countrycode": ["FR", "DE"], "area_peril_id": [1, 2]}).to_csv(path, index=False)
+    return path
+
+
+def _countries_config(path, on_missing, join_columns=None):
+    parameters = {"file_path": str(path), "id_columns": ["area_peril_id"], "on_missing": on_missing}
+    if join_columns is not None:
+        parameters["join_columns"] = join_columns
+    return {"strategy": ["country", "vulnerability"], "step_definition": {
+        "country": {"type": "merge", "columns": ["countrycode"], "parameters": parameters},
+        "vulnerability": {"type": "prepare", "columns": ["peril_id", "coverage_type"],
+                          "parameters": {"vulnerability_id": {"default": 1}}},
+    }}
+
+
+@pytest.fixture
+def country_locations():
+    return pd.DataFrame({"loc_id": [1, 2, 3], "peril_id": ["WTC"] * 3, "coverage_type": [1] * 3,
+                         "countrycode": ["FR", "US", "DE"]})
+
+
+@pytest.mark.parametrize("join_columns", [None, ["countrycode"]])
+def test_merge_on_missing_sets_status_and_message(modelled_countries_path, country_locations, join_columns):
+    on_missing = {"status": "notmodelled", "message": "country not covered by the model"}
+    keys = Lookup(config=_countries_config(modelled_countries_path, on_missing, join_columns)).process_locations(
+        country_locations).sort_values("loc_id")
+    assert keys["status"].tolist() == [OASIS_KEYS_STATUS["success"]["id"], OASIS_KEYS_STATUS["notmodelled"]["id"],
+                                       OASIS_KEYS_STATUS["success"]["id"]]
+    assert keys["message"].tolist() == ["", "country not covered by the model", ""]
+    assert keys["area_peril_id"].tolist() == [1, OASIS_UNKNOWN_ID, 2]
+    assert "_oasis_merge_matched" not in keys.columns
+
+
+def test_merge_on_missing_default_message_and_earlier_status_kept(modelled_countries_path):
+    """Without a message the file is named; a row an earlier step gave a status keeps it."""
+    merge = Lookup(config={}).build_merge(file_path=str(modelled_countries_path), id_columns=["area_peril_id"],
+                                          on_missing={"status": "notatrisk"})
+    locations = pd.DataFrame({"countrycode": ["US", "US"], "status": [OASIS_KEYS_STATUS["success"]["id"],
+                                                                      OASIS_KEYS_STATUS["notmodelled"]["id"]],
+                              "message": ["", "WEC not modelled"]})
+    result = merge(locations)
+    assert result["status"].tolist() == [OASIS_KEYS_STATUS["notatrisk"]["id"], OASIS_KEYS_STATUS["notmodelled"]["id"]]
+    assert result["message"].tolist() == [f"no match in {modelled_countries_path}", "WEC not modelled"]
+
+
+def test_merge_on_missing_null_is_the_default(modelled_countries_path, country_locations):
+    merge_null = Lookup(config={}).build_merge(file_path=str(modelled_countries_path), id_columns=["area_peril_id"],
+                                               on_missing="null")
+    merge_default = Lookup(config={}).build_merge(file_path=str(modelled_countries_path), id_columns=["area_peril_id"])
+    pd.testing.assert_frame_equal(merge_null(country_locations.copy()), merge_default(country_locations.copy()))
+
+
+def test_merge_on_missing_error_raises(modelled_countries_path, country_locations):
+    merge = Lookup(config={}).build_merge(file_path=str(modelled_countries_path), on_missing="error")
+    assert len(merge(country_locations[country_locations["countrycode"] != "US"])) == 2
+    with pytest.raises(OasisException, match=r"1 location\(s\) match no row .*'countrycode': 'US'"):
+        merge(country_locations)
+
+
+@pytest.mark.parametrize("on_missing, match", [
+    ({"status": "unknown"}, "not a valid status"),
+    ({"message": "no status"}, "must be 'null', 'error' or a dict"),
+    ({"status": "notmodelled", "msg": "typo"}, "must be 'null', 'error' or a dict"),
+    ("skip", "must be 'null', 'error' or a dict"),
+])
+def test_merge_on_missing_invalid_raises(modelled_countries_path, on_missing, match):
+    with pytest.raises(OasisException, match=match):
+        Lookup(config={}).build_merge(file_path=str(modelled_countries_path), on_missing=on_missing)
+
+
+def test_merge_on_missing_not_a_read_option(monkeypatch, modelled_countries_path, country_locations):
+    """on_missing is popped before the read: not passed to read_csv, nor in the shared-data key, so
+    the workers reuse the parent's table."""
+    from oasislmf.lookup.builtin import _SHARED_STEP_DATA
+    reads = _count_csv_reads(monkeypatch)
+    config = _countries_config(modelled_countries_path, {"status": "notmodelled"}, ["countrycode"])
+    with Lookup(config=config).multiproc_shared_data():
+        assert len(reads) == 1 and len(_SHARED_STEP_DATA) == 1
+        keys = Lookup(config=copy.deepcopy(config)).process_locations(country_locations)
+        assert len(reads) == 1
+    assert sorted(keys["status"].tolist()) == sorted([OASIS_KEYS_STATUS["success"]["id"]] * 2
+                                                     + [OASIS_KEYS_STATUS["notmodelled"]["id"]])
+
+
 # --- sorted_lookup (#2284 item 6) ---------------------------------------------
 
 @pytest.fixture
