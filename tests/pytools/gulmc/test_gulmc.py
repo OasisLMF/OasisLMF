@@ -546,7 +546,7 @@ def test_get_dynamic_footprint_adjustments_without_item_adjustments_bin_only():
         assert np.all(adjustments["return_period"] == 0)
 
 
-def make_dynamic_test_model(run_dir, confluences=False, partitioned=False, labels=False):
+def make_dynamic_test_model(run_dir, confluences=False, partitioned=False, labels=False, intensity_shift=0):
     """Copy test_model_1 to run_dir with its binary footprint replaced by a dynamic one over the same areaperils.
 
     Args:
@@ -555,6 +555,8 @@ def make_dynamic_test_model(run_dir, confluences=False, partitioned=False, label
         partitioned (bool): if True, the hazard case and event definition are partitioned by section_id
         labels (bool): if True, the hazard case and event definition have a string label column the footprint
             build does not use
+        intensity_shift (int): added to every intensity of the hazard case and of intensity_bin_dict.csv, so
+            the bins are the same but a negative shift makes the intensities negative
     """
     shutil.copytree(TESTS_ASSETS_DIR / 'test_model_1', run_dir, ignore=shutil.ignore_patterns('log', 'expected', '*.log'))
     static = run_dir / 'static'
@@ -578,15 +580,17 @@ def make_dynamic_test_model(run_dir, confluences=False, partitioned=False, label
                                               'interpolation': 0.8}))
         sections.append(2)
     hazard_case, event_definition = pd.concat(hazard_case), pd.concat(event_definition)
+    hazard_case['intensity'] += intensity_shift
     if labels:
         hazard_case['label'] = 'rp' + hazard_case['return_period'].astype(str)
         event_definition['label'] = 'event' + event_definition['event_id'].astype(str)
     partition_cols = ['section_id'] if partitioned else None
     hazard_case.to_parquet(static / 'hazard_case.parquet', index=False, partition_cols=partition_cols)
     event_definition.to_parquet(static / 'event_definition.parquet', index=False, partition_cols=partition_cols)
-    # a dynamic footprint maps intensities to bins per peril; here intensity n is bin n
+    # a dynamic footprint maps intensities to bins per peril; here intensity n + intensity_shift is bin n
     pd.DataFrame({'peril_id': 'WTC', 'intensity_bin': np.arange(num_intensity_bins + 1),
-                  'intensity': np.arange(num_intensity_bins + 1)}).to_csv(static / 'intensity_bin_dict.csv', index=False)
+                  'intensity': np.arange(num_intensity_bins + 1) + intensity_shift}).to_csv(
+        static / 'intensity_bin_dict.csv', index=False)
     (static / 'footprint_parquet_meta.json').write_text(
         f'{{"num_intensity_bins": {num_intensity_bins}, "has_intensity_uncertainty": 0}}')
     pd.DataFrame({'section_id': sections}).to_csv(run_dir / 'input' / 'sections.csv', index=False)
@@ -625,6 +629,30 @@ def test_dynamic_footprint_shared_between_processes_gives_the_same_losses(tmp_pa
 
     assert (tmp_path / 'read.bin').stat().st_size > 1000
     assert filecmp.cmp(tmp_path / 'read.bin', tmp_path / 'shared.bin', shallow=False)
+
+
+@pytest.mark.parametrize("shared", [False, True], ids=["read", "shared"])
+def test_dynamic_footprint_negative_intensities_take_their_own_bins(tmp_path, monkeypatch, shared):
+    """Issue #2165: negative intensities (flood depths below a datum, say) map to the bins intensity_bin_dict.csv
+    gives them. Moving every intensity of the hazard and of the table below 0 keeps every bin, so the losses are
+    those of the same model with non-negative intensities, whether gulmc reads the footprint or memory-maps the
+    structures create_gulmc_structure saved.
+    """
+    def gulmc(run_dir, file_out):
+        monkeypatch.chdir(run_dir)
+        if shared:
+            create_gulmc_structure(str(run_dir), set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
+        run_gulmc(run_dir=str(run_dir), ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin',
+                  file_out=file_out, sample_size=10, loss_threshold=0., alloc_rule=1, debug=0,
+                  random_generator=1, dynamic_footprint=True)
+
+    make_dynamic_test_model(tmp_path / 'positive', confluences=True)
+    make_dynamic_test_model(tmp_path / 'negative', confluences=True, intensity_shift=-10)
+    gulmc(tmp_path / 'positive', tmp_path / 'positive.bin')
+    gulmc(tmp_path / 'negative', tmp_path / 'negative.bin')
+
+    assert (tmp_path / 'positive.bin').stat().st_size > 1000
+    assert filecmp.cmp(tmp_path / 'positive.bin', tmp_path / 'negative.bin', shallow=False)
 
 
 def test_dynamic_footprint_incomplete_save_is_not_used(tmp_path, monkeypatch):

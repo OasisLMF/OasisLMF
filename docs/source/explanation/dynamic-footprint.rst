@@ -62,11 +62,24 @@ are floored to integers once, after the merge; an event whose extrapolation or `
 intensity outside the 32-bit integer range is refused.
 
 gulmc maps each intensity to an intensity bin with the model's ``intensity_bin_dict.csv``, after
-subtracting the item's ``intensity_adjustment``. An intensity below 0 takes the bin of intensity 0;
-one above the largest intensity of the peril in the table takes that intensity's bin, the table's
-last row standing for that much or more. An intensity missing between two of the table's rows also
-takes the bin of intensity 0, so the table should list every integer intensity from 0 to its
-largest (see `#2239 <https://github.com/OasisLMF/OasisLMF/issues/2239>`_).
+subtracting the item's ``intensity_adjustment``. Intensities may be negative, in the hazard case,
+in the table, or after the adjustment: a flood model can measure depth from a datum, or use negative
+intensities for off-floodplain flooding, and a temperature-like hazard can be below 0 throughout.
+A negative intensity listed in the table takes its own bin, as any other listed intensity does.
+
+An intensity the table does not list takes a bin by these rules, for each peril:
+
+- one above the largest intensity of the peril in the table takes that intensity's bin, the table's
+  last row standing for that much or more;
+- one below 0 and below the lowest intensity of the peril in the table takes that intensity's bin,
+  the table's first row standing for that little or less. For a peril whose table starts at 0, any
+  intensity below 0 takes the bin of intensity 0;
+- one missing between two of the table's rows takes the bin of intensity 0, so the table should
+  list every integer intensity from its lowest to its largest (see
+  `#2239 <https://github.com/OasisLMF/OasisLMF/issues/2239>`_).
+
+A model whose table and intensities are all 0 or more gets the same bins as before negative
+intensities were supported.
 
 Interpolating between return periods
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
