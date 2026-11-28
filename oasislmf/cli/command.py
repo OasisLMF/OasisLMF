@@ -15,6 +15,7 @@ from ..utils.inputs import InputValues, load_json_config
 from ..utils.exceptions import OasisException
 
 from ..manager import OasisManager as om
+from ..computation.base import merge_computation_settings
 
 from ..utils.log_config import OasisLogConfig
 from ..utils.deprecation import warn_deprecated
@@ -287,15 +288,22 @@ class OasisComputationCommand(OasisBaseCommand):
         )
 
         # read and merge computation settings files
+        # Values from the MDK config are restricted to the admin role (command line flags always win
+        # anyway, see InputValues.get). An explicit --computation-settings-role is used for every
+        # settings file, otherwise each settings file keeps its own role.
+        computation_role = inputs.get("computation_settings_role")
         computation_settings = Settings()
         computation_settings.add_settings(inputs.config, ROOT_USER_ROLE)
         for settings_info in manager_method.get_params(param_type="settings"):
             setting_fp = _kwargs.get(settings_info["name"])
             if setting_fp:
                 new_settings = settings_info["loader"](setting_fp)
-                computation_settings.add_settings(
+                merge_computation_settings(
+                    computation_settings,
                     new_settings.pop("computation_settings", {}),
-                    settings_info.get("user_role"),
+                    computation_role or settings_info.get("user_role"),
+                    setting_fp,
+                    logging.getLogger(__name__),
                 )
         inputs.config = computation_settings.get_settings()
 
