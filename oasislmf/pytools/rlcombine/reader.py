@@ -7,13 +7,14 @@ sentinel record. Combining the inputs is left to the caller (see manager.py).
 import io
 import logging
 import selectors
+import sys
 
 import numba as nb
 import numpy as np
 
 from oasislmf.pytools.common.data import def_to_type_and_size
 from oasislmf.pytools.common.event_stream import (ITEM_STREAM, MAX_LOSS_IDX, MEAN_IDX, PIPE_CAPACITY, SUMMARY_STREAM_ID,
-                                                  get_and_check_header_in, mv_read)
+                                                  _is_regular_file, _select, get_and_check_header_in, mv_read)
 from oasislmf.utils.exceptions import OasisException, OasisStreamException
 
 logger = logging.getLogger(__name__)
@@ -164,10 +165,15 @@ class SummaryCombineReader:
                 every byte that is not read yet
         """
         self.streams_in = streams_in
-        try:
-            self.selector = self.register_streams_in(selectors.DefaultSelector())
-        except PermissionError:  # regular files can't be registered with epoll
+        if sys.platform == 'darwin' or any(_is_regular_file(stream_in) for stream_in in streams_in):
+            # kqueue (macOS DefaultSelector) accepts regular files and never reports them ready, and
+            # misses EOF on a FIFO once the writer closes; select() handles both (as in event_stream)
             self.selector = self.register_streams_in(selectors.SelectSelector())
+        else:
+            try:
+                self.selector = self.register_streams_in(selectors.DefaultSelector())
+            except PermissionError:  # regular files can't be registered with epoll
+                self.selector = self.register_streams_in(selectors.SelectSelector())
         self.pending = [bytearray() for _ in streams_in]  # bytes read but not parsed yet, per input
         self.headers = [None] * len(streams_in)
         self.len_sample = None
@@ -195,7 +201,7 @@ class SummaryCombineReader:
             List[int]: inputs that reached the end of their stream
         """
         ended = []
-        for key, _ in self.selector.select():
+        for key, _ in _select(self.selector):
             data = key.fileobj.read(PIPE_CAPACITY)
             if data:
                 self.pending[key.data] += data
