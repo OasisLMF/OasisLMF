@@ -5,9 +5,11 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from oasislmf.pytools.data_layer import footprint_layer
 from oasislmf.pytools.data_layer.footprint_layer import (
     FootprintLayer,
     FootprintLayerClient,
+    FootprintServerError,
     OperationEnum,
 )
 
@@ -191,3 +193,76 @@ def test_client_get_event_returns_none_on_empty_response():
         result = FootprintLayerClient.get_event(event_id=1)
 
     assert result is None
+
+
+def test_client_get_event_raises_the_error_the_server_sent():
+    mock_sock = MagicMock()
+    mock_sock.recv.side_effect = [pickle.dumps(FootprintServerError("event 3 failed")), b'']
+
+    with patch.object(FootprintLayerClient, '_get_socket', return_value=mock_sock):
+        with pytest.raises(FootprintServerError, match="event 3 failed"):
+            FootprintLayerClient.get_event(event_id=3)
+
+
+def test_client_register_gives_up_when_no_server_listens(monkeypatch):
+    monkeypatch.setattr(footprint_layer, 'REGISTER_TIMEOUT_SECONDS', 0.2)
+    monkeypatch.setattr(footprint_layer, 'REGISTER_RETRY_SECONDS', 0.01)
+
+    with patch.object(FootprintLayerClient, '_get_socket', side_effect=ConnectionRefusedError):
+        with pytest.raises(FootprintServerError, match="no footprint server"):
+            FootprintLayerClient.register()
+
+
+def _served_reply(layer, header):
+    """What the server sends back for one request with header."""
+    chunks = []
+    connection = MagicMock()  # not spec'd: the tests patch socket.socket
+    connection.recv.return_value = header
+    connection.sendall.side_effect = chunks.append
+    layer._serve(connection, ('127.0.0.1', 0))
+    return b"".join(chunks)
+
+
+@patch('oasislmf.pytools.data_layer.footprint_layer.socket.socket')
+@pytest.mark.parametrize("event", [np.array([(1, 2)], dtype=[('areaperil_id', 'u4'), ('intensity', 'i4')]), None])
+def test_server_sends_the_event_whatever_the_footprint(mock_socket_cls, event):
+    """No footprint_index or other format-specific attribute is needed to serve an event (a parquet or
+    dynamic footprint has none), and an event without footprint is sent as None."""
+    layer = FootprintLayer(storage=MagicMock(), total_expected=1)
+    layer.file_data = MagicMock(spec=['get_event', 'num_intensity_bins'])
+    layer.file_data.get_event.return_value = event
+
+    reply = pickle.loads(_served_reply(layer, _make_header(OperationEnum.GET_DATA, event_id=4)))
+
+    layer.file_data.get_event.assert_called_once_with(4)
+    if event is None:
+        assert reply is None
+    else:
+        np.testing.assert_array_equal(reply, event)
+
+
+@patch('oasislmf.pytools.data_layer.footprint_layer.socket.socket')
+def test_server_sends_an_error_when_the_event_fails(mock_socket_cls):
+    """The client is told the event failed, rather than left waiting for it until it times out."""
+    layer = FootprintLayer(storage=MagicMock(), total_expected=1)
+    layer.file_data = MagicMock(spec=['get_event', 'num_intensity_bins'])
+    layer.file_data.get_event.side_effect = ValueError("bad hazard")
+
+    reply = pickle.loads(_served_reply(layer, _make_header(OperationEnum.GET_DATA, event_id=4)))
+
+    assert isinstance(reply, FootprintServerError)
+    assert "event 4" in str(reply) and "bad hazard" in str(reply)
+
+
+@patch('oasislmf.pytools.data_layer.footprint_layer.socket.socket')
+def test_server_serves_the_areaperils_of_the_items(mock_socket_cls, tmp_path):
+    (tmp_path / 'items.csv').write_text(
+        "item_id,coverage_id,areaperil_id,vulnerability_id,group_id\n1,1,30,1,1\n2,1,10,1,1\n3,2,30,2,2\n")
+
+    layer = FootprintLayer(storage=MagicMock(), total_expected=1, input_path=str(tmp_path))
+    np.testing.assert_array_equal(layer._portfolio_areaperil_ids(), [10, 30])
+
+    assert FootprintLayer(storage=MagicMock(), total_expected=1,
+                          input_path=str(tmp_path / 'missing'))._portfolio_areaperil_ids() is None
+    (tmp_path / 'items.csv').unlink()
+    assert layer._portfolio_areaperil_ids() is None
