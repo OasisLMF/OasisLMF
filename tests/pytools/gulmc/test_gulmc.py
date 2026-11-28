@@ -4,6 +4,9 @@ This file tests gulmc functionality
 import filecmp
 import os
 import shutil
+import socket
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Tuple
@@ -12,6 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from oasis_data_manager.filestore.backends.local import LocalStorage
 from oasis_data_manager.filestore.config import get_storage_from_config_path
 from oasislmf.pytools.getmodel.common import FootprintHeader
 from oasislmf.pytools.getmodel.footprint import SHARED_MANIFEST, Footprint
@@ -675,3 +679,99 @@ def test_dynamic_footprint_structures_load_no_sections_unless_saved(tmp_path, fo
 
     create_gulmc_structure(str(tmp_path / 'run'), set(), [], True, 'oasis_data_manager.df_reader.reader.OasisPandasReader')
     assert footprint_reads
+
+
+def make_static_footprint_test_model(run_dir, footprint_format):
+    """Copy test_model_1 to run_dir with only its footprint in footprint_format left in static.
+
+    Args:
+        footprint_format (str): one of 'bin', 'csv', 'parquet' (one directory per event) or 'parquet_chunk'
+    """
+    from oasislmf.pytools.data_layer.conversions.footprint import (
+        convert_bin_to_parquet_chunk, convert_bin_to_parquet_event)
+
+    shutil.copytree(TESTS_ASSETS_DIR / 'test_model_1', run_dir, ignore=shutil.ignore_patterns('log', 'expected', '*.log'))
+    static = run_dir / 'static'
+    if footprint_format == 'parquet':
+        convert_bin_to_parquet_event(str(static))
+    elif footprint_format == 'parquet_chunk':
+        convert_bin_to_parquet_chunk(str(static), chunk_size=1000)
+    kept = {'bin': ('footprint.bin', 'footprint.idx'), 'csv': ('footprint.csv',)}.get(footprint_format, ())
+    for footprint_file in static.glob('footprint.*'):
+        if footprint_file.name not in kept and footprint_file.is_file():
+            footprint_file.unlink()
+
+
+@contextmanager
+def footprint_data_server(run_dir, monkeypatch, total_expected=1):
+    """Run the footprint data server (servedata) on run_dir's model data in a thread, on a free port.
+
+    The server and its clients read the port from the footprint_layer module, so both use the free one.
+    The server stops once its total_expected clients have registered and unregistered.
+
+    Yields:
+        FootprintLayer: the running server
+    """
+    from oasislmf.pytools.data_layer import footprint_layer
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind((footprint_layer.TCP_IP, 0))
+        port = probe.getsockname()[1]
+    monkeypatch.setattr(footprint_layer, 'TCP_PORT', port)
+    server = footprint_layer.FootprintLayer(LocalStorage(root_dir=str(run_dir / 'static')), total_expected=total_expected)
+    errors = []
+
+    def listen():
+        try:
+            server.listen()
+        except Exception as e:  # reported by the test rather than lost in the thread
+            errors.append(e)
+            server.socket.close()
+
+    thread = threading.Thread(target=listen, daemon=True)
+    thread.start()
+    try:
+        yield server
+    finally:
+        thread.join(timeout=60)
+        server.socket.close()
+    assert not errors, f"footprint data server failed: {errors[0]!r}"
+    assert not thread.is_alive(), "footprint data server did not stop once its client unregistered"
+
+
+@pytest.mark.parametrize("footprint", ["bin", "csv", "parquet", "parquet_chunk",
+                                       "dynamic", "dynamic-partitioned", "dynamic-keys-csv"])
+def test_gulmc_with_data_server_gives_the_same_losses(tmp_path, monkeypatch, footprint):
+    """gulmc gets the same losses whether it loads the footprint itself or asks the footprint data
+    server (servedata, gulmc --data-server) for it, whatever the footprint's format.
+
+    The dynamic footprint is served from the portfolio's items, as keys are written as parquet by
+    default and there is then no input/keys.csv; "dynamic-keys-csv" keeps a keys.csv as well.
+    """
+    from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
+
+    run_dir = tmp_path / 'run'
+    dynamic = footprint.startswith('dynamic')
+    if dynamic:
+        make_dynamic_test_model(run_dir, confluences=True, partitioned=footprint == 'dynamic-partitioned')
+        if footprint != 'dynamic-keys-csv':
+            (run_dir / 'input' / 'keys.csv').unlink()
+    else:
+        make_static_footprint_test_model(run_dir, footprint)
+    # the server, as in the run scripts, and the dynamic footprint read input/ from the run directory
+    monkeypatch.chdir(run_dir)
+
+    def gulmc(file_out, data_server):
+        run_gulmc(run_dir=str(run_dir), ignore_file_type=set(), file_in=run_dir / 'input' / 'events.bin',
+                  file_out=file_out, sample_size=10, loss_threshold=0., alloc_rule=1, debug=0,
+                  random_generator=1, dynamic_footprint=dynamic, data_server=data_server)
+
+    gulmc(tmp_path / 'local.bin', data_server=False)
+    with footprint_data_server(run_dir, monkeypatch):
+        try:
+            gulmc(tmp_path / 'served.bin', data_server=True)
+        finally:
+            FootprintLayerClient.unregister()
+
+    assert (tmp_path / 'local.bin').stat().st_size > 1000
+    assert filecmp.cmp(tmp_path / 'local.bin', tmp_path / 'served.bin', shallow=False)
