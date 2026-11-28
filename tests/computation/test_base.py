@@ -214,3 +214,82 @@ def test_computation_settings_json_schema():
     assert properties['some_choice'] == {'type': 'string', 'enum': ['a', 'b']}
     assert properties['some_count'] == {'type': 'integer'}
     assert properties['some_ratio'] == {'type': 'number'}
+
+
+def _load_json(fp):
+    with open(fp) as f:
+        return json.load(f)
+
+
+class DummyRoleStep(DummyComputationStep):
+    step_params = [
+        {'name': 'num_processes', 'type': int, 'default': 2},
+        {'name': 'mode', 'default': 'fast'},
+        {'name': 'analysis_settings_json', 'is_path': True},
+    ]
+    settings_params = [{'name': 'analysis_settings_json', 'loader': _load_json, 'user_role': 'user'}]
+
+
+@pytest.fixture
+def analysis_settings(tmp_path):
+    fp = tmp_path / 'analysis_settings.json'
+    fp.write_text(json.dumps({'computation_settings': {'num_processes': 8, 'mode': 'slow'}}))
+    return str(fp)
+
+
+def test_computation_settings_role__default__settings_override_everything(analysis_settings, monkeypatch):
+    """Without computation_settings_role, computation_settings still override explicit arguments
+    (admin, as before #1819)."""
+    monkeypatch.delenv('OASIS_ENV_OVERRIDE', raising=False)
+    args = DummyRoleStep.get_arguments(analysis_settings_json=analysis_settings, num_processes=4)
+    assert args['num_processes'] == 8
+    assert args['mode'] == 'slow'
+    assert args['computation_settings_role'] is None
+
+
+def test_computation_settings_role__admin__same_as_default(analysis_settings):
+    args = DummyRoleStep.get_arguments(analysis_settings_json=analysis_settings, num_processes=4,
+                                       computation_settings_role='admin')
+    assert (args['num_processes'], args['mode']) == (8, 'slow')
+
+
+def test_computation_settings_role__user__cannot_override_explicit_value(analysis_settings, caplog):
+    with caplog.at_level(logging.WARNING, logger='oasislmf'):
+        args = DummyRoleStep.get_arguments(analysis_settings_json=analysis_settings, num_processes=4,
+                                           computation_settings_role='user')
+    assert args['num_processes'] == 4
+    assert "'num_processes': 8 ignored" in caplog.text
+    assert 'mode' not in caplog.text
+
+
+def test_computation_settings_role__user__can_change_defaults(analysis_settings):
+    """Defaults, and arguments passed as None (unset), can still be changed by a 'user'."""
+    args = DummyRoleStep.get_arguments(analysis_settings_json=analysis_settings, mode=None,
+                                       computation_settings_role='user')
+    assert (args['num_processes'], args['mode']) == (8, 'slow')
+
+
+def test_computation_settings_role__user__env_override_is_explicit(analysis_settings, monkeypatch):
+    monkeypatch.setenv('OASIS_ENV_OVERRIDE', 'true')
+    monkeypatch.setenv('OASIS_NUM_PROCESSES', '3')
+    args = DummyRoleStep.get_arguments(analysis_settings_json=analysis_settings, computation_settings_role='user')
+    assert (args['num_processes'], args['mode']) == (3, 'slow')
+
+
+def test_computation_settings_role__user__cannot_set_caller_only_params(tmp_path):
+    """'config' and the role itself are chosen by the caller, never by computation_settings."""
+    fp = tmp_path / 'analysis_settings.json'
+    fp.write_text(json.dumps({'computation_settings': {'config': 'other.json', 'computation_settings_role': 'admin',
+                                                       'num_processes': 8}}))
+    args = DummyRoleStep.get_arguments(analysis_settings_json=str(fp), num_processes=4, computation_settings_role='user')
+    assert args['config'] is None
+    assert args['computation_settings_role'] == 'user'
+    assert args['num_processes'] == 4
+
+
+def test_computation_settings_role__in_cli_but_not_in_schema():
+    params = {p['name']: p for p in DummyRoleStep.get_params()}
+    assert params['computation_settings_role']['choices'] == ['admin', 'user']
+    assert params['computation_settings_role']['default'] is None
+    assert 'help' in params['computation_settings_role']
+    assert 'computation_settings_role' not in DummyRoleStep.get_computation_settings_json_schema()['properties']

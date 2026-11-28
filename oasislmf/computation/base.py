@@ -1,5 +1,7 @@
 __all__ = [
     'ComputationStep',
+    'COMPUTATION_SETTINGS_ROLES',
+    'merge_computation_settings',
 ]
 
 import os
@@ -32,6 +34,40 @@ DISAGGREGATION_HELP = (
 )
 
 
+# Roles that can be given to 'computation_settings_role'. They are the ods_tools Settings user
+# roles: 'admin' (ROOT_USER_ROLE) may override any value, 'user' may only change values the
+# caller left unset (defaults).
+COMPUTATION_SETTINGS_ROLES = sorted(ROOT_USER_ROLE) + ['user']
+
+COMPUTATION_SETTINGS_ROLE_HELP = (
+    "Role used when applying the 'computation_settings' block of settings files "
+    "(e.g. analysis settings). 'admin' lets those settings override any value; 'user' only lets them "
+    "change values that were not set explicitly by the caller (command line, MDK config, keyword "
+    "arguments or OASIS_ENV_OVERRIDE environment variables), and logs a warning for each one ignored. "
+    "When not given, the Python API applies them as 'admin' and the command line uses each settings "
+    "file's own role, as before."
+)
+
+
+def merge_computation_settings(computation_settings, new_settings, user_role, source, logger):
+    """Merge a settings file's 'computation_settings' block into `computation_settings` (an ods_tools
+    Settings object) as `user_role`, and log a warning for every value that was not applied because
+    that role may not override it (or because the value is not valid for that key).
+    """
+    computation_settings.add_settings(new_settings, user_role)
+    merged = computation_settings.get_settings()
+    missing = object()
+    for key, value in new_settings.items():
+        if Settings.is_sub_settings(key, value) or Settings.is_parameters(key, value) or Settings.is_parameter_grouping(key, value):
+            continue
+        current = merged.get(key, missing)
+        if current is missing or current != value:
+            logger.warning(
+                f"computation_settings in {source}: '{key}': {value!r} ignored, role {sorted(Settings.to_user_role(user_role))} "
+                f"cannot override the value already set ({'unset' if current is missing else repr(current)})"
+            )
+
+
 class ComputationStep:
     """"Abstract" Class for all Computation Step (ExposurePreAnalysis, GulCalc, ...)
     initialise the object with all specified param un step_param and sub- ComputationStep
@@ -58,6 +94,10 @@ class ComputationStep:
         {'name': 'log_level', 'choices': OasisLogConfig.STANDARD_LEVELS},
         {'name': 'log_format', 'choices': list(OasisLogConfig.FORMAT_TEMPLATES.keys())},
         {'name': 'config', 'exclude_from_schema': True},
+        # Chosen by the caller (e.g. the platform, from the user's permissions), so it must not be
+        # settable from the computation_settings it governs.
+        {'name': 'computation_settings_role', 'choices': COMPUTATION_SETTINGS_ROLES, 'default': None,
+         'exclude_from_schema': True, 'help': COMPUTATION_SETTINGS_ROLE_HELP},
     ]
 
     def __init__(self, **kwargs):
@@ -209,20 +249,32 @@ class ComputationStep:
         func_kwargs = update_config(kwargs)
         env_override = str2bool(os.getenv('OASIS_ENV_OVERRIDE', default=False))
 
+        # Values the caller chose (env override or a non-None keyword argument, None meaning unset as
+        # in OasisManager.consolidate_input) are restricted to the admin role; defaults are not, so a
+        # non-admin computation_settings_role can still change them.
+        # Params that are excluded from the computation settings schema are always restricted.
+        explicit = {p['name'] for p in cls.get_params() if p.get('exclude_from_schema')}
         for param in func_args:
             if env_override and has_oasis_env(param):
                 func_args[param] = get_oasis_env(param, type_map[param])
+                explicit.add(param)
             elif param in func_kwargs:
                 func_args[param] = func_kwargs[param]
+                if func_kwargs[param] is not None:
+                    explicit.add(param)
 
         computation_settings = Settings()
-        computation_settings.add_settings(func_args, ROOT_USER_ROLE)
+        computation_settings.add_settings({k: v for k, v in func_args.items() if k not in explicit})
+        computation_settings.add_settings({k: v for k, v in func_args.items() if k in explicit}, ROOT_USER_ROLE)
+
+        user_role = func_args.get('computation_settings_role') or ROOT_USER_ROLE
+        logger = logging.getLogger(__name__)
         for settings_info in cls.get_params(param_type="settings"):
             setting_fp = func_args.get(settings_info["name"])
             if setting_fp and pathlib.Path(setting_fp).exists():
                 new_settings = settings_info["loader"](setting_fp)
-                computation_settings.add_settings(
-                    new_settings.pop("computation_settings", {}), {'admin'}
+                merge_computation_settings(
+                    computation_settings, new_settings.pop("computation_settings", {}), user_role, setting_fp, logger
                 )
         return computation_settings.get_settings()
 
