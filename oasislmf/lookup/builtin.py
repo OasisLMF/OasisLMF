@@ -974,8 +974,64 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 step_config['parameters']['strategy'] = functions
 
             step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
+            self._log_merge_columns_not_in_file(step_name, step_config, step_function)
             setattr(self, step_name, step_function)
         return step_function
+
+    @staticmethod
+    def _log_merge_columns_not_in_file(step_name, step_config, step_function):
+        """Say which of a merge step's 'columns' its file doesn't have, so it won't join on them.
+
+        Not an error: a step can list a column for another reason than joining on it. A file
+        missing a column it should be joined on is caught by the merge's duplicated keys check.
+        """
+        table_columns = getattr(step_function, 'table_columns', None)
+        if table_columns is None:
+            return
+        not_in_file = [col for col in step_config.get('columns', []) if col.lower() not in table_columns]
+        if not_in_file:
+            logger.info("merge step %s: its file has no column %s, so the merge doesn't join on %s. File columns: %s",
+                        step_name, not_in_file, "it" if len(not_in_file) == 1 else "them", sorted(table_columns))
+
+    @staticmethod
+    def _align_column_case(locations, columns):
+        """Rename the location columns that match one of columns ignoring case to that spelling.
+
+        Each column keeps one spelling, the one the step about to use it gives, so a step naming
+        ``BuildingType`` finds a ``buildingtype`` column an earlier step added. A column already
+        present with the exact spelling, or matched by several columns, is left as it is.
+        """
+        present = set(locations.columns)
+        by_lower = {}
+        for col in locations.columns:
+            by_lower.setdefault(col.lower(), []).append(col)
+        rename = {}
+        for col in columns:
+            matches = by_lower.get(col.lower(), [])
+            if col not in present and len(matches) == 1 and matches[0] not in rename:
+                rename[matches[0]] = col
+        return locations.rename(columns=rename) if rename else locations
+
+    @staticmethod
+    def _resolve_column_case(locations, columns):
+        """columns, each under the spelling the locations have it in if it is there ignoring case."""
+        by_lower = {col.lower(): col for col in locations.columns}
+        return [col if col in locations.columns else by_lower.get(col.lower(), col) for col in columns]
+
+    def _warn_case_clashes(self, step_name, locations):
+        """Warn about columns that differ only by capitalisation after a step.
+
+        Each set of such columns is reported once per lookup, not again for every chunk of locations or later step.
+        """
+        by_lower = {}
+        for col in locations.columns:
+            by_lower.setdefault(col.lower(), []).append(col)
+        warned = self.__dict__.setdefault('_case_clash_warned', set())
+        clashes = [cols for cols in by_lower.values() if len(cols) > 1 and tuple(cols) not in warned]
+        if clashes:
+            warned.update(tuple(cols) for cols in clashes)
+            logger.warning("lookup step %s: the locations have columns that differ only by capitalisation %s. "
+                           "Name each column with one spelling in every step of the lookup config", step_name, clashes)
 
     def process_locations(self, locations):
         missing = [key for key in ('step_definition', 'strategy') if not self.config.get(key)]
@@ -1003,17 +1059,22 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         for step_name in self.config["strategy"]:
             step_config = self.config['step_definition'][step_name]
             needed_column = set(step_config.get("columns", []))
+            # a column an earlier step added may be spelt differently: give it this step's spelling
+            locations = self._align_column_case(
+                locations, sorted(needed_column) + self.step_optional_columns(step_config, geog_slots=False))
             if not needed_column.issubset(locations.columns):
                 raise OasisException(
                     f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
+            self._warn_case_clashes(step_name, locations)
 
         key_columns = [
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
             'vulnerability_id', 'status', 'message'
         ]
         additional_columns = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
+        locations = self._align_column_case(locations, key_columns + additional_columns)
         for col in additional_columns:
             if col in locations.columns:
                 key_columns += [col]
@@ -1200,6 +1261,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             warned = set()  # the steps already reported as skipped, so the warning isn't repeated for every chunk
 
             def fct(locations):
+                locations = Lookup._align_column_case(locations, sorted(set().union(*(s['columns'] for s in strategy))))
                 initial_columns = locations.columns
                 result = []
                 for i, child_strategy in enumerate(strategy):
@@ -1222,6 +1284,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         elif logical_type.lower() == 'and':
             def fct(locations):
+                locations = Lookup._align_column_case(locations, sorted(set().union(*(s['columns'] for s in strategy))))
                 initial_columns = locations.columns
                 result = []
                 for i, child_strategy in enumerate(strategy):
@@ -1400,6 +1463,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         def prepare(locations):
             for column_name, preparations in kwargs.items():
+                # a column present under another capitalisation is this one: take this spelling
+                locations = Lookup._align_column_case(locations, [column_name])
                 if "default" in preparations:
                     if column_name not in locations.columns:
                         locations[column_name] = preparations["default"]
@@ -1426,8 +1491,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     if column_name not in locations.columns:
                         raise OasisException(
                             f"prepare step: cannot rename missing column '{column_name}' to '{new_name}'")
-                    locations = (locations.drop(columns=new_name, errors='ignore')
-                                 .rename(columns={column_name: new_name}))
+                    replaced = [col for col in locations.columns if col.lower() == new_name.lower() and col != column_name]
+                    locations = locations.drop(columns=replaced).rename(columns={column_name: new_name})
             return locations
         return prepare
 
@@ -2079,7 +2144,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 logger.debug("merge step: %d locations, %d of the table's %d rows can match",
                              len(locations), len(rows), len(df_to_merge))
                 locations = locations.merge(rows.rename(columns=rename_map), how='left')
-                return self.set_id_columns(locations, id_columns)
+                return self.set_id_columns(locations, self._resolve_column_case(locations, id_columns))
 
             missing_in_locations = [col for col in join_columns if col not in rename_map]
             if missing_in_locations:
@@ -2101,7 +2166,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                          len(locations), len(rows), len(df_to_merge))
             locations = locations.drop(columns=[rename_map[col] for col in from_file]).merge(
                 rows.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
-            return self.set_id_columns(locations, id_columns)
+            return self.set_id_columns(locations, self._resolve_column_case(locations, id_columns))
+        merge.table_columns = frozenset(df_to_merge.columns)
         return merge
 
     def _merge_settings(self, file_path, id_columns=[], file_type='csv', join_columns=None, allow_duplicate_keys=False,

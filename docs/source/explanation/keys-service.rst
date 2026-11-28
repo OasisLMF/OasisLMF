@@ -307,9 +307,14 @@ cope with it being absent (for instance a ``prepare`` step giving it a ``default
 
 A ``geog_lookup`` step treats the ``GeogScheme{N}``/``GeogName{N}`` slots it scans as optional automatically.
 
-Column names are matched to the location file ignoring case, but each column is passed to the steps under a single
-spelling, so every step must name it the same way in ``columns`` and ``optional_columns`` (e.g. not ``Latitude`` in
-one step and ``latitude`` in another). The lookup raises an error if they differ.
+Column names are matched ignoring case, but each column is passed to the steps under a single spelling, so every step
+must name a location file column the same way in ``columns`` and ``optional_columns`` (e.g. not ``Latitude`` in one
+step and ``latitude`` in another). The lookup raises an error if they differ. Columns added by steps are matched
+ignoring case too: a step whose ``columns`` lists ``BuildingType`` finds a ``buildingtype`` column added by an earlier
+step, and gets it as ``BuildingType``; a ``prepare`` step naming ``BuildingType`` works on an existing
+``buildingtype`` column rather than adding a second one; a ``merge`` step's ``id_columns`` and ``join_columns`` match
+whatever capitalisation the columns have. If a step still leaves two columns whose names differ only by
+capitalisation, a warning names them. Using lower-case names throughout the config avoids any doubt.
 
 |
 
@@ -640,6 +645,9 @@ keys. For example, a dict holding both ``FR`` and ``IT`` rows for the same peril
 joined without ``CountryCode``. The check also catches a file that lacks one of the key columns (or names it
 differently from the locations), which would otherwise make the merge join on fewer columns than intended and give
 wrong ids. Set ``allow_duplicate_keys`` to ``true`` only for a merge that is meant to give several rows per location.
+
+A column listed in the step's ``columns`` that the file doesn't have is not joined on. This is not an error, since a
+step can list a column for another reason, but it is logged (at ``INFO`` level) when the step is built.
 
 .. code-block:: JSON
 

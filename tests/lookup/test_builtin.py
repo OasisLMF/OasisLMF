@@ -1722,6 +1722,120 @@ def test_combine_skip_warning_logged_once_per_step(caplog):
     assert caplog.text.count("skipping step by_postcode") == 1
 
 
+# --- column names and partial merge keys (#2204) -----------------------------
+
+
+def _keys_config(steps, strategy):
+    """A lookup config whose last step sets the ids every keys row needs."""
+    steps = dict(steps, ids={"type": "prepare", "parameters": {
+        "peril_id": {"default": "WTC"}, "coverage_type": {"default": 1},
+        "area_peril_id": {"default": 1}, "vulnerability_id": {"default": 1}}})
+    return {"step_definition": steps, "strategy": strategy + ["ids"]}
+
+
+def test_step_finds_column_added_by_earlier_step_with_other_capitalisation():
+    """A step listing 'BuildingType' finds the 'buildingtype' column an earlier step added, under its own spelling."""
+    seen = {}
+
+    class SpyLookup(Lookup):
+        def build_spy(self):
+            def spy(locations):
+                seen["columns"] = list(locations.columns)
+                return locations
+            return spy
+
+    config = _keys_config({
+        "add": {"type": "prepare", "parameters": {"buildingtype": {"default": 5}}},
+        "spy": {"type": "spy", "columns": ["BuildingType"], "parameters": {}},
+    }, ["add", "spy"])
+    keys = SpyLookup(config=config).process_locations(pd.DataFrame({"loc_id": [1]}))
+    assert "BuildingType" in seen["columns"] and "buildingtype" not in seen["columns"]
+    assert keys["status"].tolist() == [OASIS_KEYS_STATUS["success"]["id"]]
+
+
+def test_prepare_matches_column_ignoring_case():
+    """prepare's 'default' fills the existing column spelt differently instead of adding a second column of defaults."""
+    prepare = Lookup.build_prepare(BuildingType={"default": 0})
+    result = prepare(pd.DataFrame({"loc_id": [1, 2], "buildingtype": [3, None]}))
+    assert list(result.columns) == ["loc_id", "BuildingType"]
+    assert result["BuildingType"].tolist() == [3, 0]
+
+
+def test_prepare_rename_replaces_column_spelt_differently():
+    prepare = Lookup.build_prepare(code={"rename": "OccupancyCode"})
+    result = prepare(pd.DataFrame({"loc_id": [1], "occupancycode": [1000], "code": [1050]}))
+    assert list(result.columns) == ["loc_id", "OccupancyCode"]
+    assert result["OccupancyCode"].tolist() == [1050]
+
+
+def test_combine_child_finds_column_with_other_capitalisation():
+    seen = {}
+
+    def child(locations):
+        seen["columns"] = list(locations.columns)
+        return locations.assign(vulnerability_id=7)
+    combine = Lookup.build_combine(id_columns=["vulnerability_id"],
+                                   strategy=[{"name": "child", "columns": {"PostalCode"}, "function": child}])
+    result = combine(pd.DataFrame({"loc_id": [1], "postalcode": ["AB1"]}))
+    assert "PostalCode" in seen["columns"]
+    assert result["vulnerability_id"].tolist() == [7]
+
+
+def test_columns_differing_by_case_after_step_warn_once(caplog):
+    """A step leaving 'BuildingType' and 'buildingtype' side by side is warned about once, not for every chunk or later step."""
+    class ClashLookup(Lookup):
+        def build_clash(self):
+            return lambda locations: locations.assign(buildingtype=1)
+
+    config = _keys_config({
+        "add": {"type": "prepare", "parameters": {"BuildingType": {"default": 5}}},
+        "clash": {"type": "clash", "parameters": {}},
+    }, ["add", "clash"])
+    lookup = ClashLookup(config=config)
+    with caplog.at_level("WARNING", logger="oasislmf.lookup.builtin"):
+        for chunk in range(2):
+            lookup.process_locations(pd.DataFrame({"loc_id": [chunk]}))
+    assert caplog.text.count("differ only by capitalisation") == 1
+    assert "step clash" in caplog.text and "['BuildingType', 'buildingtype']" in caplog.text
+
+
+def test_merge_id_columns_matched_ignoring_case(tmp_path):
+    path = tmp_path / "dict.csv"
+    pd.DataFrame({"peril_id": ["WTC"], "Vulnerability_ID": [10]}).to_csv(path, index=False)
+    merge = Lookup(config={}).build_merge(file_path=str(path), id_columns=["Vulnerability_ID"])
+    result = merge(pd.DataFrame({"loc_id": [1, 2], "peril_id": ["WTC", "XXX"]}))
+    assert list(result.columns) == ["loc_id", "peril_id", "vulnerability_id"]
+    assert result["vulnerability_id"].tolist() == [10, OASIS_UNKNOWN_ID]
+
+
+def test_merge_on_partial_key_set_raises(tmp_path, caplog):
+    """The issue's case: the dict names a column of the step differently ('occupancy' for 'occupancycode'),
+    so the merge would join on peril_id and coverage_type only and give the location several ids.
+    It raises on the duplicated keys, and the step's columns missing from the file are logged."""
+    path = tmp_path / "vuln_dict.csv"
+    pd.DataFrame({"peril_id": ["WTC", "WTC"], "coverage_type": [1, 1], "occupancy": [1000, 1050],
+                  "vulnerability_id": [10, 11]}).to_csv(path, index=False)
+    config = {"step_definition": {"vulnerability": {
+        "type": "merge", "columns": ["peril_id", "coverage_type", "OccupancyCode"],
+        "parameters": {"file_path": str(path), "id_columns": ["vulnerability_id"]}}},
+        "strategy": ["vulnerability"]}
+    locations = pd.DataFrame({"loc_id": [1], "peril_id": ["WTC"], "coverage_type": [1], "OccupancyCode": [1050]})
+    with caplog.at_level("INFO", logger="oasislmf.lookup.builtin"):
+        with pytest.raises(OasisException, match=r"joins on \['coverage_type', 'peril_id'\]"):
+            Lookup(config=config).process_locations(locations)
+    assert "merge step vulnerability: its file has no column ['OccupancyCode']" in caplog.text
+
+
+def test_merge_step_column_not_in_file_is_only_logged(vulnerability_dict_path, german_locations, caplog):
+    """A step may list a column it doesn't join on (review of #2272): that is logged, not an error."""
+    config = _vulnerability_merge_config(vulnerability_dict_path, join_columns=["peril_id", "coverage_type", "occupancycode"])
+    config["step_definition"]["vulnerability"]["columns"].append("constructioncode")
+    with caplog.at_level("INFO", logger="oasislmf.lookup.builtin"):
+        result = Lookup(config=config).process_locations(german_locations.assign(constructioncode=5000))
+    assert result.sort_values("loc_id")["vulnerability_id"].tolist() == [10, 30]
+    assert "its file has no column ['constructioncode']" in caplog.text
+
+
 # --- sorted_lookup (#2284 item 6) ---------------------------------------------
 
 @pytest.fixture
