@@ -338,6 +338,16 @@ and one using postcode.
      have a valid id) in the preceding strategy. ``id_columns`` must then be a list of lists, one
      sublist of columns checked per strategy step.
 
+With ``'or'``, a strategy whose own ``columns`` are missing from the locations is skipped, with a warning logged once
+per strategy, so the next strategy can act as a fallback. With ``'and'``, every strategy is required, so a strategy
+whose own ``columns`` are missing raises an error.
+
+.. note::
+   Before oasislmf 2.5.9, the ``'and'`` combine checked its parent step's ``columns`` rather than each strategy's own,
+   so a strategy declaring a column the location file lacks still ran (and usually failed with a ``KeyError`` or gave
+   no id). It now raises an ``OasisException`` naming the strategy and the missing columns. List a column the
+   location file may not have in the strategy's ``optional_columns`` instead of ``columns``.
+
 'or' example (note: ``id_columns`` is a list)::
 
    "vulnerability": {
@@ -621,10 +631,15 @@ This is an efficient way to map a combination of columns that have a finite scop
 column name the file and the locations have in common, including columns only declared by other steps. Set this to
 reuse a file that carries a column the locations also have but that must not be matched on, for example a
 vulnerability dict built for France (``CountryCode`` = ``FR``) on a German model. Any other column present in both
-keeps its locations value, except ``id_columns``, which take the file's value. The file must have at most one row
-per combination of ``join_columns``; otherwise each matching location is duplicated, once per row. For example, a
-dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupancy can't be joined without
-``CountryCode``.
+keeps its locations value, except ``id_columns``, which take the file's value.
+
+``allow_duplicate_keys`` (optional, default ``false``): the file must have at most one row per value of the columns
+the merge joins on (``join_columns``, or by default the columns the file and the locations have in common), because
+each matching location would otherwise be duplicated, once per row. The merge raises an error naming the duplicated
+keys. For example, a dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupancy can't be
+joined without ``CountryCode``. The check also catches a file that lacks one of the key columns (or names it
+differently from the locations), which would otherwise make the merge join on fewer columns than intended and give
+wrong ids. Set ``allow_duplicate_keys`` to ``true`` only for a merge that is meant to give several rows per location.
 
 .. code-block:: JSON
 

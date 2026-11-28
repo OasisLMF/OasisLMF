@@ -336,6 +336,20 @@ class _MergeTable:
                         time.perf_counter() - start, _memory_usage())
         return index
 
+    def duplicated_keys(self, file_keys, limit=5):
+        """Up to limit key values (as dicts) held by more than one row of the table, [] if the keys are unique.
+
+        Uses the index built for rows_matching, whose uniqueness is worked out once per set of keys.
+        """
+        try:
+            if self.key_index(file_keys).is_unique:
+                return []
+        except (TypeError, ValueError):  # keys that can't be indexed: check the table itself
+            if not self.df.duplicated(list(file_keys)).any():
+                return []
+        keys = self.df[list(file_keys)]
+        return keys[keys.duplicated()].drop_duplicates().head(limit).to_dict('records')
+
     def rows_matching(self, file_keys, location_keys):
         """The table rows whose file_keys values are a row of location_keys, in table order.
 
@@ -1183,14 +1197,18 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             function: function combining all strategies
         """
         if logical_type.lower() == 'or':
+            warned = set()  # the steps already reported as skipped, so the warning isn't repeated for every chunk
+
             def fct(locations):
                 initial_columns = locations.columns
                 result = []
                 for i, child_strategy in enumerate(strategy):
                     if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
-                        logger.warning("combine: skipping step %s, missing columns %s",
-                                       child_strategy.get('name', i),
-                                       sorted(child_strategy['columns'].difference(locations.columns)))
+                        missing = sorted(child_strategy['columns'].difference(locations.columns))
+                        if (child_strategy.get('name', i), tuple(missing)) not in warned:
+                            warned.add((child_strategy.get('name', i), tuple(missing)))
+                            logger.warning("combine: skipping step %s, missing columns %s",
+                                           child_strategy.get('name', i), missing)
                         continue
                     locations = child_strategy['function'](locations)
                     locations = Lookup.set_id_columns(locations, id_columns)
@@ -1987,7 +2005,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         return h3_lookup
 
-    def build_merge(self, file_path, id_columns=[], file_type='csv', join_columns=None, **kwargs):
+    def build_merge(self, file_path, id_columns=[], file_type='csv', join_columns=None, allow_duplicate_keys=False,
+                    **kwargs):
         """Merges the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
 
@@ -1999,6 +2018,12 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         have but that must not be matched on. With ``join_columns``, any other column in both
         the file and the locations keeps its locations value, except ``id_columns``, which take
         the file's value.
+
+        The file must have at most one row per value of the columns the merge joins on, as each
+        location would otherwise be duplicated, once per matching row: the merge raises an
+        OasisException naming the duplicated keys. This also catches a file that lacks one of the
+        intended key columns, so that the merge joins on fewer columns than it should. Set
+        ``allow_duplicate_keys`` to ``True`` for a merge meant to give several rows per location.
 
         If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
 
@@ -2025,6 +2050,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"Table columns: {sorted(df_to_merge.columns)}")
             id_columns_lower = {col.lower() for col in id_columns}
 
+        def check_unique(file_keys):
+            if allow_duplicate_keys:
+                return
+            duplicated = table.duplicated_keys(file_keys)
+            if duplicated:
+                raise OasisException(
+                    f"merge step: '{file_path}' has more than one row for some values of the columns the merge "
+                    f"joins on {list(file_keys)}, so each matching location would be duplicated, once per row. "
+                    f"Duplicated keys (up to 5): {duplicated}. Table columns: {sorted(df_to_merge.columns)}. "
+                    f"If the file is meant to be joined on more columns, make sure the locations have them under "
+                    f"the same names (and that the step lists them in its 'columns'), or remove the duplicated "
+                    f"rows. Set 'allow_duplicate_keys': true if several rows per location are intended.")
+
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
             if not rename_map:
@@ -2036,6 +2074,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if join_columns is None:
                 logger.debug("merge step: joining on %s", sorted(rename_map.values()))
                 file_keys = tuple(sorted(rename_map))
+                check_unique(file_keys)
                 rows = table.rows_matching(file_keys, locations[[rename_map[col] for col in file_keys]])
                 logger.debug("merge step: %d locations, %d of the table's %d rows can match",
                              len(locations), len(rows), len(df_to_merge))
@@ -2046,7 +2085,9 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if missing_in_locations:
                 raise OasisException(
                     f"merge step: join_columns {missing_in_locations} not found in the locations. "
-                    f"Location columns available to this step: {sorted(locations.columns)}")
+                    f"Location columns available to this step: {sorted(locations.columns)}. "
+                    f"Location columns that no step lists in its 'columns' (or 'optional_columns') are dropped "
+                    f"before the steps run: if the location file has them, add them to this step's 'columns'.")
             # columns in both that aren't join keys: id_columns come from the file, the rest stay as in locations
             shared = [col for col in rename_map if col not in join_columns]
             from_file = [col for col in shared if col in id_columns_lower]
@@ -2054,6 +2095,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             on = [rename_map[col] for col in join_columns]
             logger.debug("merge step: joining on %s", on)
             file_keys = tuple(sorted(join_columns))
+            check_unique(file_keys)
             rows = table.rows_matching(file_keys, locations[[rename_map[col] for col in file_keys]])
             logger.debug("merge step: %d locations, %d of the table's %d rows can match",
                          len(locations), len(rows), len(df_to_merge))
@@ -2062,8 +2104,13 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return self.set_id_columns(locations, id_columns)
         return merge
 
-    def _merge_settings(self, file_path, id_columns=[], file_type='csv', join_columns=None, **kwargs):
+    def _merge_settings(self, file_path, id_columns=[], file_type='csv', join_columns=None, allow_duplicate_keys=False,
+                        **kwargs):
         """Resolve build_merge's parameters.
+
+        The step options that don't affect how the file is read (allow_duplicate_keys) are left
+        out of read_kwargs, so they are neither passed to the read function nor part of the key
+        of the data shared with the lookup workers.
 
         Returns:
             (abs_path, file_type, read_kwargs, join_columns): join_columns lower-cased, or None.
