@@ -336,6 +336,20 @@ class _MergeTable:
                         time.perf_counter() - start, _memory_usage())
         return index
 
+    def duplicated_keys(self, file_keys, limit=5):
+        """Up to limit key values (as dicts) held by more than one row of the table, [] if the keys are unique.
+
+        Uses the index built for rows_matching, whose uniqueness is worked out once per set of keys.
+        """
+        try:
+            if self.key_index(file_keys).is_unique:
+                return []
+        except (TypeError, ValueError):  # keys that can't be indexed: check the table itself
+            if not self.df.duplicated(list(file_keys)).any():
+                return []
+        keys = self.df[list(file_keys)]
+        return keys[keys.duplicated()].drop_duplicates().head(limit).to_dict('records')
+
     def rows_matching(self, file_keys, location_keys):
         """The table rows whose file_keys values are a row of location_keys, in table order.
 
@@ -960,8 +974,64 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                 step_config['parameters']['strategy'] = functions
 
             step_function = getattr(self, f"build_{step_config['type']}")(**step_config['parameters'])
+            self._log_merge_columns_not_in_file(step_name, step_config, step_function)
             setattr(self, step_name, step_function)
         return step_function
+
+    @staticmethod
+    def _log_merge_columns_not_in_file(step_name, step_config, step_function):
+        """Say which of a merge step's 'columns' its file doesn't have, so it won't join on them.
+
+        Not an error: a step can list a column for another reason than joining on it. A file
+        missing a column it should be joined on is caught by the merge's duplicated keys check.
+        """
+        table_columns = getattr(step_function, 'table_columns', None)
+        if table_columns is None:
+            return
+        not_in_file = [col for col in step_config.get('columns', []) if col.lower() not in table_columns]
+        if not_in_file:
+            logger.info("merge step %s: its file has no column %s, so the merge doesn't join on %s. File columns: %s",
+                        step_name, not_in_file, "it" if len(not_in_file) == 1 else "them", sorted(table_columns))
+
+    @staticmethod
+    def _align_column_case(locations, columns):
+        """Rename the location columns that match one of columns ignoring case to that spelling.
+
+        Each column keeps one spelling, the one the step about to use it gives, so a step naming
+        ``BuildingType`` finds a ``buildingtype`` column an earlier step added. A column already
+        present with the exact spelling, or matched by several columns, is left as it is.
+        """
+        present = set(locations.columns)
+        by_lower = {}
+        for col in locations.columns:
+            by_lower.setdefault(col.lower(), []).append(col)
+        rename = {}
+        for col in columns:
+            matches = by_lower.get(col.lower(), [])
+            if col not in present and len(matches) == 1 and matches[0] not in rename:
+                rename[matches[0]] = col
+        return locations.rename(columns=rename) if rename else locations
+
+    @staticmethod
+    def _resolve_column_case(locations, columns):
+        """columns, each under the spelling the locations have it in if it is there ignoring case."""
+        by_lower = {col.lower(): col for col in locations.columns}
+        return [col if col in locations.columns else by_lower.get(col.lower(), col) for col in columns]
+
+    def _warn_case_clashes(self, step_name, locations):
+        """Warn about columns that differ only by capitalisation after a step.
+
+        Each set of such columns is reported once per lookup, not again for every chunk of locations or later step.
+        """
+        by_lower = {}
+        for col in locations.columns:
+            by_lower.setdefault(col.lower(), []).append(col)
+        warned = self.__dict__.setdefault('_case_clash_warned', set())
+        clashes = [cols for cols in by_lower.values() if len(cols) > 1 and tuple(cols) not in warned]
+        if clashes:
+            warned.update(tuple(cols) for cols in clashes)
+            logger.warning("lookup step %s: the locations have columns that differ only by capitalisation %s. "
+                           "Name each column with one spelling in every step of the lookup config", step_name, clashes)
 
     def process_locations(self, locations):
         missing = [key for key in ('step_definition', 'strategy') if not self.config.get(key)]
@@ -989,17 +1059,22 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         for step_name in self.config["strategy"]:
             step_config = self.config['step_definition'][step_name]
             needed_column = set(step_config.get("columns", []))
+            # a column an earlier step added may be spelt differently: give it this step's spelling
+            locations = self._align_column_case(
+                locations, sorted(needed_column) + self.step_optional_columns(step_config, geog_slots=False))
             if not needed_column.issubset(locations.columns):
                 raise OasisException(
                     f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
             step_function = self.set_step_function(step_name, step_config)
             locations = step_function(locations)
+            self._warn_case_clashes(step_name, locations)
 
         key_columns = [
             'loc_id', 'peril_id', 'coverage_type', 'area_peril_id',
             'vulnerability_id', 'status', 'message'
         ]
         additional_columns = ['amplification_id', 'model_data', 'section_id', 'intensity_adjustment', 'return_period']
+        locations = self._align_column_case(locations, key_columns + additional_columns)
         for col in additional_columns:
             if col in locations.columns:
                 key_columns += [col]
@@ -1183,14 +1258,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             function: function combining all strategies
         """
         if logical_type.lower() == 'or':
+            warned = set()  # the steps already reported as skipped, so the warning isn't repeated for every chunk
+
             def fct(locations):
+                locations = Lookup._align_column_case(locations, sorted(set().union(*(s['columns'] for s in strategy))))
                 initial_columns = locations.columns
                 result = []
                 for i, child_strategy in enumerate(strategy):
                     if not child_strategy['columns'].issubset(locations.columns):  # needed column not present to run this strategy
-                        logger.warning("combine: skipping step %s, missing columns %s",
-                                       child_strategy.get('name', i),
-                                       sorted(child_strategy['columns'].difference(locations.columns)))
+                        missing = sorted(child_strategy['columns'].difference(locations.columns))
+                        if (child_strategy.get('name', i), tuple(missing)) not in warned:
+                            warned.add((child_strategy.get('name', i), tuple(missing)))
+                            logger.warning("combine: skipping step %s, missing columns %s",
+                                           child_strategy.get('name', i), missing)
                         continue
                     locations = child_strategy['function'](locations)
                     locations = Lookup.set_id_columns(locations, id_columns)
@@ -1204,6 +1284,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         elif logical_type.lower() == 'and':
             def fct(locations):
+                locations = Lookup._align_column_case(locations, sorted(set().union(*(s['columns'] for s in strategy))))
                 initial_columns = locations.columns
                 result = []
                 for i, child_strategy in enumerate(strategy):
@@ -1382,6 +1463,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         def prepare(locations):
             for column_name, preparations in kwargs.items():
+                # a column present under another capitalisation is this one: take this spelling
+                locations = Lookup._align_column_case(locations, [column_name])
                 if "default" in preparations:
                     if column_name not in locations.columns:
                         locations[column_name] = preparations["default"]
@@ -1408,8 +1491,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     if column_name not in locations.columns:
                         raise OasisException(
                             f"prepare step: cannot rename missing column '{column_name}' to '{new_name}'")
-                    locations = (locations.drop(columns=new_name, errors='ignore')
-                                 .rename(columns={column_name: new_name}))
+                    replaced = [col for col in locations.columns if col.lower() == new_name.lower() and col != column_name]
+                    locations = locations.drop(columns=replaced).rename(columns={column_name: new_name})
             return locations
         return prepare
 
@@ -1987,7 +2070,10 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         return h3_lookup
 
-    def build_merge(self, file_path, id_columns=[], file_type='csv', join_columns=None, **kwargs):
+    MERGE_INDICATOR = '_oasis_merge_matched'
+
+    def build_merge(self, file_path, id_columns=[], file_type='csv', join_columns=None, allow_duplicate_keys=False,
+                    on_missing='null', **kwargs):
         """Merges the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
 
@@ -2000,6 +2086,19 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         the file and the locations keeps its locations value, except ``id_columns``, which take
         the file's value.
 
+        The file must have at most one row per value of the columns the merge joins on, as each
+        location would otherwise be duplicated, once per matching row: the merge raises an
+        OasisException naming the duplicated keys. This also catches a file that lacks one of the
+        intended key columns, so that the merge joins on fewer columns than it should. Set
+        ``allow_duplicate_keys`` to ``True`` for a merge meant to give several rows per location.
+
+        ``on_missing`` sets what happens to the locations that match no row of the file, named like
+        ``geog_lookup``'s option: ``'null'`` (default) leaves their merged columns null (and their
+        ``id_columns`` -1), ``'error'`` raises, and a dict ``{'status': ..., 'message': ...}`` also
+        sets their status (a key of OASIS_KEYS_STATUS, e.g. ``'notmodelled'``) and message (by
+        default "no match in <file_path>"). Only locations still at ``success`` get it, so a status
+        an earlier step set (e.g. ``notmodelled`` from split_loc_perils_covered) is kept.
+
         If the join value is held in an OED GeogName column by scheme, add a 'geog_lookup' step first.
 
         Memory: the file is read once per lookup, and indexed by its join columns. When keys are
@@ -2010,6 +2109,8 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         abs_path, file_type, read_kwargs, join_columns = self._merge_settings(
             file_path, id_columns, file_type, join_columns, **kwargs)
+        on_missing = self._merge_on_missing(on_missing, file_path)
+        indicator = self.MERGE_INDICATOR if on_missing is not None else False
         table = _SHARED_STEP_DATA.get(_shared_data_key('merge', abs_path, file_type, read_kwargs))
         if table is None:
             table = self._read_merge_table(abs_path, file_type, read_kwargs)
@@ -2025,6 +2126,40 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
                     f"Table columns: {sorted(df_to_merge.columns)}")
             id_columns_lower = {col.lower() for col in id_columns}
 
+        def check_unique(file_keys):
+            if allow_duplicate_keys:
+                return
+            duplicated = table.duplicated_keys(file_keys)
+            if duplicated:
+                raise OasisException(
+                    f"merge step: '{file_path}' has more than one row for some values of the columns the merge "
+                    f"joins on {list(file_keys)}, so each matching location would be duplicated, once per row. "
+                    f"Duplicated keys (up to 5): {duplicated}. Table columns: {sorted(df_to_merge.columns)}. "
+                    f"If the file is meant to be joined on more columns, make sure the locations have them under "
+                    f"the same names (and that the step lists them in its 'columns'), or remove the duplicated "
+                    f"rows. Set 'allow_duplicate_keys': true if several rows per location are intended.")
+
+        def set_missing(locations, on):
+            """Apply on_missing to the locations the merge didn't match, and drop the merge indicator."""
+            if on_missing is None:
+                return locations
+            missing = (locations[indicator] == 'left_only').to_numpy()
+            locations = locations.drop(columns=indicator)
+            if not missing.any():
+                return locations
+            if on_missing == 'error':
+                raise OasisException(
+                    f"merge step: {missing.sum()} location(s) match no row of '{file_path}' on {on}, e.g. "
+                    f"{locations.loc[missing, on].drop_duplicates().head(5).to_dict('records')}")
+            if 'status' not in locations.columns:
+                locations['status'] = OASIS_KEYS_STATUS['success']['id']
+            if 'message' not in locations.columns:
+                locations['message'] = ''
+            missing = missing & (locations['status'] == OASIS_KEYS_STATUS['success']['id']).to_numpy()
+            locations.loc[missing, 'status'] = on_missing['status']
+            locations.loc[missing, 'message'] = on_missing['message']
+            return locations
+
         def merge(locations: pd.DataFrame):
             rename_map = {col.lower(): col for col in locations.columns if col.lower() in df_to_merge.columns}
             if not rename_map:
@@ -2036,17 +2171,21 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             if join_columns is None:
                 logger.debug("merge step: joining on %s", sorted(rename_map.values()))
                 file_keys = tuple(sorted(rename_map))
+                check_unique(file_keys)
                 rows = table.rows_matching(file_keys, locations[[rename_map[col] for col in file_keys]])
                 logger.debug("merge step: %d locations, %d of the table's %d rows can match",
                              len(locations), len(rows), len(df_to_merge))
-                locations = locations.merge(rows.rename(columns=rename_map), how='left')
-                return self.set_id_columns(locations, id_columns)
+                locations = locations.merge(rows.rename(columns=rename_map), how='left', indicator=indicator)
+                locations = set_missing(locations, [rename_map[col] for col in file_keys])
+                return self.set_id_columns(locations, self._resolve_column_case(locations, id_columns))
 
             missing_in_locations = [col for col in join_columns if col not in rename_map]
             if missing_in_locations:
                 raise OasisException(
                     f"merge step: join_columns {missing_in_locations} not found in the locations. "
-                    f"Location columns available to this step: {sorted(locations.columns)}")
+                    f"Location columns available to this step: {sorted(locations.columns)}. "
+                    f"Location columns that no step lists in its 'columns' (or 'optional_columns') are dropped "
+                    f"before the steps run: if the location file has them, add them to this step's 'columns'.")
             # columns in both that aren't join keys: id_columns come from the file, the rest stay as in locations
             shared = [col for col in rename_map if col not in join_columns]
             from_file = [col for col in shared if col in id_columns_lower]
@@ -2054,16 +2193,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             on = [rename_map[col] for col in join_columns]
             logger.debug("merge step: joining on %s", on)
             file_keys = tuple(sorted(join_columns))
+            check_unique(file_keys)
             rows = table.rows_matching(file_keys, locations[[rename_map[col] for col in file_keys]])
             logger.debug("merge step: %d locations, %d of the table's %d rows can match",
                          len(locations), len(rows), len(df_to_merge))
             locations = locations.drop(columns=[rename_map[col] for col in from_file]).merge(
-                rows.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left')
-            return self.set_id_columns(locations, id_columns)
+                rows.drop(columns=from_locations).rename(columns=rename_map), on=on, how='left', indicator=indicator)
+            locations = set_missing(locations, on)
+            return self.set_id_columns(locations, self._resolve_column_case(locations, id_columns))
+        merge.table_columns = frozenset(df_to_merge.columns)
         return merge
 
-    def _merge_settings(self, file_path, id_columns=[], file_type='csv', join_columns=None, **kwargs):
+    def _merge_settings(self, file_path, id_columns=[], file_type='csv', join_columns=None, allow_duplicate_keys=False,
+                        on_missing='null', **kwargs):
         """Resolve build_merge's parameters.
+
+        The step options that don't affect how the file is read (allow_duplicate_keys, on_missing) are left
+        out of read_kwargs, so they are neither passed to the read function nor part of the key
+        of the data shared with the lookup workers.
 
         Returns:
             (abs_path, file_type, read_kwargs, join_columns): join_columns lower-cased, or None.
@@ -2073,6 +2220,24 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         if join_columns is not None:
             join_columns = [col.lower() for col in join_columns]
         return self.to_abs_filepath(file_path), file_type, kwargs, join_columns
+
+    @staticmethod
+    def _merge_on_missing(on_missing, file_path):
+        """Check build_merge's on_missing: None for 'null', 'error', or {'status': status id, 'message': str}."""
+        if on_missing is None or on_missing == 'null':
+            return None
+        if on_missing == 'error':
+            return on_missing
+        if not isinstance(on_missing, dict) or 'status' not in on_missing or set(on_missing) - {'status', 'message'}:
+            raise OasisException(
+                f"merge step: on_missing must be 'null', 'error' or a dict with a 'status' and optionally a "
+                f"'message', got {on_missing!r}")
+        if on_missing['status'] not in OASIS_KEYS_STATUS:
+            raise OasisException(
+                f"merge step: on_missing status {on_missing['status']!r} is not a valid status, must be one of "
+                f"{sorted(OASIS_KEYS_STATUS)}")
+        return {'status': OASIS_KEYS_STATUS[on_missing['status']]['id'],
+                'message': str(on_missing.get('message', f"no match in {file_path}"))}
 
     @staticmethod
     def _read_merge_table(abs_path, file_type, read_kwargs):

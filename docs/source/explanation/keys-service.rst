@@ -307,9 +307,14 @@ cope with it being absent (for instance a ``prepare`` step giving it a ``default
 
 A ``geog_lookup`` step treats the ``GeogScheme{N}``/``GeogName{N}`` slots it scans as optional automatically.
 
-Column names are matched to the location file ignoring case, but each column is passed to the steps under a single
-spelling, so every step must name it the same way in ``columns`` and ``optional_columns`` (e.g. not ``Latitude`` in
-one step and ``latitude`` in another). The lookup raises an error if they differ.
+Column names are matched ignoring case, but each column is passed to the steps under a single spelling, so every step
+must name a location file column the same way in ``columns`` and ``optional_columns`` (e.g. not ``Latitude`` in one
+step and ``latitude`` in another). The lookup raises an error if they differ. Columns added by steps are matched
+ignoring case too: a step whose ``columns`` lists ``BuildingType`` finds a ``buildingtype`` column added by an earlier
+step, and gets it as ``BuildingType``; a ``prepare`` step naming ``BuildingType`` works on an existing
+``buildingtype`` column rather than adding a second one; a ``merge`` step's ``id_columns`` and ``join_columns`` match
+whatever capitalisation the columns have. If a step still leaves two columns whose names differ only by
+capitalisation, a warning names them. Using lower-case names throughout the config avoids any doubt.
 
 |
 
@@ -337,6 +342,16 @@ and one using postcode.
    * ``'and'``: each strategy is applied sequentially, only on the locations that succeeded (i.e.
      have a valid id) in the preceding strategy. ``id_columns`` must then be a list of lists, one
      sublist of columns checked per strategy step.
+
+With ``'or'``, a strategy whose own ``columns`` are missing from the locations is skipped, with a warning logged once
+per strategy, so the next strategy can act as a fallback. With ``'and'``, every strategy is required, so a strategy
+whose own ``columns`` are missing raises an error.
+
+.. note::
+   Before oasislmf 2.5.9, the ``'and'`` combine checked its parent step's ``columns`` rather than each strategy's own,
+   so a strategy declaring a column the location file lacks still ran (and usually failed with a ``KeyError`` or gave
+   no id). It now raises an ``OasisException`` naming the strategy and the missing columns. List a column the
+   location file may not have in the strategy's ``optional_columns`` instead of ``columns``.
 
 'or' example (note: ``id_columns`` is a list)::
 
@@ -603,6 +618,32 @@ Config example::
 
 |
 
+* **geog_lookup**
+
+Resolves an OED value held by scheme in the ``GeogScheme{N}``/``GeogName{N}`` column pairs into a single column, so a
+later ``merge`` step can join on it. Where ``GeogScheme{N}`` equals ``geog_scheme``, ``GeogName{N}`` is copied into
+``output_column``; the lowest-numbered matching slot wins. The slots are kept automatically and are optional.
+
+``geog_scheme``: the OED ``GeogScheme`` value to resolve (e.g. ``W3W``).
+
+``output_column``: the column to write the resolved value into.
+
+``slots``: highest slot number ``N`` to scan. Defaults to 30.
+
+``case_insensitive``: match the scheme ignoring case and surrounding whitespace. Defaults to ``true``.
+
+``on_missing``: what to do with locations that have no slot with that scheme: ``'null'`` (default) leaves
+``output_column`` null, ``'error'`` raises an error. See also ``merge``'s ``on_missing``, which also accepts a status.
+
+.. code-block:: JSON
+
+   "w3w": {
+       "type": "geog_lookup",
+       "parameters": {"geog_scheme": "W3W", "output_column": "w3w", "on_missing": "null"}
+   }
+
+|
+
 * **merge**
 
 This method will merge the locations Dataframe with the Dataframe present in ``file_path``.
@@ -621,10 +662,42 @@ This is an efficient way to map a combination of columns that have a finite scop
 column name the file and the locations have in common, including columns only declared by other steps. Set this to
 reuse a file that carries a column the locations also have but that must not be matched on, for example a
 vulnerability dict built for France (``CountryCode`` = ``FR``) on a German model. Any other column present in both
-keeps its locations value, except ``id_columns``, which take the file's value. The file must have at most one row
-per combination of ``join_columns``; otherwise each matching location is duplicated, once per row. For example, a
-dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupancy can't be joined without
-``CountryCode``.
+keeps its locations value, except ``id_columns``, which take the file's value.
+
+``allow_duplicate_keys`` (optional, default ``false``): the file must have at most one row per value of the columns
+the merge joins on (``join_columns``, or by default the columns the file and the locations have in common), because
+each matching location would otherwise be duplicated, once per row. The merge raises an error naming the duplicated
+keys. For example, a dict holding both ``FR`` and ``IT`` rows for the same peril, coverage and occupancy can't be
+joined without ``CountryCode``. The check also catches a file that lacks one of the key columns (or names it
+differently from the locations), which would otherwise make the merge join on fewer columns than intended and give
+wrong ids. Set ``allow_duplicate_keys`` to ``true`` only for a merge that is meant to give several rows per location.
+
+``on_missing`` (optional): what to do with locations that match no row of the file. The name and the first two values
+are the same as ``geog_lookup``'s ``on_missing``:
+
+   * ``'null'`` (default): their columns from the file stay null and their ``id_columns`` are set to -1.
+   * ``'error'``: raise an error naming some of the unmatched keys.
+   * ``{"status": ..., "message": ...}``: as ``'null'``, and also set their status (one of the statuses listed in the
+     Status section above, e.g. ``notmodelled``) and message. ``message`` is optional and defaults to
+     ``no match in <file_path>``. Only locations still at ``success`` are changed, so a status an earlier step set
+     (for example ``notmodelled`` from ``split_loc_perils_covered``) is kept.
+
+For example, to mark the locations in a country the model doesn't cover, without a ``set_status`` step or a table of
+every other country:
+
+.. code-block:: JSON
+
+   "modelled_countries": {
+       "type": "merge",
+       "columns": ["countrycode"],
+       "parameters": {
+           "file_path": "%%KEYS_DATA_PATH%%/modelled_countries.csv",
+           "on_missing": {"status": "notmodelled", "message": "country not covered by the model"}
+       }
+   }
+
+A column listed in the step's ``columns`` that the file doesn't have is not joined on. This is not an error, since a
+step can list a column for another reason, but it is logged (at ``INFO`` level) when the step is built.
 
 .. code-block:: JSON
 
