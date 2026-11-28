@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import json
 import re
+import sys
 import time
 
 from ..utils.exceptions import OasisException
@@ -205,8 +206,9 @@ def run(analysis_settings,
     #
     # If `given_gulcalc_cmd` is set then always run as a complex model
     # and raise an exception when not found in PATH
+    env = kernel_env()
     if custom_gulcalc_cmd:
-        if not shutil.which(custom_gulcalc_cmd):
+        if not shutil.which(custom_gulcalc_cmd, path=env['PATH']):
             raise OasisException(
                 'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
             )
@@ -216,7 +218,7 @@ def run(analysis_settings,
         inferred_gulcalc_cmd = "{}_{}_gulcalc".format(
             analysis_settings.get('model_supplier_id'),
             analysis_settings.get('model_name_id'))
-        if shutil.which(inferred_gulcalc_cmd):
+        if shutil.which(inferred_gulcalc_cmd, path=env['PATH']):
             custom_gulcalc_cmd = inferred_gulcalc_cmd
 
     check_custom_gulcalc_can_read_inputs(
@@ -276,7 +278,7 @@ def run(analysis_settings,
         poll_interval=resource_monitor_interval,
         enabled=not disable_resource_report,
     )
-    proc = subprocess.Popen(['bash', filename], stdout=subprocess.PIPE)
+    proc = subprocess.Popen(['bash', filename], stdout=subprocess.PIPE, env=env)
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
     monitor.stop()
@@ -296,6 +298,22 @@ def run(analysis_settings,
         ) from e
 
 
+def kernel_env(environ=None):
+    """Environment for the kernel scripts: os.environ with the running Python's bin directory on PATH.
+
+    The kernel tools (evepy, gulmc, fmpy, oasis_exec_monitor.sh, ...) are installed next to the python running
+    oasislmf. Calling a venv's oasislmf by its full path without activating the venv left them off PATH, so every
+    command in run_kernel.sh failed and the run hung (#2285). The directory is only added if PATH doesn't
+    already contain it, so an activated environment runs exactly as before.
+    """
+    env = dict(os.environ if environ is None else environ)
+    bin_dir = os.path.dirname(sys.executable)
+    path_dirs = env.get('PATH', '').split(os.pathsep) if env.get('PATH') else []
+    if bin_dir and bin_dir not in path_dirs:
+        env['PATH'] = os.pathsep.join([bin_dir] + path_dirs)
+    return env
+
+
 # matches a trailing output redirect (e.g. `> /path/to/fifo` or `2>> log/err`)
 STALE_REDIRECT_RE = re.compile(r'\s*\d*>>?\s*\S+$')
 
@@ -310,7 +328,7 @@ def rerun():
     except FileNotFoundError:
         return
 
-    env = os.environ.copy()
+    env = kernel_env()
     env['NUMBA_DISABLE_JIT'] = "1"
     eve_cmd = f"printf 'event_id\n {event_error}\n' | csvtobin eve"
     kernel_pipeline = ''
@@ -370,7 +388,7 @@ def run_analysis(**params):
     monitor_dir = os.path.join(log_root, str(process_number)) if process_number else log_root
     monitor = ResourceMonitor(output_dir=monitor_dir, poll_interval=resource_monitor_interval, generate_report=False,
                               enabled=not disable_resource_report)
-    proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
+    proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE, env=kernel_env())
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
     monitor.stop()
@@ -410,7 +428,7 @@ def run_outputs(**params):
     log_root = os.path.join(run_dir, 'log')
     monitor = ResourceMonitor(output_dir=os.path.join(log_root, 'out'), poll_interval=resource_monitor_interval,
                               log_root=log_root, enabled=not disable_resource_report)
-    proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE)
+    proc = subprocess.Popen(['bash', params['filename']], stdout=subprocess.PIPE, env=kernel_env())
     monitor.start(proc.pid)
     stdout, _ = proc.communicate()
     monitor.stop()

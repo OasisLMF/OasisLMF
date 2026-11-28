@@ -568,3 +568,76 @@ class TestRunCustomGulcalcCommand(TestCase):
                                                             custom_get_getmodel_cmd=caller_builder)
 
         self.assertIs(getmodel_cmd, caller_builder)
+
+
+class TestKernelEnv(TestCase):
+    """#2285: the kernel tools sit next to the running python, so its bin directory goes on PATH."""
+
+    def setUp(self):
+        self.tmp = TemporaryDirectory()
+        self.bin_dir = os.path.join(self.tmp.name, 'venv', 'bin')
+        os.makedirs(self.bin_dir)
+        patcher = mock.patch.object(runner.sys, 'executable', os.path.join(self.bin_dir, 'python'))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_bin_dir_prepended_when_missing(self):
+        env = runner.kernel_env({'PATH': os.pathsep.join(['/usr/bin', '/bin']), 'OTHER': 'x'})
+        self.assertEqual(env['PATH'], os.pathsep.join([self.bin_dir, '/usr/bin', '/bin']))
+        self.assertEqual(env['OTHER'], 'x')
+
+    def test_path_unchanged_when_bin_dir_already_on_it(self):
+        path = os.pathsep.join(['/opt/tools', self.bin_dir, '/usr/bin'])
+        self.assertEqual(runner.kernel_env({'PATH': path})['PATH'], path)
+
+    def test_empty_or_missing_path(self):
+        self.assertEqual(runner.kernel_env({'PATH': ''})['PATH'], self.bin_dir)
+        self.assertEqual(runner.kernel_env({})['PATH'], self.bin_dir)
+
+    def test_os_environ_not_modified(self):
+        before = dict(os.environ)
+        runner.kernel_env()
+        self.assertEqual(dict(os.environ), before)
+
+    def test_bash_script_finds_tool_in_bin_dir(self):
+        tool = os.path.join(self.bin_dir, 'fake_kernel_tool')
+        with open(tool, 'w') as f:
+            f.write('#!/bin/sh\necho kernel tool ran\n')
+        os.chmod(tool, 0o755)
+        env = runner.kernel_env({'PATH': '/usr/bin:/bin'})
+        result = subprocess.run(['bash', '-c', 'fake_kernel_tool'], env=env, capture_output=True, text=True)
+        self.assertEqual(result.stdout.strip(), 'kernel tool ran')
+
+    def test_run_passes_kernel_env_to_script_and_gulcalc_lookup(self):
+        proc = mock.Mock(pid=1, returncode=0)
+        proc.communicate.return_value = (b'', None)
+        with mock.patch.dict(os.environ, {'PATH': '/usr/bin:/bin'}), \
+                mock.patch('oasislmf.execution.runner.genbash'), \
+                mock.patch('oasislmf.execution.runner.ResourceMonitor'), \
+                mock.patch('oasislmf.execution.runner.shutil.which', return_value=None) as which, \
+                mock.patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc) as popen, \
+                mock.patch('oasislmf.execution.runner._ensure_pytool_logs_complete'):
+            runner.run({'model_supplier_id': 's', 'model_name_id': 'm'},
+                       filename=os.path.join(self.tmp.name, 'run_kernel.sh'))
+        expected_path = os.pathsep.join([self.bin_dir, '/usr/bin', '/bin'])
+        self.assertEqual(popen.call_args.kwargs['env']['PATH'], expected_path)
+        which.assert_called_once_with('s_m_gulcalc', path=expected_path)
+
+    def test_run_analysis_and_run_outputs_pass_kernel_env(self):
+        proc = mock.Mock(pid=1, returncode=0)
+        proc.communicate.return_value = (b'', None)
+        params = dict(filename=os.path.join(self.tmp.name, 'run.sh'), bash_trace=False, stderr_guard=False,
+                      fifo_queue_dir='fifo/', disable_resource_report=True)
+        with mock.patch.dict(os.environ, {'PATH': '/usr/bin'}), \
+                mock.patch('oasislmf.execution.runner.bash_wrapper'), \
+                mock.patch('oasislmf.execution.runner.create_bash_analysis', return_value=1), \
+                mock.patch('oasislmf.execution.runner.create_bash_outputs', return_value=1), \
+                mock.patch('oasislmf.execution.runner.ResourceMonitor'), \
+                mock.patch('oasislmf.execution.runner.subprocess.Popen', return_value=proc) as popen, \
+                mock.patch('oasislmf.execution.runner._ensure_pytool_logs_complete'):
+            runner.run_analysis(**dict(params))
+            runner.run_outputs(**dict(params))
+        for call in popen.call_args_list:
+            self.assertEqual(call.kwargs['env']['PATH'], os.pathsep.join([self.bin_dir, '/usr/bin']))
+        self.assertEqual(popen.call_count, 2)
