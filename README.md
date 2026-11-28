@@ -66,7 +66,7 @@ The reusable libraries are organised into several sub-packages, the most relevan
 
 Starting from 1st January 2019, Pandas will no longer be supporting Python 2. As Pandas is a key dependency of the MDK we are **dropping Python 2 (2.7) support** as of this release (1.3.4). The last version which still supports Python 2.7 is version `1.3.3` (published 12/03/2019).
 
-Also for this release (and all future releases) a **minimum of Python 3.10 is required**.
+Also for this release (and all future releases) a **minimum of Python 3.11 is required**.
 
 
 ## Installation
@@ -104,7 +104,7 @@ Install one or more groups with, for example:
 
 OasisLMF installs natively on Apple Silicon Macs via `pip install oasislmf`. Ensure you have:
 
-- **Python 3.10+** (the system Python on macOS is 3.9 — install via `brew install python@3.12` or pyenv)
+- **Python 3.11+** (the system Python on macOS is 3.9 — install via `brew install python@3.12` or pyenv)
 - **macOS 12 (Monterey) or later** (required for scipy ARM64 wheels)
 
 For the optional spatial packages (`pip install "oasislmf[spatial]"`), also install:
@@ -205,7 +205,7 @@ To test the code style run:
 
     ruff check oasislmf/
 
-To run the unit tests (as CI does, on Python 3.10 - 3.14) run:
+To run the unit tests (as CI does, on Python 3.11 - 3.15) run:
 
     pytest -p no:flaky --ignore=fm_testing_tool --ignore=validation
 
